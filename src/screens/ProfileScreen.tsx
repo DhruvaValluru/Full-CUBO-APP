@@ -10,6 +10,7 @@ import type { AppColors } from '../theme/colors';
 import { spacing } from '../theme/theme';
 import { useProfile } from '../features/profile/ProfileContext';
 import { useVehicles } from '../features/vehicles/VehicleContext';
+import { useAuth } from '../features/auth/AuthContext';
 
 export function ProfileScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -20,6 +21,7 @@ export function ProfileScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [notifications, setNotifications] = useState(true);
   const [tripReports, setTripReports] = useState(true);
+  const { user, signOut } = useAuth();
 
   return <ScreenShell>
     <View style={styles.header}><View><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Profile and preferences</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs')} style={styles.homeButton}><Ionicons name="home-outline" size={20} color={colors.accent} /></Pressable></View>
@@ -55,6 +57,7 @@ export function ProfileScreen() {
       <SettingsRow icon="help-circle-outline" title="Help and feedback" onPress={() => navigation.navigate('SettingsDetail', { kind: 'help' })} colors={colors} styles={styles} />
       <SettingsRow icon="information-circle-outline" title="About CUBO" detail="Competition build 0.2" onPress={() => navigation.navigate('SettingsDetail', { kind: 'about' })} colors={colors} styles={styles} last />
     </View>
+    <Pressable onPress={() => void signOut()} style={styles.signOut}><Ionicons name="log-out-outline" size={18} color={colors.danger} /><View style={styles.fill}><Text style={styles.signOutText}>Log out</Text><Text style={styles.rowDetail}>{user?.email}</Text></View></Pressable>
   </ScreenShell>;
 }
 
@@ -71,5 +74,5 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   identity: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg, borderRadius: 20, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   avatar: { width: 52, height: 52, borderRadius: 18, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' }, avatarText: { color: colors.accent, fontWeight: '800' }, fill: { flex: 1 }, name: { color: colors.text, fontSize: 16, fontFamily: 'Manrope_700Bold', fontWeight: '700' }, meta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 }, action: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   section: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: spacing.lg, marginBottom: 4 },
-  group: { borderRadius: 18, paddingHorizontal: 14, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' }, row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 10 }, lastRow: { borderBottomWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, rowDetail: { color: colors.textSecondary, fontSize: 10, marginTop: 3 },
+  group: { borderRadius: 18, paddingHorizontal: 14, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' }, row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 10 }, lastRow: { borderBottomWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, rowDetail: { color: colors.textSecondary, fontSize: 10, marginTop: 3 }, signOut: { minHeight: 58, marginTop: spacing.lg, marginBottom: spacing.md, paddingHorizontal: 14, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.dangerSoft, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 12 }, signOutText: { color: colors.danger, fontFamily: 'Manrope_700Bold', fontSize: 13 },
 });

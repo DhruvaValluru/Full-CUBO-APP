@@ -13,6 +13,13 @@
           "locationWhenInUsePermission": "Allow CUBO to use your location during a drive to calculate speed, distance, and route history."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CUBO to access your photos so you can choose a profile picture.",
+          "microphonePermission": false
+        }
+      ],
       "expo-font",
       "expo-status-bar",
       [

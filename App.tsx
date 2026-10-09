@@ -4,7 +4,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
+import { useState } from 'react';
 
 import { PhoneFrame } from './src/components/PhoneFrame';
 import { TabBar } from './src/components/TabBar';
@@ -35,6 +37,9 @@ import { InsuranceProvider } from './src/features/insurance/InsuranceContext';
 import { FamilyScreen } from './src/screens/FamilyScreen';
 import { InsuranceConnectionScreen } from './src/screens/InsuranceConnectionScreen';
 import { MapScreen } from './src/screens/MapScreen';
+import { AuthProvider, useAuth } from './src/features/auth/AuthContext';
+import { AuthScreen } from './src/screens/AuthScreen';
+import { WelcomeScreen } from './src/screens/WelcomeScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -77,9 +82,13 @@ const MainTabs = () => {
 const Wrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
 function AppNavigation() {
+  const { user, loading } = useAuth();
+  const [hasStarted, setHasStarted] = useState(false);
   const { colors, mode } = useAppearance();
   const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
-  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!fontsLoaded || loading) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!hasStarted) return <WelcomeScreen onGetStarted={() => setHasStarted(true)} />;
+  if (!user) return <AuthScreen onBack={() => setHasStarted(false)} />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.gaugeProgress, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
   return (
         <DriveProvider>
@@ -111,10 +120,12 @@ function AppNavigation() {
 
 export default function App() {
   return (
-    <PhoneFrame>
-      <Wrapper style={{ flex: 1 }}>
-        <AppearanceProvider><ProfileProvider><VehicleProvider><DeviceProvider><FamilyProvider><InsuranceProvider><AppNavigation /></InsuranceProvider></FamilyProvider></DeviceProvider></VehicleProvider></ProfileProvider></AppearanceProvider>
-      </Wrapper>
-    </PhoneFrame>
+    <SafeAreaProvider>
+      <PhoneFrame>
+        <Wrapper style={{ flex: 1 }}>
+          <AppearanceProvider><AuthProvider><ProfileProvider><VehicleProvider><DeviceProvider><FamilyProvider><InsuranceProvider><AppNavigation /></InsuranceProvider></FamilyProvider></DeviceProvider></VehicleProvider></ProfileProvider></AuthProvider></AppearanceProvider>
+        </Wrapper>
+      </PhoneFrame>
+    </SafeAreaProvider>
   );
 }

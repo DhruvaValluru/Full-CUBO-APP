@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: authenticated Firebase Auth UID
+    // Fields:
+    //   uid: string, required, immutable, 20-128 characters
+    //   name: string, required, 1-80 characters
+    //   email: string, required, immutable, 3-254 characters
+    //   theme: string, required, either "light" or "dark"
+    //   createdAt: timestamp, required, immutable, server time on create
+    //   updatedAt: timestamp, required, server time on every write
+    // The document contains private PII and is readable only by its owner.
+    // ===============================================================
+
+    // Helper functions
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
+    function uidUnchanged() { return isAuthenticated() && request.resource.data.uid == request.auth.uid; }
+    function uidNotModified() { return isAuthenticated() && request.resource.data.uid == resource.data.uid; }
+    function isValidEmail(email) { return email is string && email.size() >= 3 && email.size() <= 254 && email.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$'); }
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 20 && data.uid.size() <= 128
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && isValidEmail(data.email)
+        && data.theme is string && data.theme in ['light', 'dark']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && uidUnchanged() && isValidUser(request.resource.data)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(userId) && uidNotModified() && isValidUser(request.resource.data)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
