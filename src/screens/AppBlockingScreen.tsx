@@ -102,7 +102,7 @@ function BlockingSplashModal({
 
 const ms = StyleSheet.create({
   root: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)' },
+  backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.9)' },
   center: { alignItems: 'center', paddingHorizontal: spacing.xl, maxWidth: 340 },
   burstWrap: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
   ring: {

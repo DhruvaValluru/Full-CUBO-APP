@@ -1,21 +1,33 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Fragment, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '../theme/colors';
+import { useDrives } from '../features/drives/DriveContext';
+import { useAppearance } from '../theme/AppearanceContext';
 
 const iconMap = {
-  Dashboard: 'speedometer-outline',
-  Insurance: 'shield-outline',
-  Vehicles: 'car-outline',
+  Home: 'home-outline',
+  Map: 'map-outline',
 } as const;
 
 export const TabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppearance();
+  const { activeSession } = useDrives();
+  const rippleScale = useRef(new Animated.Value(.35)).current;
+  const rippleOpacity = useRef(new Animated.Value(0)).current;
+  const startRipple = () => {
+    rippleScale.setValue(.35); rippleOpacity.setValue(.34);
+    Animated.parallel([
+      Animated.timing(rippleScale, { toValue: 2.15, duration: 520, useNativeDriver: true }),
+      Animated.timing(rippleOpacity, { toValue: 0, duration: 520, useNativeDriver: true }),
+    ]).start();
+  };
 
   return (
-    <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: colors.background, borderTopColor: colors.border }]}>
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const options = descriptors[route.key].options;
@@ -27,16 +39,22 @@ export const TabBar = ({ state, descriptors, navigation }: BottomTabBarProps) =>
           if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
         };
 
-        return (
-          <Pressable key={route.key} onPress={onPress} style={styles.item}>
+        const tab = <Pressable key={route.key} onPress={onPress} style={styles.item}>
             <Ionicons
               name={iconMap[route.name as keyof typeof iconMap]}
               size={20}
-              color={isFocused ? colors.gaugeProgress : colors.textTertiary}
+              color={isFocused ? colors.accent : colors.textTertiary}
             />
-            <Text style={[styles.label, isFocused && styles.labelActive]}>{label}</Text>
-          </Pressable>
-        );
+            <Text style={[styles.label, { color: isFocused ? colors.accent : colors.textTertiary }]}>{label}</Text>
+          </Pressable>;
+        if (index !== 0) return tab;
+        return <Fragment key={route.key}>{tab}<Pressable style={styles.driveItem} onPressIn={startRipple} onPress={() => navigation.getParent()?.navigate('LiveDrive' as never)}>
+          <View style={[styles.driveIcon, { backgroundColor: colors.accent }]}>
+            <Animated.View pointerEvents="none" style={[styles.ripple, { backgroundColor: colors.accent, opacity: rippleOpacity, transform: [{ scale: rippleScale }] }]} />
+            <Ionicons name={activeSession ? 'navigate' : 'play'} size={18} color={colors.onAccent} />
+          </View>
+          <Text style={[styles.label, { color: colors.text }]}>{activeSession ? 'Resume' : 'Start'}</Text>
+        </Pressable></Fragment>;
       })}
     </View>
   );
@@ -48,9 +66,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
     flexDirection: 'row',
     paddingTop: 8,
   },
@@ -61,13 +77,12 @@ const styles = StyleSheet.create({
     gap: 3,
     paddingVertical: 4,
   },
+  driveItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 2 },
+  driveIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
+  ripple: { position: 'absolute', width: 38, height: 38, borderRadius: 19 },
   label: {
-    color: colors.textTertiary,
     fontSize: 10,
     fontWeight: '500',
     letterSpacing: 0.3,
-  },
-  labelActive: {
-    color: colors.gaugeProgress,
   },
 });

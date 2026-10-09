@@ -42,7 +42,7 @@ export function CircularScoreRing({ score, size = 168, strokeWidth = 12 }: Props
 
 const styles = StyleSheet.create({
   scoreCenter: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

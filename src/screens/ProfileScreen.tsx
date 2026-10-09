@@ -1,144 +1,75 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { DriverProfileCard } from '../components/DriverProfileCard';
-import { FlatPersonAvatar } from '../components/FlatPersonAvatar';
-import { GlassCard } from '../components/GlassCard';
 import { ScreenShell } from '../components/ScreenShell';
-import { drivers, getDriverById, profileSettings } from '../data/mockData';
-import { colors } from '../theme/colors';
-import { radii, spacing } from '../theme/theme';
+import type { RootStackParamList } from '../navigation/types';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
+import { spacing } from '../theme/theme';
+import { useProfile } from '../features/profile/ProfileContext';
+import { useVehicles } from '../features/vehicles/VehicleContext';
 
-export const ProfileScreen = () => {
-  const navigation = useNavigation();
-  const [settings, setSettings] = useState(profileSettings);
-  const owner = getDriverById('pablo') ?? drivers[0];
+export function ProfileScreen() {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { profile } = useProfile();
+  const { vehicles } = useVehicles();
+  const primaryVehicle = vehicles.find((vehicle) => vehicle.primary) ?? vehicles[0];
+  const { colors, mode, toggleMode } = useAppearance();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [notifications, setNotifications] = useState(true);
+  const [tripReports, setTripReports] = useState(true);
 
-  return (
-    <ScreenShell>
-      <Pressable style={styles.closeRow} onPress={() => navigation.goBack()}>
-        <Ionicons name="close" size={24} color={colors.text} />
-        <Text style={styles.closeText}>Close</Text>
-      </Pressable>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Owner controls, linked drivers, and monitoring permissions.</Text>
-      </View>
+  return <ScreenShell>
+    <View style={styles.header}><View><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Profile and preferences</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs')} style={styles.homeButton}><Ionicons name="home-outline" size={20} color={colors.accent} /></Pressable></View>
 
-      {owner ? <DriverProfileCard driver={owner} /> : null}
+    <View style={styles.identity}>
+      <View style={styles.avatar}>{profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{profile.initials}</Text>}</View>
+      <View style={styles.fill}><Text style={styles.name}>{profile.name}</Text><Text style={styles.meta}>Primary driver · {primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : 'No vehicle'}</Text></View>
+      <Pressable onPress={() => navigation.navigate('SettingsDetail', { kind: 'edit' })}><Text style={styles.action}>Edit</Text></Pressable>
+    </View>
 
-      <GlassCard style={styles.settingsCard}>
-        <Text style={styles.sectionTitle}>Settings</Text>
-        {settings.map((setting) => (
-          <View key={setting.label} style={styles.settingRow}>
-            <View style={styles.settingCopy}>
-              <Text style={styles.settingLabel}>{setting.label}</Text>
-              <Text style={styles.settingDescription}>{setting.description}</Text>
-            </View>
-            <Switch
-              value={setting.enabled}
-              onValueChange={(value) =>
-                setSettings((current) =>
-                  current.map((item) =>
-                    item.label === setting.label ? { ...item, enabled: value } : item,
-                  ),
-                )
-              }
-              trackColor={{ false: colors.surfaceMuted, true: colors.accentLime }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-        ))}
-      </GlassCard>
+    <Text style={styles.section}>Connections</Text>
+    <View style={styles.group}>
+      <SettingsRow icon="people-outline" title="Family safety" detail="Teen driving insights and sharing controls" onPress={() => navigation.navigate('Family')} colors={colors} styles={styles} />
+      <SettingsRow icon="business-outline" title="Insurance connection" detail="Choose what score summary to share" onPress={() => navigation.navigate('InsuranceConnection')} colors={colors} styles={styles} last />
+    </View>
 
-      <GlassCard style={styles.linkedCard}>
-        <Text style={styles.sectionTitle}>Linked drivers</Text>
-        {drivers.slice(0, 3).map((driver) => (
-          <View key={driver.id} style={styles.linkedRow}>
-            <FlatPersonAvatar skin={driver.skinTone} shirt={driver.shirtColor} size={44} />
-            <View style={styles.settingCopy}>
-              <Text style={styles.settingLabel}>{driver.name}</Text>
-              <Text style={styles.settingDescription}>{driver.relation}</Text>
-            </View>
-            <Text style={styles.ready}>Ready</Text>
-          </View>
-        ))}
-      </GlassCard>
-    </ScreenShell>
-  );
-};
+    <Text style={styles.section}>Driving</Text>
+    <View style={styles.group}>
+      <SettingsRow icon="time-outline" title="Drive history" detail="Scores, events, and coaching" onPress={() => navigation.navigate('Drives')} colors={colors} styles={styles} />
+      <SettingsRow icon="car-outline" title="Vehicle and CUBO device" detail={`${primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : 'No vehicle'} · Connected`} onPress={() => navigation.navigate('Garage')} colors={colors} styles={styles} />
+      <SettingsRow icon="shield-checkmark-outline" title="Privacy and safety" detail="Video stays on this device" onPress={() => navigation.navigate('SettingsDetail', { kind: 'privacy' })} colors={colors} styles={styles} />
+    </View>
 
-const styles = StyleSheet.create({
-  closeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: spacing.md,
-    alignSelf: 'flex-start',
-  },
-  closeText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  header: {
-    gap: 8,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 30,
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  settingsCard: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderRadius: radii.md,
-    backgroundColor: colors.black06,
-    padding: spacing.md,
-  },
-  settingCopy: {
-    flex: 1,
-  },
-  settingLabel: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  settingDescription: {
-    color: colors.textMuted,
-    marginTop: 4,
-    lineHeight: 18,
-    fontSize: 12,
-  },
-  linkedCard: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  linkedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderRadius: radii.md,
-    backgroundColor: colors.black06,
-    padding: spacing.md,
-  },
-  ready: {
-    color: colors.success,
-    fontWeight: '700',
-  },
+    <Text style={styles.section}>Preferences</Text>
+    <View style={styles.group}>
+      <ToggleRow icon={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} title="Dark mode" value={mode === 'dark'} onChange={toggleMode} colors={colors} styles={styles} />
+      <ToggleRow icon="notifications-outline" title="Safety notifications" value={notifications} onChange={() => setNotifications((value) => !value)} colors={colors} styles={styles} />
+      <ToggleRow icon="document-text-outline" title="Trip reports" value={tripReports} onChange={() => setTripReports((value) => !value)} colors={colors} styles={styles} />
+    </View>
+
+    <Text style={styles.section}>Support</Text>
+    <View style={styles.group}>
+      <SettingsRow icon="help-circle-outline" title="Help and feedback" onPress={() => navigation.navigate('SettingsDetail', { kind: 'help' })} colors={colors} styles={styles} />
+      <SettingsRow icon="information-circle-outline" title="About CUBO" detail="Competition build 0.2" onPress={() => navigation.navigate('SettingsDetail', { kind: 'about' })} colors={colors} styles={styles} last />
+    </View>
+  </ScreenShell>;
+}
+
+type Shared = { colors: AppColors; styles: ReturnType<typeof makeStyles> };
+function SettingsRow({ icon, title, detail, onPress, colors, styles, last = false }: Shared & { icon: keyof typeof Ionicons.glyphMap; title: string; detail?: string; onPress?: () => void; last?: boolean }) {
+  return <Pressable style={[styles.row, last && styles.lastRow]} onPress={onPress}><Ionicons name={icon} size={20} color={colors.textSecondary} /><View style={styles.fill}><Text style={styles.rowTitle}>{title}</Text>{detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}</View><Ionicons name="chevron-forward" size={17} color={colors.textTertiary} /></Pressable>;
+}
+function ToggleRow({ icon, title, value, onChange, colors, styles }: Shared & { icon: keyof typeof Ionicons.glyphMap; title: string; value: boolean; onChange: () => void }) {
+  return <View style={styles.row}><Ionicons name={icon} size={20} color={colors.textSecondary} /><Text style={[styles.rowTitle, styles.fill]}>{title}</Text><Switch value={value} onValueChange={onChange} trackColor={{ false: colors.surfaceMuted, true: colors.accent }} thumbColor="#FFFFFF" /></View>;
+}
+
+const makeStyles = (colors: AppColors) => StyleSheet.create({
+  header: { paddingTop: spacing.lg, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, homeButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, title: { color: colors.text, fontSize: 28, fontWeight: '800', fontFamily: 'Manrope_800ExtraBold', letterSpacing: -0.8 }, subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 4 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg, borderRadius: 20, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  avatar: { width: 52, height: 52, borderRadius: 18, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' }, avatarText: { color: colors.accent, fontWeight: '800' }, fill: { flex: 1 }, name: { color: colors.text, fontSize: 16, fontFamily: 'Manrope_700Bold', fontWeight: '700' }, meta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 }, action: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  section: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: spacing.lg, marginBottom: 4 },
+  group: { borderRadius: 18, paddingHorizontal: 14, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' }, row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 10 }, lastRow: { borderBottomWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, rowDetail: { color: colors.textSecondary, fontSize: 10, marginTop: 3 },
 });

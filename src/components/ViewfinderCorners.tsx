@@ -13,7 +13,7 @@ export function ViewfinderCorners({ alert }: { alert: boolean }) {
   const v = { position: 'absolute' as const, width: thick, backgroundColor: c };
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={[h, { top: inset, left: inset, width: arm }]} />
       <View style={[v, { top: inset, left: inset, height: arm }]} />
 

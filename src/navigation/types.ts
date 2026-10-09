@@ -1,6 +1,16 @@
 export type RootStackParamList = {
   Splash: undefined;
   MainTabs: undefined;
+  Drives: undefined;
+  Garage: undefined;
+  AddVehicle: { vehicleId?: string } | undefined;
+  ConnectedDevices: undefined;
+  Family: undefined;
+  InsuranceConnection: undefined;
+  TripDetail: { sessionId: string };
+  SettingsDetail: { kind: 'edit' | 'privacy' | 'help' | 'about' };
+  LiveDrive: undefined;
+  TripSummary: { sessionId: string };
   VehicleDetail: { vehicleId: string };
   DetectionLive: { vehicleId: string };
   DriverReports: { driverId: string };
@@ -9,7 +19,6 @@ export type RootStackParamList = {
 };
 
 export type MainTabParamList = {
-  Dashboard: undefined;
-  Insurance: undefined;
-  Vehicles: undefined;
+  Home: undefined;
+  Map: undefined;
 };

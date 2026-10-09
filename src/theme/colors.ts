@@ -1,17 +1,22 @@
 /** Reference UI: black background, #1C1C1E cards, lime / green accents */
-export const colors = {
-  background: '#080808',
-  card: '#111113',
-  cardHover: '#1A1A1C',
-  cardElevated: '#1A1A1C',
+export const darkColors = {
+  background: '#0B0D12',
+  card: '#151820',
+  cardHover: '#1D222D',
+  cardElevated: '#1B1F29',
   border: 'rgba(255, 255, 255, 0.08)',
   borderLight: 'rgba(255, 255, 255, 0.10)',
   borderStrong: 'rgba(255, 255, 255, 0.15)',
 
   text: '#FFFFFF',
-  textSecondary: '#8E8E93',
-  textMuted: '#8E8E93',
-  textTertiary: '#636366',
+  textSecondary: '#A8AFBD',
+  textMuted: '#A8AFBD',
+  textTertiary: '#707989',
+  accent: '#FF7A59',
+  accentSecondary: '#FFB15C',
+  accentSoft: 'rgba(255, 122, 89, 0.16)',
+  onAccent: '#180B08',
+  mapSurface: '#202532',
 
   /** Semicircle / ring — stark green on dark track */
   gaugeProgress: '#00FF88',
@@ -27,6 +32,10 @@ export const colors = {
   star: '#00FF88',
   danger: '#FF453A',
   dangerMuted: '#C62828',
+  amber: '#FFB020',
+  amberSoft: 'rgba(255, 176, 32, 0.14)',
+  blue: '#58A6FF',
+  blueSoft: 'rgba(88, 166, 255, 0.14)',
 
   successGreen: '#34C759',
 
@@ -52,3 +61,18 @@ export const colors = {
   black06: 'rgba(255, 255, 255, 0.06)',
   shadow: 'rgba(0, 0, 0, 0.4)',
 };
+
+export const lightColors: typeof darkColors = {
+  ...darkColors,
+  background: '#F3F6FC', card: '#FFFFFF', cardHover: '#EAF0FA', cardElevated: '#FFFFFF',
+  border: 'rgba(20, 38, 72, 0.09)', borderLight: 'rgba(20, 38, 72, 0.06)', borderStrong: 'rgba(20, 38, 72, 0.15)',
+  text: '#111A2D', textSecondary: '#657089', textMuted: '#657089', textTertiary: '#929CB0',
+  accent: '#315BFF', accentSecondary: '#69A5FF', accentSoft: 'rgba(49, 91, 255, 0.11)', onAccent: '#FFFFFF', mapSurface: '#DFE9FA',
+  gaugeTrack: '#DCE3F0', pageBg: '#F3F6FC', surface: '#FFFFFF', surfaceMuted: '#E8EEF8',
+  primarySoft: 'rgba(0, 170, 92, 0.10)', successSoft: 'rgba(45, 150, 75, 0.12)',
+  white08: 'rgba(20, 20, 18, 0.06)', white20: 'rgba(20, 20, 18, 0.14)', black06: 'rgba(20, 20, 18, 0.05)',
+  shadow: 'rgba(20, 20, 18, 0.12)', blueSoft: 'rgba(35, 105, 190, 0.10)', amberSoft: 'rgba(190, 120, 0, 0.10)',
+};
+
+export type AppColors = typeof darkColors;
+export const colors = darkColors;

@@ -1,0 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { AppHeader } from '../components/AppHeader';
+import { RouteMap } from '../components/RouteMap';
+import { ScreenShell } from '../components/ScreenShell';
+import { SurfaceCard } from '../components/SurfaceCard';
+import { useDrives } from '../features/drives/DriveContext';
+import type { RootStackParamList } from '../navigation/types';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
+import { spacing } from '../theme/theme';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'TripDetail'>;
+export function TripDetailScreen({ navigation, route }: Props) {
+  const { sessions } = useDrives(); const session = sessions.find((item) => item.id === route.params.sessionId); const { colors } = useAppearance(); const styles = useMemo(() => makeStyles(colors), [colors]);
+  if (!session) return <ScreenShell><AppHeader title="Trip unavailable" onBack={() => navigation.goBack()} /></ScreenShell>;
+  return <ScreenShell><AppHeader title={session.vehicleName} eyebrow="Trip report" onBack={() => navigation.goBack()} /><Text style={styles.subtitle}>{new Date(session.startedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text><SurfaceCard style={styles.mapCard}><RouteMap points={session.route} hazards={session.events} accent={colors.accent} background={colors.mapSurface} /><View style={styles.mapMeta}><Ionicons name="location-outline" size={15} color={colors.accent} /><Text style={styles.mapNote}>{session.route.length ? `${session.route.length} location samples · coordinates only` : 'No route samples available'}</Text></View></SurfaceCard><View style={styles.stats}><Stat value={String(session.focusScore)} label="Focus" styles={styles} /><Stat value={`${Math.max(1, Math.round(session.durationSeconds / 60))}m`} label="Duration" styles={styles} /><Stat value={`${session.distanceMiles.toFixed(1)}`} label="Miles" styles={styles} /></View><Text style={styles.section}>Safety timeline</Text>{session.events.length ? session.events.map((event) => <SurfaceCard key={event.id} style={styles.event}><View style={styles.eventIcon}><Ionicons name={event.type === 'road_hazard' ? 'warning-outline' : 'eye-outline'} size={18} color={colors.accent} /></View><View style={styles.fill}><Text style={styles.eventTitle}>{event.title}</Text><Text style={styles.eventText}>{event.detail}</Text></View></SurfaceCard>) : <SurfaceCard style={styles.empty}><Ionicons name="shield-checkmark-outline" size={24} color={colors.success} /><View style={styles.fill}><Text style={styles.eventTitle}>Clear drive</Text><Text style={styles.eventText}>No critical interventions were recorded.</Text></View></SurfaceCard>}</ScreenShell>;
+}
+function Stat({ value, label, styles }: { value: string; label: string; styles: ReturnType<typeof makeStyles> }) { return <SurfaceCard style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></SurfaceCard>; }
+const makeStyles = (c: AppColors) => StyleSheet.create({ subtitle: { color: c.textSecondary, fontSize: 11, marginBottom: spacing.sm }, mapCard: { padding: 10, overflow: 'hidden' }, mapMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 5, paddingTop: 10 }, mapNote: { color: c.textSecondary, fontSize: 9 }, stats: { flexDirection: 'row', gap: 8, marginTop: 3 }, stat: { flex: 1, alignItems: 'center', paddingVertical: 13, paddingHorizontal: 5 }, statValue: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 18 }, statLabel: { color: c.textSecondary, fontSize: 9, marginTop: 3 }, section: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 17, marginTop: spacing.md }, event: { flexDirection: 'row', gap: 11, alignItems: 'flex-start' }, eventIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }, fill: { flex: 1 }, eventTitle: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 13 }, eventText: { color: c.textSecondary, fontSize: 10, lineHeight: 15, marginTop: 3 }, empty: { flexDirection: 'row', gap: 11, alignItems: 'center' } });

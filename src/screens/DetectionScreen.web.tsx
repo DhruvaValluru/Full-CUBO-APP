@@ -103,7 +103,7 @@ export const DetectionScreen = ({ navigation, route }: Props) => {
 
         <View style={styles.cameraStage}>
           <View style={styles.cameraFeed}>
-            <View ref={attachCamera} collapsable={false} style={StyleSheet.absoluteFillObject} />
+            <View ref={attachCamera} collapsable={false} style={StyleSheet.absoluteFill} />
             <ViewfinderCorners alert={distracted} />
 
             <Animated.View
