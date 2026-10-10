@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getDriverById } from '../data/mockData';
 import { Vehicle } from '../types/app';
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 import { FlatCarGlyph } from './FlatCarGlyph';
 import { FlatPersonAvatar } from './FlatPersonAvatar';
@@ -20,6 +21,9 @@ export const VehicleCard = ({
   onPress,
   actionLabel = 'Open Vehicle',
 }: VehicleCardProps) => {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const driver = getDriverById(vehicle.driverId);
   const statusColor =
     vehicle.status === 'Live'
@@ -71,7 +75,7 @@ export const VehicleCard = ({
   );
 };
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   card: {
     padding: spacing.md,
   },

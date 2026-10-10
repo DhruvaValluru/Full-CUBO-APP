@@ -1,25 +1,22 @@
-import { createContext, ReactNode, useContext, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
+import { createContext, ReactNode, useContext, useMemo, useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useColorScheme } from 'react-native';
 
 import { darkColors, lightColors, type AppColors } from './colors';
 
 export type ColorMode = 'dark' | 'light';
-type AppearanceValue = { mode: ColorMode; colors: AppColors; setMode: (mode: ColorMode) => void; toggleMode: () => void };
+export type AppearancePreference = ColorMode | 'system';
+type AppearanceValue = { mode: ColorMode; preference: AppearancePreference; colors: AppColors; setMode: (mode: AppearancePreference) => void };
 
 const AppearanceContext = createContext<AppearanceValue | null>(null);
 
-function storedMode(): ColorMode {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return 'dark';
-  return window.localStorage.getItem('cubo-color-mode') === 'light' ? 'light' : 'dark';
-}
-
 export function AppearanceProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ColorMode>(storedMode);
-  const setMode = (next: ColorMode) => {
-    setModeState(next);
-    if (Platform.OS === 'web' && typeof window !== 'undefined') window.localStorage.setItem('cubo-color-mode', next);
-  };
-  const value = useMemo(() => ({ mode, colors: mode === 'dark' ? darkColors : lightColors, setMode, toggleMode: () => setMode(mode === 'dark' ? 'light' : 'dark') }), [mode]);
+  const systemMode = useColorScheme();
+  const [preference, updateMode] = useState<AppearancePreference>('system');
+  useEffect(() => { let active = true; void AsyncStorage.getItem('cubo-color-mode').then(saved => { if (active && (saved === 'system' || saved === 'dark' || saved === 'light')) updateMode(saved); }).catch(() => undefined); return () => { active = false; }; }, []);
+  const setMode = useCallback((next: AppearancePreference) => { updateMode(next); void AsyncStorage.setItem('cubo-color-mode', next).catch(() => undefined); }, []);
+  const mode: ColorMode = preference === 'system' ? systemMode === 'dark' ? 'dark' : 'light' : preference;
+  const value = useMemo(() => ({ mode, preference, colors: mode === 'dark' ? darkColors : lightColors, setMode }), [mode, preference, setMode]);
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }
 

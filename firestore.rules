@@ -22,15 +22,30 @@ service cloud.firestore {
     function uidUnchanged() { return isAuthenticated() && request.resource.data.uid == request.auth.uid; }
     function uidNotModified() { return isAuthenticated() && request.resource.data.uid == resource.data.uid; }
     function isValidEmail(email) { return email is string && email.size() >= 3 && email.size() <= 254 && email.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$'); }
+    // Self-declared metadata only: never grants family roles or age-verified access.
+    function validAccountDetails(data) {
+      return data is map
+        && data.keys().hasAll(['birthDate', 'phoneNumber', 'accountType', 'ageVerification', 'phoneVerification', 'guardianStatus'])
+        && data.keys().hasOnly(['birthDate', 'phoneNumber', 'accountType', 'ageVerification', 'phoneVerification', 'guardianStatus'])
+        && data.birthDate is string && data.birthDate.size() == 10
+        && data.birthDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && data.phoneNumber is string && data.phoneNumber.size() >= 9 && data.phoneNumber.size() <= 16
+        && data.phoneNumber.matches('^[+][1-9][0-9]{7,14}$')
+        && data.accountType in ['minor', 'adult']
+        && data.ageVerification == 'self-declared'
+        && data.phoneVerification == 'unverified'
+        && data.guardianStatus == 'not-linked';
+    }
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt', 'accountDetails'])
         && data.uid is string && data.uid.size() >= 20 && data.uid.size() <= 128
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
         && isValidEmail(data.email)
         && data.theme is string && data.theme in ['light', 'dark']
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && (!('accountDetails' in data) || validAccountDetails(data.accountDetails));
     }
 
     match /users/{userId} {

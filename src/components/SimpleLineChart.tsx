@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { spacing } from '../theme/theme';
 
 export type LineChartSummary = { label: string; value: string };
@@ -44,11 +45,15 @@ export function SimpleLineChart({
   labels,
   width = 320,
   height = 140,
-  lineColor = colors.gaugeProgress,
+  lineColor: suppliedLineColor,
   unit = '',
   summaries,
   autoSummary,
 }: SimpleLineChartProps) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+  const lineColor = suppliedLineColor ?? colors.gaugeProgress;
+
   const summaryTiles = summaries ?? (autoSummary ? buildAutoSummaries(data, autoSummary) : []);
   const padL = 36;
   const padR = 12;
@@ -115,7 +120,7 @@ export function SimpleLineChart({
   );
 }
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   box: {
     marginTop: spacing.sm,
   },

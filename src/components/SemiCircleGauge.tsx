@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 
 type SemiCircleGaugeProps = {
   score: number;
@@ -10,6 +11,9 @@ type SemiCircleGaugeProps = {
 };
 
 export function SemiCircleGauge({ score, size = 260, strokeWidth = 12 }: SemiCircleGaugeProps) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const w = size;
   const h = Math.round(size * 0.46);
   const cx = w / 2;
@@ -42,7 +46,7 @@ export function SemiCircleGauge({ score, size = 260, strokeWidth = 12 }: SemiCir
   );
 }
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   wrap: { alignItems: 'center' },
   scaleRow: {
     flexDirection: 'row',

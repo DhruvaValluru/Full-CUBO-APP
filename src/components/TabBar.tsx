@@ -1,88 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Fragment, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { useDrives } from '../features/drives/DriveContext';
+import { useNavChrome } from '../features/navigation/NavChromeContext';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { MotionPressable } from './MotionPressable';
 import { useAppearance } from '../theme/AppearanceContext';
-
-const iconMap = {
-  Home: 'home-outline',
-  Map: 'map-outline',
-} as const;
-
-export const TabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
-  const insets = useSafeAreaInsets();
-  const { colors } = useAppearance();
-  const { activeSession } = useDrives();
-  const rippleScale = useRef(new Animated.Value(.35)).current;
-  const rippleOpacity = useRef(new Animated.Value(0)).current;
-  const startRipple = () => {
-    rippleScale.setValue(.35); rippleOpacity.setValue(.34);
-    Animated.parallel([
-      Animated.timing(rippleScale, { toValue: 2.15, duration: 520, useNativeDriver: true }),
-      Animated.timing(rippleOpacity, { toValue: 0, duration: 520, useNativeDriver: true }),
-    ]).start();
-  };
-
-  return (
-    <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: colors.background, borderTopColor: colors.border }]}>
-      {state.routes.map((route, index) => {
-        const isFocused = state.index === index;
-        const options = descriptors[route.key].options;
-        const label =
-          typeof options.tabBarLabel === 'string' ? options.tabBarLabel : options.title ?? route.name;
-
-        const onPress = () => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-        };
-
-        const tab = <Pressable key={route.key} onPress={onPress} style={styles.item}>
-            <Ionicons
-              name={iconMap[route.name as keyof typeof iconMap]}
-              size={20}
-              color={isFocused ? colors.accent : colors.textTertiary}
-            />
-            <Text style={[styles.label, { color: isFocused ? colors.accent : colors.textTertiary }]}>{label}</Text>
-          </Pressable>;
-        if (index !== 0) return tab;
-        return <Fragment key={route.key}>{tab}<Pressable style={styles.driveItem} onPressIn={startRipple} onPress={() => navigation.getParent()?.navigate('LiveDrive' as never)}>
-          <View style={[styles.driveIcon, { backgroundColor: colors.accent }]}>
-            <Animated.View pointerEvents="none" style={[styles.ripple, { backgroundColor: colors.accent, opacity: rippleOpacity, transform: [{ scale: rippleScale }] }]} />
-            <Ionicons name={activeSession ? 'navigate' : 'play'} size={18} color={colors.onAccent} />
-          </View>
-          <Text style={[styles.label, { color: colors.text }]}>{activeSession ? 'Resume' : 'Start'}</Text>
-        </Pressable></Fragment>;
-      })}
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  outer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    paddingTop: 8,
-  },
-  item: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 4,
-  },
-  driveItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 2 },
-  driveIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
-  ripple: { position: 'absolute', width: 38, height: 38, borderRadius: 19 },
-  label: {
-    fontSize: 10,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-});
+import type { AppColors } from '../theme/colors';
+const icons = { Home: 'home-outline', Map: 'map-outline', Activity: 'receipt-outline', Account: 'person-outline' } as const;
+export function TabBar({ state, navigation }: BottomTabBarProps) {
+  const { colors: c } = useAppearance(); const s = makeStyles(c);
+  const reduced = useReducedMotion();
+  const insets = useSafeAreaInsets(); const { activeSession } = useDrives();
+  const { hidden, setHidden } = useNavChrome(); const progress = useRef(new Animated.Value(1)).current;
+  useEffect(() => { setHidden(false); }, [state.index, setHidden]);
+  useEffect(() => { Animated.timing(progress, { toValue: hidden ? 0 : 1, duration: reduced ? 80 : hidden ? 160 : 220, easing: Easing.inOut(Easing.cubic), useNativeDriver: Platform.OS !== 'web' }).start(); }, [hidden, progress, reduced]);
+  if (activeSession) return null;
+  return <Animated.View pointerEvents={hidden ? 'none' : 'auto'} style={[s.bar, { bottom: Math.max(insets.bottom, 12), opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [reduced ? 0 : 32, 0] }) }] }]}>{state.routes.map((route, index) => <MotionPressable accessibilityRole="tab" accessibilityState={{ selected: index === state.index }} key={route.key} style={[s.item, index === state.index && s.selected]} onPress={() => { const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true }); if (!event.defaultPrevented) navigation.navigate(route.name); }}><Ionicons name={icons[route.name as keyof typeof icons]} size={21} color={index === state.index ? c.onAccent : c.textSecondary} /><Text style={[s.label, index === state.index && { color: c.onAccent }]}>{route.name}</Text></MotionPressable>)}</Animated.View>;
+}
+const makeStyles = (c: AppColors) => StyleSheet.create({ bar: { position: 'absolute', left: 16, right: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 34, padding: 7, flexDirection: 'row', shadowColor: '#122119', shadowOpacity: .18, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 8 }, item: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 26 }, selected: { backgroundColor: c.accent }, label: { color: c.textSecondary, fontSize: 10, fontFamily: 'Manrope_600SemiBold' } });

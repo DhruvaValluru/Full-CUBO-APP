@@ -1,7 +1,8 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 import { FlatCarGlyph } from './FlatCarGlyph';
 import { StarRow } from './StarRow';
@@ -28,6 +29,9 @@ type Props = {
 };
 
 export function ShowcaseVehicleCard({ item, onPress }: Props) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const isLow = item.risk === 'low';
   const dotColor = isLow ? colors.accentGreen : colors.mustard;
   const statusText = isLow ? 'Low Risk Driver' : 'Mid Risk Driver';
@@ -61,7 +65,7 @@ export function ShowcaseVehicleCard({ item, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   press: {
     marginBottom: spacing.sm,
   },

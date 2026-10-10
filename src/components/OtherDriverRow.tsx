@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Driver } from '../types/app';
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 import { FlatPersonAvatar } from './FlatPersonAvatar';
 
@@ -13,6 +14,9 @@ type Props = {
 };
 
 export function OtherDriverRow({ driver, vehicleLabel, onPress }: Props) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   return (
     <Pressable onPress={onPress} style={styles.press}>
       <View style={styles.row}>
@@ -29,7 +33,7 @@ export function OtherDriverRow({ driver, vehicleLabel, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   press: {
     marginBottom: spacing.sm,
   },

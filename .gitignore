@@ -39,3 +39,5 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# Private local family-server state and personal data
+.local-family/

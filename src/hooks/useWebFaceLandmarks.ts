@@ -14,6 +14,7 @@ export type FaceTrackingSnapshot = {
 
 export type UseWebFaceLandmarksResult = FaceTrackingSnapshot & {
   setHost: (node: HTMLElement | null) => void;
+  retry?: () => void;
 };
 
 /**

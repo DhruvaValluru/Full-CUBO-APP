@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 
 type DetectionStatusBannerProps = {
@@ -10,6 +11,9 @@ type DetectionStatusBannerProps = {
 };
 
 export const DetectionStatusBanner = ({ distracted, title, subtitle }: DetectionStatusBannerProps) => {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   return (
     <View
       style={[
@@ -28,7 +32,7 @@ export const DetectionStatusBanner = ({ distracted, title, subtitle }: Detection
   );
 };
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   wrap: {
     borderRadius: radii.lg,
     paddingHorizontal: spacing.md,

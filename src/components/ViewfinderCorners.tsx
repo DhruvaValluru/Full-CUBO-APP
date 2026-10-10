@@ -1,9 +1,12 @@
 import { StyleSheet, View } from 'react-native';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 
 /** Logo-style L-brackets for live camera HUD */
 export function ViewfinderCorners({ alert }: { alert: boolean }) {
+  const { colors: colors } = useAppearance();
+
   const c = alert ? colors.danger : colors.accentLime;
   const thick = 3;
   const arm = 22;

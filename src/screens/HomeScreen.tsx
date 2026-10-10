@@ -1,76 +1,50 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { useMemo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Reanimated, { Easing, ZoomIn } from 'react-native-reanimated';
+import { VehicleArt } from '../components/VehicleArt';
+import { useFamily } from '../features/family/FamilyContext';
 import { ScreenShell } from '../components/ScreenShell';
+import { MotionPressable } from '../components/MotionPressable';
 import { useDrives } from '../features/drives/DriveContext';
-import type { RootStackParamList } from '../navigation/types';
-import { useAppearance } from '../theme/AppearanceContext';
-import type { AppColors } from '../theme/colors';
-import { spacing } from '../theme/theme';
+import { usePlaces } from '../features/places/PlacesContext';
+import { PlaceResult } from '../features/places/searchPlaces';
 import { useProfile } from '../features/profile/ProfileContext';
 import { useVehicles } from '../features/vehicles/VehicleContext';
+import { RootStackParamList } from '../navigation/types';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 
 export function HomeScreen() {
+  const { colors: c } = useAppearance();
+  const s = makeThemeStyles(c);
+
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { activeSession, sessions } = useDrives();
-  const { profile } = useProfile();
-  const { vehicles } = useVehicles();
-  const primaryVehicle = vehicles.find((vehicle) => vehicle.primary) ?? vehicles[0];
-  const { colors } = useAppearance();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const latest = sessions[0];
-
+  const { profile } = useProfile(); const { vehicles, setPrimary } = useVehicles();
+  const { activeSession } = useDrives(); const places = usePlaces();
+  const family = useFamily();
+  const selected = vehicles.find(v => v.primary) ?? vehicles[0];
+  const go = (destination?: PlaceResult) => navigation.navigate('DriveMap', destination ? { destination } : undefined);
   return <ScreenShell>
-    <View style={styles.header}>
-      <View><Text style={styles.greeting}>Good evening, {profile.name.split(' ')[0]}</Text><Text style={styles.title}>Ready to drive?</Text></View>
-      <Pressable style={styles.profileButton} onPress={() => navigation.navigate('Profile')}>{profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.profileImage} /> : <Text style={styles.initials}>{profile.initials}</Text>}</Pressable>
-    </View>
-
-    <Pressable style={styles.vehicleSelector} onPress={() => navigation.navigate('Garage')}>
-      <Ionicons name="car-outline" size={19} color={colors.text} />
-      <View style={styles.fill}><Text style={styles.vehicleName}>{primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : 'Choose a vehicle'}</Text><Text style={styles.vehicleMeta}>CUBO Cruise 01 connected</Text></View>
-      <View style={styles.onlineDot} /><Ionicons name="chevron-forward" size={17} color={colors.textTertiary} />
-    </Pressable>
-
-    <Pressable onPress={() => navigation.navigate('LiveDrive')}><LinearGradient colors={[colors.accent, colors.accentSecondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.startButton}>
-      <View><Text style={styles.startTitle}>{activeSession ? 'Return to drive' : 'Start drive'}</Text><Text style={styles.startText}>Camera and road monitoring will begin</Text></View>
-      <View style={styles.startIcon}><Ionicons name="arrow-forward" size={22} color={colors.onAccent} /></View>
-    </LinearGradient></Pressable>
-
-    <Text style={styles.sectionTitle}>Safety at a glance</Text>
-    <View style={styles.summary}>
-      <View style={styles.summaryItem}><Text style={styles.summaryValue}>{latest?.focusScore ?? 92}</Text><Text style={styles.summaryLabel}>Latest focus score</Text></View>
-      <View style={styles.divider} />
-      <View style={styles.summaryItem}><Text style={styles.summaryValue}>{sessions.length}</Text><Text style={styles.summaryLabel}>Drives recorded</Text></View>
-    </View>
-
-    <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent drive</Text><Pressable onPress={() => navigation.navigate('Drives')}><Text style={styles.link}>See history</Text></Pressable></View>
-    <Pressable style={styles.row} onPress={() => navigation.navigate('Drives')}>
-      <View style={styles.score}><Text style={styles.scoreText}>{latest?.focusScore ?? 92}</Text></View>
-      <View style={styles.fill}><Text style={styles.rowTitle}>{latest?.vehicleName ?? (primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : 'No vehicle')}</Text><Text style={styles.rowMeta}>{latest?.distanceMiles.toFixed(1) ?? '8.4'} miles · {Math.max(1, Math.round((latest?.durationSeconds ?? 960) / 60))} minutes</Text></View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-    </Pressable>
-
-    <Pressable style={styles.manageRow} onPress={() => navigation.navigate('Garage')}>
-      <Ionicons name="hardware-chip-outline" size={20} color={colors.textSecondary} />
-      <View style={styles.fill}><Text style={styles.rowTitle}>Vehicle and device</Text><Text style={styles.rowMeta}>Camera ready · GPS connected</Text></View>
-      <Text style={styles.link}>Manage</Text>
-    </Pressable>
+    <View style={s.header}><View><Text style={s.brand}>CUBO</Text><Text style={s.greeting}>Welcome back, {profile.name.split(' ')[0]}</Text></View><View style={{ flexDirection: 'row', gap: 8 }}><MotionPressable accessibilityLabel="Notifications" style={s.avatar} onPress={() => navigation.navigate('Notifications')}><Ionicons name="notifications-outline" size={22} color={c.text} />{family.notifications.some(item => !item.read) ? <View style={{ position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: c.accent }} /> : null}</MotionPressable><MotionPressable accessibilityLabel="Your account" onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })} style={s.avatar}>{profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={s.avatarImage} /> : <Text style={s.initials}>{profile.initials}</Text>}</MotionPressable></View></View>
+    <MotionPressable style={s.search} onPress={() => go()}><Ionicons name="search" size={23} color={c.text} /><Text style={s.searchText}>Where to?</Text><View style={s.searchArrow}><Ionicons name="arrow-forward" size={20} color={c.accent} /></View></MotionPressable>
+    <View style={s.saved}>{(['home', 'work'] as const).map(kind => <MotionPressable key={kind} style={s.savedItem} onPress={() => places[kind] ? go(places[kind]) : navigation.navigate('SavedPlace', { kind })} onLongPress={() => navigation.navigate('SavedPlace', { kind })}><View style={s.smallIcon}><Ionicons name={kind === 'home' ? 'home-outline' : 'briefcase-outline'} size={19} color={c.accent} /></View><View style={s.fill}><Text style={s.label}>{kind === 'home' ? 'Home' : 'Work'}</Text><Text numberOfLines={1} style={s.meta}>{places[kind]?.title ?? 'Set address'}</Text></View></MotionPressable>)}</View>
+    {places.recent.length ? <View style={s.recent}>{places.recent.slice(0, 2).map((place, index) => <MotionPressable key={place.id} style={[s.addressRow, index > 0 && s.rowBorder]} onPress={() => go(place)}><Ionicons name="time-outline" size={21} color={c.textSecondary} /><View style={s.fill}><Text numberOfLines={1} style={s.label}>{place.title}</Text><Text numberOfLines={1} style={s.meta}>{place.subtitle}</Text></View><Ionicons name="chevron-forward" size={16} color={c.textSecondary} /></MotionPressable>)}</View> : null}
+    <View style={s.sectionHeader}><Text style={s.section}>Your vehicles</Text><MotionPressable onPress={() => navigation.navigate('Garage')}><Text style={s.link}>Manage</Text></MotionPressable></View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.vehicleList}>{vehicles.map(vehicle => { const chosen = vehicle.id === selected?.id; return <MotionPressable key={vehicle.id} accessibilityLabel={vehicle.make + ' ' + vehicle.model} accessibilityState={{ selected: chosen }} style={s.vehicleItem} scaleTo={.94} onPress={() => setPrimary(vehicle.id)}><View style={[s.carCircle, chosen && s.carSelected]}><VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} />{chosen ? <Reanimated.View entering={ZoomIn.duration(180).easing(Easing.out(Easing.cubic))} style={s.check}><Ionicons name="checkmark" size={13} color="#FFFFFF" /></Reanimated.View> : null}</View><Text numberOfLines={1} style={s.vehicleName}>{vehicle.make} {vehicle.model}</Text><Text style={s.vehicleSubtitle}>{chosen ? 'Selected' : vehicle.nickname || vehicle.year}</Text></MotionPressable>; })}<MotionPressable style={s.vehicleItem} onPress={() => navigation.navigate('AddVehicle')}><View style={s.addCircle}><Ionicons name="add" size={28} color={c.accent} /></View><Text style={s.vehicleName}>Add vehicle</Text></MotionPressable></ScrollView>
+    <View style={s.sectionHeader}><Text style={s.section}>Your family</Text><MotionPressable onPress={() => navigation.navigate('Family')}><Text style={s.link}>Manage</Text></MotionPressable></View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.vehicleList}>{family.members.map(member => <MotionPressable key={member.uid} style={s.vehicleItem} onPress={() => navigation.navigate('FamilyMember', { uid: member.uid })}><View style={[s.avatar, { width: 72, height: 72, borderRadius: 36 }]}>{member.photoUri ? <Image source={{ uri: member.photoUri }} style={s.avatarImage} /> : <Text style={[s.initials, { fontSize: 24 }]}>{member.name.slice(0, 1).toUpperCase()}</Text>}</View><Text numberOfLines={1} style={s.vehicleName}>{member.name}</Text><Text style={s.vehicleSubtitle}>{member.role === 'organizer' ? 'Organizer' : 'View safety'}</Text></MotionPressable>)}<MotionPressable style={s.vehicleItem} onPress={() => navigation.navigate('Family')}><View style={[s.addCircle, { width: 72, height: 72 }]}><Ionicons name="person-add-outline" size={24} color={c.accent} /></View><Text style={s.vehicleName}>Invite family</Text></MotionPressable></ScrollView>
+    <MotionPressable style={s.driveCard} onPress={() => go()} scaleTo={.98}><Text style={s.driveTitle}>{activeSession ? 'Return to drive' : 'Let’s get moving.'}</Text><Text style={s.driveBody}>{selected ? selected.make + ' ' + selected.model : 'Choose your vehicle'} · Choose a route, check your camera, then go.</Text><View style={s.driveAction}><Text style={s.driveActionText}>{activeSession ? 'Resume drive' : 'Start drive'}</Text><Ionicons name="arrow-forward" size={18} color="#163D2B" /></View></MotionPressable>
+    <MotionPressable style={s.hardware} onPress={() => navigation.navigate('ConnectedDevices')}><Ionicons name="hardware-chip-outline" size={22} color={c.textSecondary} /><View style={s.fill}><Text style={s.label}>CUBO Cruise</Text><Text style={s.meta}>Manage your vehicle’s safety hardware</Text></View><Ionicons name="chevron-forward" size={18} color={c.textSecondary} /></MotionPressable>
   </ScreenShell>;
 }
-
-const makeStyles = (colors: AppColors) => StyleSheet.create({
-  header: { paddingTop: spacing.lg, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  greeting: { color: colors.textSecondary, fontSize: 13, fontFamily: 'Manrope_500Medium' }, title: { color: colors.text, fontSize: 28, fontWeight: '800', fontFamily: 'Manrope_800ExtraBold', letterSpacing: -0.8, marginTop: 3 },
-  profileButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, profileImage: { width: '100%', height: '100%' }, initials: { color: colors.accent, fontSize: 12, fontWeight: '700', fontFamily: 'Manrope_700Bold' },
-  vehicleSelector: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  fill: { flex: 1 }, vehicleName: { color: colors.text, fontSize: 14, fontWeight: '700' }, vehicleMeta: { color: colors.textSecondary, fontSize: 11, marginTop: 3 }, onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.gaugeProgress },
-  startButton: { minHeight: 108, borderRadius: 20, padding: spacing.lg, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm }, startTitle: { color: colors.onAccent, fontSize: 24, fontWeight: '800', fontFamily: 'Manrope_800ExtraBold' }, startText: { color: colors.onAccent, opacity: .7, fontSize: 11, marginTop: 6 }, startIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700', fontFamily: 'Manrope_700Bold', marginTop: spacing.lg }, sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }, link: { color: colors.accent, fontSize: 12, fontWeight: '700' },
-  summary: { flexDirection: 'row', alignItems: 'stretch', padding: spacing.md, borderRadius: 18, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, summaryItem: { flex: 1 }, summaryValue: { color: colors.text, fontSize: 26, fontWeight: '700' }, summaryLabel: { color: colors.textSecondary, fontSize: 11, marginTop: 4 }, divider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: spacing.md },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.md, borderRadius: 18, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, score: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, scoreText: { color: colors.success, fontSize: 16, fontWeight: '800' }, rowTitle: { color: colors.text, fontSize: 14, fontWeight: '700' }, rowMeta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 },
-  manageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.md, borderRadius: 18, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+const makeThemeStyles = (c: AppColors) => StyleSheet.create({
+  fill: { flex: 1 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16, paddingBottom: 14 }, brand: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 27, letterSpacing: 2 }, greeting: { color: c.textSecondary, fontSize: 12, marginTop: 4 }, avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' }, initials: { color: c.accent, fontFamily: 'Manrope_700Bold' },
+  search: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: c.card, borderRadius: 28, minHeight: 62, paddingHorizontal: 18, borderWidth: 1, borderColor: c.border }, searchText: { flex: 1, color: c.text, fontSize: 20, fontFamily: 'Manrope_700Bold' }, searchArrow: { width: 35, height: 35, borderRadius: 18, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  saved: { flexDirection: 'row', gap: 10, marginTop: 5 }, savedItem: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center', padding: 12, borderRadius: 18, backgroundColor: c.surfaceMuted }, smallIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: c.cardHover, alignItems: 'center', justifyContent: 'center' }, label: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 13 }, meta: { color: c.textSecondary, fontSize: 11, lineHeight: 17, marginTop: 3 },
+  recent: { backgroundColor: c.card, borderRadius: 22, paddingHorizontal: 16, marginTop: 5 }, addressRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15 }, rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 6 }, section: { color: c.text, fontSize: 18, fontFamily: 'Manrope_800ExtraBold' }, link: { color: c.accent, fontSize: 12, fontFamily: 'Manrope_700Bold', padding: 8 },
+  vehicleList: { gap: 16, paddingVertical: 8, paddingRight: 10 }, vehicleItem: { width: 100, alignItems: 'center' }, carCircle: { width: 92, height: 92, borderRadius: 46, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' }, carSelected: { borderColor: c.accent, backgroundColor: c.accentSoft }, car: { width: 100, height: 78 }, check: { position: 'absolute', bottom: 0, right: 2, width: 23, height: 23, borderRadius: 12, borderWidth: 2, borderColor: c.background, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }, vehicleName: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 12, marginTop: 10 }, vehicleSubtitle: { color: c.textSecondary, fontSize: 11, marginTop: 3 }, addCircle: { width: 92, height: 92, borderRadius: 46, borderWidth: 1, borderColor: c.borderStrong, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  driveCard: { backgroundColor: '#183D2D', borderRadius: 26, padding: 22, marginTop: 14 }, driveTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, driveBadge: { flexDirection: 'row', gap: 7, alignItems: 'center' }, driveBadgeText: { color: '#BED5C8', fontSize: 9, letterSpacing: 1.2, fontFamily: 'Manrope_700Bold' }, driveTitle: { color: '#FFFFFF', fontSize: 27, fontFamily: 'Manrope_800ExtraBold', marginTop: 0, letterSpacing: -.6 }, driveBody: { color: '#B5CABC', fontSize: 12, lineHeight: 19, marginTop: 8 }, driveAction: { marginTop: 22, minHeight: 46, backgroundColor: '#DBE9DF', borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17 }, driveActionText: { color: '#163D2B', fontSize: 13, fontFamily: 'Manrope_800ExtraBold' },
+  activity: { backgroundColor: c.card, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, hardware: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: '#D2DAD5', marginTop: 8, marginBottom: 8 }
 });

@@ -36,6 +36,7 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
     ready: false,
   });
 
+  const hostRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -44,6 +45,7 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
   );
   const distractedSinceRef = useRef<number | null>(null);
   const startedRef = useRef(false);
+  const generationRef = useRef(0);
 
   const stopLoop = useCallback(() => {
     if (rafRef.current != null) {
@@ -53,6 +55,7 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
   }, []);
 
   const teardown = useCallback(() => {
+    generationRef.current += 1;
     stopLoop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -71,6 +74,7 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
 
   const setHost = useCallback(
     (node: HTMLElement | null) => {
+      hostRef.current = node;
       if (Platform.OS !== 'web') {
         return;
       }
@@ -89,9 +93,33 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
         return;
       }
       startedRef.current = true;
+      const generation = ++generationRef.current;
 
       void (async () => {
         try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false,
+          });
+          if (generation !== generationRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+          streamRef.current = stream;
+
+          const video = document.createElement('video');
+          video.setAttribute('playsinline', 'true');
+          video.setAttribute('webkit-playsinline', 'true');
+          video.muted = true;
+          video.autoplay = true;
+          video.style.width = '100%';
+          video.style.height = '100%';
+          video.style.objectFit = 'cover';
+          video.style.transform = 'scaleX(-1)';
+          video.srcObject = stream;
+          node.innerHTML = '';
+          node.appendChild(video);
+          await video.play();
+          if (generation !== generationRef.current) { stream.getTracks().forEach(track => track.stop()); video.remove(); return; }
+          videoRef.current = video;
+          setState(s => ({ ...s, detectionStatus: 'Camera live', ready: true, error: null }));
           const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
 
           const filesetResolver = await FilesetResolver.forVisionTasks(
@@ -110,28 +138,10 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
             minFacePresenceConfidence: 0.5,
           });
 
+          if (generation !== generationRef.current) { faceLandmarker.close(); return; }
           landmarkerRef.current = faceLandmarker;
 
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false,
-          });
-          streamRef.current = stream;
 
-          const video = document.createElement('video');
-          video.setAttribute('playsinline', 'true');
-          video.setAttribute('webkit-playsinline', 'true');
-          video.muted = true;
-          video.autoplay = true;
-          video.style.width = '100%';
-          video.style.height = '100%';
-          video.style.objectFit = 'cover';
-          video.style.transform = 'scaleX(-1)';
-          video.srcObject = stream;
-          node.innerHTML = '';
-          node.appendChild(video);
-          await video.play();
-          videoRef.current = video;
 
           const predict = () => {
             if (!video || !landmarkerRef.current) {
@@ -208,13 +218,14 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
           setState((s: FaceTrackingSnapshot) => ({ ...s, detectionStatus: 'Camera live', ready: true, error: null }));
           rafRef.current = requestAnimationFrame(predict);
         } catch (e) {
+          if (generation !== generationRef.current) return;
           startedRef.current = false;
           const message = e instanceof Error ? e.message : 'Camera or model failed to start';
           setState((s: FaceTrackingSnapshot) => ({
             ...s,
             error: message,
             detectionStatus: 'Unavailable',
-            ready: false,
+            ready: videoRef.current != null,
           }));
         }
       })();
@@ -222,5 +233,6 @@ export function useWebFaceLandmarks(): UseWebFaceLandmarksResult {
     [teardown],
   );
 
-  return { setHost, ...state } satisfies UseWebFaceLandmarksResult;
+  const retry = useCallback(() => { const host = hostRef.current; teardown(); setState(s => ({ ...s, ready: false, error: null, detectionStatus: 'Requesting camera access' })); if (host) setHost(host); }, [teardown, setHost]);
+  return { setHost, retry, ...state } satisfies UseWebFaceLandmarksResult;
 }

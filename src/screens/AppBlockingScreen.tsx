@@ -16,7 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../components/GlassCard';
 import { BLOCK_APPS } from '../data/blockApps';
 import { RootStackParamList } from '../navigation/types';
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 
 // ─── Confirmation modal ──────────────────────────────────────────────────────
@@ -30,6 +31,10 @@ function BlockingSplashModal({
   names: string[];
   onClose: () => void;
 }) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+  const ms = makeModalStyles(colors);
+
   const backdrop = useRef(new Animated.Value(0)).current;
   const badgeScale = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
@@ -100,7 +105,7 @@ function BlockingSplashModal({
   );
 }
 
-const ms = StyleSheet.create({
+const makeModalStyles = (colors: AppColors) => StyleSheet.create({
   root: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.9)' },
   center: { alignItems: 'center', paddingHorizontal: spacing.xl, maxWidth: 340 },
@@ -168,6 +173,9 @@ function AppRow({
   on: boolean;
   onToggle: () => void;
 }) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   return (
     <Pressable style={[styles.row, on && styles.rowOn]} onPress={onToggle}>
       <Image source={app.icon} style={styles.rowIcon} resizeMode="contain" />
@@ -182,6 +190,9 @@ function AppRow({
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export const AppBlockingScreen = () => {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState(false);
@@ -381,7 +392,7 @@ export const AppBlockingScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 120, gap: spacing.md },
   backRow: {

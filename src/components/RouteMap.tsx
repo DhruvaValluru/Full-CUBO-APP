@@ -1,10 +1,11 @@
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import type { RoutePoint, SafetyEvent } from '../features/drives/types';
 
 export function RouteMap({ points, hazards = [], accent, background }: { points: RoutePoint[]; hazards?: SafetyEvent[]; accent: string; background: string }) {
   const width = 340, height = 220, pad = 28;
-  const safe = points?.length > 1 ? points : [{ latitude: 35.7796, longitude: -78.6382 }, { latitude: 35.783, longitude: -78.63 }].map((p) => ({ ...p, recordedAt: '', speedMph: 0 }));
+  if (!points || points.length < 2) return <View style={{ height, borderRadius: 14, overflow: 'hidden', backgroundColor: background, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#66736D', fontSize: 11, fontWeight: '600' }}>No recorded route</Text></View>;
+  const safe = points;
   const lats = safe.map((p) => p.latitude), lngs = safe.map((p) => p.longitude);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
   const xy = safe.map((p) => ({ x: pad + ((p.longitude - minLng) / Math.max(maxLng - minLng, .0001)) * (width - pad * 2), y: height - pad - ((p.latitude - minLat) / Math.max(maxLat - minLat, .0001)) * (height - pad * 2) }));

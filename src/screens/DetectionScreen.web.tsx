@@ -10,12 +10,16 @@ import { ViewfinderCorners } from '../components/ViewfinderCorners';
 import { getDriverById, getVehicleById } from '../data/mockData';
 import { useWebFaceLandmarks } from '../hooks/useWebFaceLandmarks';
 import { RootStackParamList } from '../navigation/types';
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DetectionLive'>;
 
 export const DetectionScreen = ({ navigation, route }: Props) => {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const vehicle = getVehicleById(route.params.vehicleId);
   const driver = vehicle ? getDriverById(vehicle.driverId) : undefined;
 
@@ -186,7 +190,7 @@ export const DetectionScreen = ({ navigation, route }: Props) => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

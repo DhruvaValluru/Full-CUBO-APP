@@ -29,6 +29,7 @@ export function useDriveLocation(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let mounted = true;
+    previous.current = null; speeds.current = [];
     let subscription: Location.LocationSubscription | null = null;
 
     const start = async () => {
@@ -70,10 +71,11 @@ export function useDriveLocation(enabled: boolean) {
           }
           if (last && !weak) {
             const delta = distanceMeters(last, next);
-            if (delta >= 1 && delta < 250) setDistanceMiles((total) => total + delta * METERS_TO_MILES);
+            if (delta >= Math.max(5, next.accuracy ?? 5, last.accuracy ?? 5) && delta < 250) setDistanceMiles((total) => total + delta * METERS_TO_MILES);
           }
           previous.current = next;
         }, (message) => { if (mounted) { setError(message); setStatus('error'); } });
+        if (!mounted) subscription.remove();
       } catch (cause) {
         if (mounted) { setError(cause instanceof Error ? cause.message : 'GPS could not start.'); setStatus('error'); }
       }

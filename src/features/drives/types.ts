@@ -33,6 +33,7 @@ export type DriveSession = {
   durationSeconds: number;
   distanceMiles: number;
   focusScore: number;
+  attentionMeasured?: boolean;
   events: SafetyEvent[];
   route: RoutePoint[];
 };

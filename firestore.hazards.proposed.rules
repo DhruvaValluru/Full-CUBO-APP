@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: authenticated Firebase Auth UID
+    // Fields:
+    //   uid: string, required, immutable, 20-128 characters
+    //   name: string, required, 1-80 characters
+    //   email: string, required, 3-254 characters, matches verified Auth email on changes
+    //   theme: string, required, either "light" or "dark"
+    //   createdAt: timestamp, required, immutable, server time on create
+    //   updatedAt: timestamp, required, server time on every write
+    // The document contains private PII and is readable only by its owner.
+    // ===============================================================
+
+    // Helper functions
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
+    function uidUnchanged() { return isAuthenticated() && request.resource.data.uid == request.auth.uid; }
+    function uidNotModified() { return isAuthenticated() && request.resource.data.uid == resource.data.uid; }
+    function isValidEmail(email) { return email is string && email.size() >= 3 && email.size() <= 254 && email.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$'); }
+    // Self-declared metadata only: never grants family roles or age-verified access.
+    function validAccountDetails(data) {
+      return data is map
+        && data.keys().hasAll(['birthDate', 'phoneNumber', 'accountType', 'ageVerification', 'phoneVerification', 'guardianStatus'])
+        && data.keys().hasOnly(['birthDate', 'phoneNumber', 'accountType', 'ageVerification', 'phoneVerification', 'guardianStatus'])
+        && data.birthDate is string && data.birthDate.size() == 10
+        && data.birthDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && data.phoneNumber is string && data.phoneNumber.size() >= 9 && data.phoneNumber.size() <= 16
+        && data.phoneNumber.matches('^[+][1-9][0-9]{7,14}$')
+        && data.accountType in ['minor', 'adult']
+        && data.ageVerification == 'self-declared'
+        && data.phoneVerification == 'unverified'
+        && data.guardianStatus == 'not-linked';
+    }
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'theme', 'createdAt', 'updatedAt', 'accountDetails'])
+        && data.uid is string && data.uid.size() >= 20 && data.uid.size() <= 128
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && isValidEmail(data.email)
+        && data.theme is string && data.theme in ['light', 'dark']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('accountDetails' in data) || validAccountDetails(data.accountDetails));
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && uidUnchanged() && isValidUser(request.resource.data)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(userId) && uidNotModified() && isValidUser(request.resource.data)
+        && request.resource.data.email == request.auth.token.email
+        && (request.resource.data.email == resource.data.email || request.auth.token.email_verified == true)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Prototype community reports: authenticated reads, immutable location/reporter/time.
+    // confirmationCount: int 0..10, active: bool; retired on tenth unique driver response.
+    // confirmations/{uid}: immutable voterId string, present bool, updatedAt server timestamp.
+    function validRoadReport(data) {
+      return data.keys().hasAll(['reporterId', 'kind', 'latitude', 'longitude', 'cell', 'createdAt', 'confirmationCount', 'active'])
+        && data.keys().hasOnly(['reporterId', 'kind', 'latitude', 'longitude', 'cell', 'createdAt', 'confirmationCount', 'active'])
+        && data.reporterId is string && data.reporterId.size() >= 1 && data.reporterId.size() <= 128
+        && data.kind in ['object', 'police', 'crash']
+        && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+        && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+        && data.cell is string && data.cell.size() <= 24
+        && data.cell == string(math.floor(data.latitude * 100)) + ':' + string(math.floor(data.longitude * 100))
+        && data.createdAt is timestamp
+        && data.confirmationCount is int && data.confirmationCount >= 0 && data.confirmationCount <= 10
+        && data.active is bool && data.active == (data.confirmationCount < 10);
+    }
+    function validRoadConfirmation(data) {
+      return data.keys().hasAll(['voterId', 'present', 'updatedAt'])
+        && data.keys().hasOnly(['voterId', 'present', 'updatedAt'])
+        && data.voterId is string && data.voterId.size() >= 1 && data.voterId.size() <= 128
+        && data.present is bool && data.updatedAt is timestamp;
+    }
+    match /roadReports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && validRoadReport(request.resource.data)
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.confirmationCount == 0 && request.resource.data.active == true;
+      allow update: if isAuthenticated() && validRoadReport(request.resource.data)
+        && resource.data.reporterId != request.auth.uid && resource.data.active == true
+        && resource.data.createdAt + duration.value(30, 'm') > request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmationCount', 'active'])
+        && request.resource.data.confirmationCount == resource.data.confirmationCount + 1
+        && !exists(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid))
+        && validRoadConfirmation(getAfter(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid)).data)
+        && getAfter(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid)).data.voterId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid)).data.updatedAt == request.time;
+      allow delete: if false;
+      match /confirmations/{voterId} {
+        allow read: if isAuthenticated() && voterId == request.auth.uid;
+        allow create: if isAuthenticated() && voterId == request.auth.uid
+          && exists(/databases/$(database)/documents/roadReports/$(reportId))
+          && get(/databases/$(database)/documents/roadReports/$(reportId)).data.reporterId != request.auth.uid
+          && get(/databases/$(database)/documents/roadReports/$(reportId)).data.active == true
+          && get(/databases/$(database)/documents/roadReports/$(reportId)).data.createdAt + duration.value(30, 'm') > request.time
+          && validRoadConfirmation(request.resource.data)
+          && request.resource.data.voterId == request.auth.uid && request.resource.data.updatedAt == request.time
+          && validRoadReport(getAfter(/databases/$(database)/documents/roadReports/$(reportId)).data)
+          && getAfter(/databases/$(database)/documents/roadReports/$(reportId)).data.confirmationCount == get(/databases/$(database)/documents/roadReports/$(reportId)).data.confirmationCount + 1;
+        allow update, delete: if false;
+      }
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

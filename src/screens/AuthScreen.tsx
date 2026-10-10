@@ -5,6 +5,7 @@ import { FirebaseError } from 'firebase/app';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { makeAccountDetails, parseBirthDate } from '../features/auth/accountDetails';
+import { formatBirthInput, formatPhoneInput, internationalPhone, phoneCountries, phoneDigits } from '../features/auth/inputFormatting';
 import { useAuth } from '../features/auth/AuthContext';
 
 type Mode = 'login' | 'signup';
@@ -40,6 +43,12 @@ export function AuthScreen({ onBack }: Props) {
   const compact = useWindowDimensions().height < 720;
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState<{ name: string; region: string; code: string }>(phoneCountries[0]);
+  const [countryPicker, setCountryPicker] = useState(false);
+  const [customCode, setCustomCode] = useState('');
+  const [birthError, setBirthError] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [hidden, setHidden] = useState(true);
@@ -54,10 +63,10 @@ export function AuthScreen({ onBack }: Props) {
     setBusy(true);
     setMessage('');
     try {
-      if (mode === 'signup') await signUp(name, email, password);
+      if (mode === 'signup') await signUp(name, email, password, makeAccountDetails(birthDate, internationalPhone(phone, country.code)));
       else await signIn(email, password);
     } catch (cause) {
-      setMessage(authMessage(cause));
+      setMessage(cause instanceof Error && !(cause instanceof FirebaseError) ? cause.message : authMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -93,6 +102,14 @@ export function AuthScreen({ onBack }: Props) {
       style={styles.screen}
     >
       <StatusBar style="light" />
+      <Modal visible={countryPicker} transparent animationType="fade" onRequestClose={() => setCountryPicker(false)}>
+        <View style={styles.pickerBackdrop}><Pressable accessibilityLabel="Close country selector" style={StyleSheet.absoluteFill} onPress={() => setCountryPicker(false)} /><SafeAreaView style={styles.pickerSheet}>
+          <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Country calling code</Text><Pressable accessibilityRole="button" accessibilityLabel="Close country selector" style={styles.pickerClose} onPress={() => setCountryPicker(false)}><Ionicons name="close" size={22} color="#17251F" /></Pressable></View>
+          <ScrollView keyboardShouldPersistTaps="handled">{phoneCountries.map(item => <Pressable accessibilityRole="button" key={item.region} style={styles.countryOption} onPress={() => { setCountry(item); setPhone(value => phoneDigits(value, item.code)); setCountryPicker(false); }}><Text style={styles.optionText}>{item.name}</Text><Text style={styles.optionCode}>+{item.code}</Text>{country.region === item.region ? <Ionicons name="checkmark" size={20} color="#176B4D" /> : null}</Pressable>)}
+            <Text style={styles.customLabel}>Other country calling code</Text><View style={styles.customRow}><Text style={styles.optionText}>+</Text><TextInput accessibilityLabel="Other country calling code" keyboardType="number-pad" maxLength={3} value={customCode} onChangeText={value => setCustomCode(value.replace(/\D/g, ''))} placeholder="Code" style={styles.customInput} /><Pressable accessibilityRole="button" disabled={!/^[1-9]\d{0,2}$/.test(customCode)} style={styles.useCode} onPress={() => { setCountry({ name: 'Other country', region: '', code: customCode }); setPhone(value => phoneDigits(value, customCode)); setCountryPicker(false); }}><Text style={styles.useCodeText}>Use code</Text></Pressable></View>
+          </ScrollView>
+        </SafeAreaView></View>
+      </Modal>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
           <ScrollView
@@ -112,12 +129,12 @@ export function AuthScreen({ onBack }: Props) {
               </Pressable>
             ) : null}
 
-            <View style={[styles.form, compact && styles.formCompact]}>
+            <View style={[styles.form, (compact || mode === 'signup') && styles.formCompact]}>
               <Text style={[styles.title, compact && styles.titleCompact]}>
                 {mode === 'login' ? 'Welcome\nback' : 'Create an\naccount'}
               </Text>
 
-              <View style={[styles.fields, compact && styles.fieldsCompact]}>
+              <View style={[styles.fields, (compact || mode === 'signup') && styles.fieldsCompact]}>
                 {mode === 'signup' ? (
                   <View style={styles.field}>
                     <Text style={styles.label}>Name</Text>
@@ -148,6 +165,13 @@ export function AuthScreen({ onBack }: Props) {
                   />
                 </View>
 
+                {mode === 'signup' ? <>
+                  <View style={styles.field}><Text style={styles.label}>Phone number</Text><View style={styles.phoneRow}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Country calling code: ${country.name}, +${country.code}`} onPress={() => setCountryPicker(true)} style={styles.countryButton}><Text style={styles.countryText}>{country.region} +{country.code}</Text><Ionicons name="chevron-down" size={14} color="#F7F8F7" /></Pressable>
+                    <TextInput accessibilityLabel="Phone number" autoComplete="tel-national" keyboardType="phone-pad" value={formatPhoneInput(phone, country.code)} onChangeText={value => setPhone(phoneDigits(value, country.code))} placeholder={country.code === '1' ? '(919) 555-0123' : 'Phone number'} placeholderTextColor="#959DA0" style={[styles.input, styles.phoneInput]} />
+                  </View></View>
+                  <View style={styles.field}><Text style={styles.label}>Date of birth</Text><TextInput accessibilityLabel="Date of birth, month day year" keyboardType="number-pad" value={birthDate} onChangeText={value => { setBirthDate(previous => formatBirthInput(value, previous)); setBirthError(''); }} onBlur={() => { if (!birthDate) return; try { parseBirthDate(birthDate); setBirthError(''); } catch (error) { setBirthError(error instanceof Error ? error.message : 'Enter a valid birth date.'); } }} placeholder="MM/DD/YYYY" maxLength={10} placeholderTextColor="#959DA0" style={styles.input} />{birthError ? <Text accessibilityRole="alert" style={styles.fieldError}>{birthError}</Text> : null}<Text style={{ color: '#A4B4AA', fontSize: 11, lineHeight: 17 }}>Type month, day, then year—we add the slashes. Under 18 accounts are marked as minor accounts. Age is self-declared; phone verification and guardian linking are coming later.</Text></View>
+                </> : null}
                 <View style={styles.field}>
                   <Text style={styles.label}>Password</Text>
                   <View style={styles.passwordRow}>
@@ -248,6 +272,24 @@ const styles = StyleSheet.create({
   fields: { gap: 28, marginTop: 58 },
   fieldsCompact: { gap: 20, marginTop: 34 },
   field: { gap: 7 },
+  phoneRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  countryButton: { minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#23372C' },
+  countryText: { color: '#F7F8F7', fontSize: 13, fontFamily: 'Manrope_600SemiBold' },
+  phoneInput: { flex: 1, minWidth: 0 },
+  fieldError: { color: '#F08080', fontSize: 12 },
+  pickerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.4)' },
+  pickerSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingBottom: 24, maxHeight: '75%' },
+  pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 8 },
+  pickerTitle: { color: '#17251F', fontSize: 18, fontFamily: 'Manrope_700Bold' },
+  pickerClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  countryOption: { flexDirection: 'row', gap: 12, minHeight: 48, alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#DEE5E0' },
+  optionText: { flex: 1, color: '#17251F', fontSize: 15 },
+  optionCode: { color: '#46534D', fontSize: 14 },
+  customLabel: { color: '#46534D', fontSize: 12, marginTop: 20, marginBottom: 8 },
+  customRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  customInput: { minHeight: 44, flex: 3, color: '#17251F', borderBottomWidth: 1, borderBottomColor: '#85988C' },
+  useCode: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#176B4D' },
+  useCodeText: { color: '#FFFFFF', fontSize: 13 },
   label: {
     color: '#F2F3F2',
     fontFamily: 'Manrope_600SemiBold',

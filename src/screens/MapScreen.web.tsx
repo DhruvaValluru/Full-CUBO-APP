@@ -1,15 +1,70 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useNavigation, useRoute, usePreventRemove, type NavigationProp } from '@react-navigation/native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { MotionPressable } from '../components/MotionPressable';
+import { searchPlaces, type PlaceResult } from '../features/places/searchPlaces';
+import { usePlaces } from '../features/places/PlacesContext';
+import { useIsFocused } from '@react-navigation/native';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenShell } from '../components/ScreenShell';
-import { SurfaceCard } from '../components/SurfaceCard';
 import { useDrives } from '../features/drives/DriveContext';
+import { useDriveLocation } from '../hooks/useDriveLocation';
+import { elapsedSeconds, formatDuration } from '../features/drives/formatDuration';
+import type { RootStackParamList } from '../navigation/types';
+import type { RoutePoint } from '../features/drives/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
 
 export function MapScreen() {
-  const { activeSession, sessions } = useDrives(); const { colors } = useAppearance(); const styles = useMemo(() => makeStyles(colors), [colors]); const trip = activeSession ?? sessions[0]; const hazards = trip?.events.filter((event) => event.type === 'road_hazard') ?? [];
-  return <ScreenShell><View style={styles.header}><View><Text style={styles.eyebrow}>ROAD OVERVIEW</Text><Text style={styles.title}>CUBO Map</Text></View><View style={styles.webPill}><Ionicons name="desktop-outline" size={13} color={colors.accent} /><Text style={styles.webText}>WEB PREVIEW</Text></View></View><SurfaceCard style={styles.mapCard}><RouteMap points={trip?.route ?? []} hazards={hazards} accent={colors.accent} background={colors.mapSurface} /></SurfaceCard><View style={styles.stats}><SurfaceCard style={styles.stat}><Text style={styles.statValue}>{trip?.route.length ?? 0}</Text><Text style={styles.statLabel}>GPS points</Text></SurfaceCard><SurfaceCard style={styles.stat}><Text style={styles.statValue}>{hazards.length}</Text><Text style={styles.statLabel}>Hazard reports</Text></SurfaceCard></View><Text style={styles.note}>The iPhone app uses a real Apple Maps street layer. Web uses this privacy-safe route preview.</Text></ScreenShell>;
+  const { colors: c } = useAppearance();
+  const s = makeThemeStyles(c);
+
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { activeSession, startDrive, endDrive, updateDrive, addRoutePoint, cameraConfirmation } = useDrives();
+  const focused = useIsFocused(); const gps = useDriveLocation(focused);
+  const screenRoute = useRoute();
+  const incoming = (screenRoute.params as { destination?: PlaceResult } | undefined)?.destination;
+  const { remember } = usePlaces();
+  const [suggestions, setSuggestions] = useState<PlaceResult[]>([]);
+  const awaiting = useRef<number | null>(null);
+  const loaded = useRef<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [route, setRoute] = useState<RoutePoint[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('Choose a destination to preview your route.');
+  const [finished, setFinished] = useState<string | null>(null);
+  const baseline = useRef(0);
+  useEffect(() => { if (awaiting.current == null || !focused || cameraConfirmation <= awaiting.current) return; awaiting.current = null; baseline.current = gps.distanceMiles; startDrive(); }, [cameraConfirmation, focused]);
+  useEffect(() => { const controller = new AbortController(); if (query.trim().length < 2 || route.length) { setSuggestions([]); return; } const timer = setTimeout(() => { void searchPlaces(query, gps.point, controller.signal).then(results => { if (!controller.signal.aborted) setSuggestions(results); }).catch(() => { if (!controller.signal.aborted) setMessage('Search temporarily unavailable.'); }); }, 250); return () => { clearTimeout(timer); controller.abort(); }; }, [query, gps.point?.latitude, gps.point?.longitude, route.length]);
+  usePreventRemove(!!activeSession, () => {});
+  useEffect(() => {
+    if (!activeSession) return;
+    const timer = setInterval(() => updateDrive({ durationSeconds: elapsedSeconds(activeSession.startedAt), focusScore: activeSession.focusScore, distanceMiles: Math.max(0, gps.distanceMiles - baseline.current) }), 1000);
+    return () => clearInterval(timer);
+  }, [activeSession?.id, gps.distanceMiles, updateDrive]);
+  useEffect(() => { if (activeSession && gps.point) addRoutePoint(gps.point.latitude, gps.point.longitude, gps.speedMph); }, [activeSession?.id, gps.point?.timestamp, addRoutePoint]);
+  useEffect(() => { if (finished && !activeSession) navigation.reset({ index: 1, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }, { name: 'TripSummary', params: { sessionId: finished } }] }); }, [finished, activeSession, navigation]);
+
+  const search = async (chosen?: PlaceResult) => {
+    if ((!chosen && !query.trim()) || busy) return;
+    if (!gps.point) { setMessage('Allow location access so CUBO can route from your position.'); return; }
+    setBusy(true); setRoute([]);
+    try {
+      const place = chosen ?? (await searchPlaces(query.trim(), gps.point))[0];
+      if (!place) { setMessage('No matching destination found.'); return; }
+      remember(place); setQuery(place.title); setSuggestions([]);
+      const destination = [place.longitude, place.latitude];
+      const routing = await fetch(`https://router.project-osrm.org/route/v1/driving/${gps.point.longitude},${gps.point.latitude};${destination[0]},${destination[1]}?overview=full&geometries=geojson`);
+      if (!routing.ok) throw Error();
+      const result = (await routing.json()).routes?.[0];
+      if (!result) throw Error();
+      setRoute(result.geometry.coordinates.map(([longitude, latitude]: [number, number]) => ({ latitude, longitude, recordedAt: '', speedMph: 0 })));
+      setMessage(`${(result.distance / 1609.344).toFixed(1)} mi · ${formatDuration(Math.round(result.duration))}`);
+    } catch { setMessage('Route unavailable. Please try again.'); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { if (incoming && gps.point && loaded.current !== incoming.id) { loaded.current = incoming.id; void search(incoming); } }, [incoming?.id, gps.point?.timestamp]);
+  return <ScreenShell><Text style={s.title}>{activeSession ? 'Live drive' : 'Choose your route'}</Text>{!activeSession ? <View style={s.search}><TextInput accessibilityLabel="Destination" placeholder="Where do you want to go?" placeholderTextColor={c.textTertiary} value={query} onChangeText={(text) => { setQuery(text); setRoute([]); }} onSubmitEditing={() => void search()} style={s.input} /><MotionPressable accessibilityLabel="Search destination" style={s.searchButton} onPress={() => void search()}><Ionicons name={busy ? 'hourglass-outline' : 'search'} size={19} color={c.onAccent} /></MotionPressable></View> : <Text style={s.message}>{formatDuration(activeSession.durationSeconds)} · {gps.speedMph} mph</Text>}{!activeSession ? suggestions.map(place => <MotionPressable key={place.id} style={{ backgroundColor: c.card, borderRadius: 16, padding: 14 }} onPress={() => void search(place)}><Text style={{ color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 13 }}>{place.title}</Text><Text style={s.message}>{place.subtitle}</Text></MotionPressable>) : null}<View style={s.map}><RouteMap points={activeSession?.route ?? route} accent={c.accent} background={c.mapSurface} /></View><Text style={s.message}>{message}</Text>{activeSession ? <MotionPressable style={[s.primary, { backgroundColor: c.danger }]} onPress={() => { const trip = endDrive(); if (trip) setFinished(trip.id); }}><Ionicons name="stop-circle" size={18} color="#FFFFFF" /><Text style={[s.primaryText, { color: '#FFFFFF' }]}>End drive</Text></MotionPressable> : <><MotionPressable disabled={route.length < 2 || !gps.hasFix} style={[s.primary, { opacity: route.length < 2 ? .4 : 1 }]} onPress={() => { awaiting.current = cameraConfirmation; navigation.navigate('LiveDrive'); }}><Text style={s.primaryText}>Start drive</Text><Ionicons name="navigate" size={18} color={c.onAccent} /></MotionPressable><MotionPressable style={s.back} onPress={() => navigation.navigate('ReturningHome')}><Ionicons name="home-outline" size={18} color={c.accent} /><Text style={{ color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 12 }}>Back to home</Text></MotionPressable></>}<Text style={s.note}>Street maps and the floating camera are available in the phone app.</Text></ScreenShell>;
 }
-const makeStyles = (c: AppColors) => StyleSheet.create({ header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }, eyebrow: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 8, letterSpacing: 1 }, title: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 28 }, webPill: { flexDirection: 'row', gap: 5, padding: 8, borderRadius: 12, backgroundColor: c.accentSoft }, webText: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 7 }, mapCard: { padding: 8 }, stats: { flexDirection: 'row', gap: 8 }, stat: { flex: 1 }, statValue: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 22 }, statLabel: { color: c.textSecondary, fontSize: 9 }, note: { color: c.textTertiary, fontSize: 9, lineHeight: 14, textAlign: 'center' } });
+const makeThemeStyles = (c: AppColors) => StyleSheet.create({ title: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 24, marginVertical: 12 }, search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderRadius: 18, padding: 10 }, input: { flex: 1, padding: 8, color: c.text, fontSize: 12 }, searchButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }, map: { padding: 8, borderRadius: 22, backgroundColor: c.card }, message: { color: c.textSecondary, fontSize: 11, lineHeight: 17 }, primary: { backgroundColor: c.accent, borderRadius: 18, minHeight: 54, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9 }, primaryText: { color: c.onAccent, fontFamily: 'Manrope_800ExtraBold', fontSize: 14 }, back: { minHeight: 46, borderRadius: 16, backgroundColor: c.surfaceMuted, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }, note: { color: c.textTertiary, fontSize: 10, lineHeight: 16 } });

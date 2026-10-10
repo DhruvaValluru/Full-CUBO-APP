@@ -1,0 +1,24 @@
+{
+  "score": 3,
+  "summary": "Prototype reviewed structurally, not compiled or emulator-tested. Do not publish broadly until validation and abuse controls are in place.",
+  "findings": [
+    {
+      "check": "Business Logic vs. Rules",
+      "severity": "major",
+      "issue": "Live rules deny all road reports. The app query also needs the proposed composite index.",
+      "recommendation": "Compile and emulator-test the proposal, then explicitly publish rules and index before testing across phones."
+    },
+    {
+      "check": "Authority Source",
+      "severity": "moderate",
+      "issue": "Authenticated identity gives one response per UID, not proof of physical presence or a distinct real driver. New accounts could abuse reporting.",
+      "recommendation": "Add server-side rate limiting and App Check before public release; do not describe UID uniqueness as verified drivers."
+    },
+    {
+      "check": "Storage Abuse",
+      "severity": "moderate",
+      "issue": "Field sizes are bounded, but a user can create many report documents. Expiry hides reports without deleting stored data.",
+      "recommendation": "Add trusted per-user reporting quotas and a retention cleanup process before broader use."
+    }
+  ]
+}

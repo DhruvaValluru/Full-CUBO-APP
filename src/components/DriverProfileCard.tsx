@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Driver } from '../types/app';
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 import { FlatPersonAvatar } from './FlatPersonAvatar';
 import { GlassCard } from './GlassCard';
@@ -11,6 +12,9 @@ type DriverProfileCardProps = {
 };
 
 export const DriverProfileCard = ({ driver }: DriverProfileCardProps) => {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   return (
     <GlassCard style={styles.card}>
       <View style={styles.header}>
@@ -34,7 +38,7 @@ export const DriverProfileCard = ({ driver }: DriverProfileCardProps) => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   card: {
     padding: spacing.md,
     gap: spacing.md,

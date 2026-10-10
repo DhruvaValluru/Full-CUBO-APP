@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 
 type StarRowProps = {
   rating: number;
@@ -9,6 +10,9 @@ type StarRowProps = {
 };
 
 export function StarRow({ rating, max = 5 }: StarRowProps) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const full = Math.floor(rating);
   const half = rating - full >= 0.5 ? 1 : 0;
   const empty = max - full - half;
@@ -29,7 +33,7 @@ export function StarRow({ rating, max = 5 }: StarRowProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',

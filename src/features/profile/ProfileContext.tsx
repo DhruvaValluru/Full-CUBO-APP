@@ -48,7 +48,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     if (!cleanName || !user) return;
     await Promise.all([
       updateProfile(user, { displayName: cleanName }),
-      updateDoc(doc(db, 'users', user.uid), { name: cleanName, updatedAt: serverTimestamp() }),
+      updateDoc(doc(db, 'users', user.uid), { name: cleanName, email: user.email, updatedAt: serverTimestamp() }),
     ]);
     setProfile((current) => ({ ...current, name: cleanName, initials: makeInitials(cleanName) }));
   }, [user]);

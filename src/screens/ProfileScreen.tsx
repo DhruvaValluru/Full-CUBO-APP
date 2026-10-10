@@ -15,23 +15,24 @@ import { useAuth } from '../features/auth/AuthContext';
 export function ProfileScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { profile } = useProfile();
-  const { vehicles } = useVehicles();
-  const primaryVehicle = vehicles.find((vehicle) => vehicle.primary) ?? vehicles[0];
-  const { colors, mode, toggleMode } = useAppearance();
+  const { colors, preference, setMode } = useAppearance();
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [notifications, setNotifications] = useState(true);
   const [tripReports, setTripReports] = useState(true);
-  const { user, signOut } = useAuth();
+  const { user, signOut, accountDetails } = useAuth();
 
   return <ScreenShell>
-    <View style={styles.header}><View><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Profile and preferences</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs')} style={styles.homeButton}><Ionicons name="home-outline" size={20} color={colors.accent} /></Pressable></View>
+    <View style={styles.header}><View><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Profile and preferences</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })} style={styles.homeButton}><Ionicons name="home-outline" size={20} color={colors.accent} /></Pressable></View>
 
     <View style={styles.identity}>
       <View style={styles.avatar}>{profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{profile.initials}</Text>}</View>
-      <View style={styles.fill}><Text style={styles.name}>{profile.name}</Text><Text style={styles.meta}>Primary driver · {primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : 'No vehicle'}</Text></View>
+      <View style={styles.fill}><Text style={styles.name}>{profile.name}</Text></View>
       <Pressable onPress={() => navigation.navigate('SettingsDetail', { kind: 'edit' })}><Text style={styles.action}>Edit</Text></Pressable>
     </View>
 
+    {!accountDetails?.birthDate || !accountDetails?.phoneNumber || !user?.email || !profile.name.trim() ? <View style={styles.group}><Text style={[styles.rowTitle, { paddingTop: 16 }]}>Account details not set</Text><Text style={[styles.rowDetail, { paddingBottom: 16 }]}>Add your missing birth date, phone number, or name in Edit profile.</Text></View> : null}
+    <Text style={styles.section}>Saved places</Text><View style={styles.group}><SettingsRow icon="home-outline" title="Home address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'home' })} colors={colors} styles={styles} /><SettingsRow icon="briefcase-outline" title="Work address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'work' })} colors={colors} styles={styles} last /></View>
     <Text style={styles.section}>Connections</Text>
     <View style={styles.group}>
       <SettingsRow icon="people-outline" title="Family safety" detail="Teen driving insights and sharing controls" onPress={() => navigation.navigate('Family')} colors={colors} styles={styles} />
@@ -41,13 +42,16 @@ export function ProfileScreen() {
     <Text style={styles.section}>Driving</Text>
     <View style={styles.group}>
       <SettingsRow icon="time-outline" title="Drive history" detail="Scores, events, and coaching" onPress={() => navigation.navigate('Drives')} colors={colors} styles={styles} />
-      <SettingsRow icon="car-outline" title="Vehicle and CUBO device" detail={`${primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : 'No vehicle'} · Connected`} onPress={() => navigation.navigate('Garage')} colors={colors} styles={styles} />
+      <SettingsRow icon="hardware-chip-outline" title="Devices" detail="CUBO Cruise hardware and diagnostics" onPress={() => navigation.navigate('ConnectedDevices')} colors={colors} styles={styles} />
       <SettingsRow icon="shield-checkmark-outline" title="Privacy and safety" detail="Video stays on this device" onPress={() => navigation.navigate('SettingsDetail', { kind: 'privacy' })} colors={colors} styles={styles} />
     </View>
 
     <Text style={styles.section}>Preferences</Text>
     <View style={styles.group}>
-      <ToggleRow icon={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} title="Dark mode" value={mode === 'dark'} onChange={toggleMode} colors={colors} styles={styles} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Appearance" accessibilityState={{ expanded: appearanceOpen }} onPress={() => setAppearanceOpen(value => !value)} style={styles.row}>
+        <Ionicons name="contrast-outline" size={20} color={colors.textSecondary} /><Text style={[styles.rowTitle, styles.fill]}>Appearance</Text><Text style={styles.rowTitle}>{preference === 'system' ? 'System appearance' : preference === 'dark' ? 'Dark' : 'Light'}</Text><Ionicons name={appearanceOpen ? 'chevron-up' : 'chevron-down'} size={17} color={colors.textSecondary} />
+      </Pressable>
+      {appearanceOpen ? <View accessibilityRole="radiogroup" style={{ paddingVertical: 4 }}>{([{ value: 'system', label: 'System appearance' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }] as const).map(option => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: preference === option.value }} onPress={() => { setMode(option.value); setAppearanceOpen(false); }} style={[styles.row, styles.lastRow, { paddingHorizontal: 12, minHeight: 48, borderRadius: 12, backgroundColor: preference === option.value ? colors.accentSoft : 'transparent' }]}><Text style={[styles.rowTitle, styles.fill]}>{option.label}</Text>{preference === option.value ? <Ionicons name="checkmark" size={20} color={colors.accent} /> : null}</Pressable>)}</View> : null}
       <ToggleRow icon="notifications-outline" title="Safety notifications" value={notifications} onChange={() => setNotifications((value) => !value)} colors={colors} styles={styles} />
       <ToggleRow icon="document-text-outline" title="Trip reports" value={tripReports} onChange={() => setTripReports((value) => !value)} colors={colors} styles={styles} />
     </View>

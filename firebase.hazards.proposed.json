@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "rules": "firestore.hazards.proposed.rules",
+    "indexes": "firestore.hazards.indexes.proposed.json"
+  }
+}

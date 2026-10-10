@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 
 type Props = {
   score: number;
@@ -10,6 +11,9 @@ type Props = {
 };
 
 export function CircularScoreRing({ score, size = 168, strokeWidth = 12 }: Props) {
+  const { colors: colors } = useAppearance();
+  const styles = makeThemeStyles(colors);
+
   const r = (size - strokeWidth) / 2;
   const cx = size / 2;
   const cy = size / 2;
@@ -40,7 +44,7 @@ export function CircularScoreRing({ score, size = 168, strokeWidth = 12 }: Props
   );
 }
 
-const styles = StyleSheet.create({
+const makeThemeStyles = (colors: AppColors) => StyleSheet.create({
   scoreCenter: {
     position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
     alignItems: 'center',
