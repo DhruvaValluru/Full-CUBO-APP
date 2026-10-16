@@ -6,6 +6,7 @@ import { AppHeader } from '../components/AppHeader';
 import { ScreenShell } from '../components/ScreenShell';
 import { SurfaceCard } from '../components/SurfaceCard';
 import { VehicleArt } from '../components/VehicleArt';
+import { VehicleColorSheet } from '../components/VehicleColorSheet';
 import { useVehicles } from '../features/vehicles/VehicleContext';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
@@ -13,10 +14,28 @@ import type { AppColors } from '../theme/colors';
 import { spacing } from '../theme/theme';
 
 export function GarageScreen() {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>(); const { vehicles, setPrimary, deleteVehicle } = useVehicles(); const [confirmDelete, setConfirmDelete] = useState<string | null>(null); const { colors } = useAppearance(); const styles = useMemo(() => makeStyles(colors), [colors]);
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>(); const { vehicles, setPrimary, deleteVehicle, updateVehicle } = useVehicles(); const [confirmDelete, setConfirmDelete] = useState<string | null>(null); const { colors } = useAppearance(); const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [colorVehicleId, setColorVehicleId] = useState<string | null>(null);
+  const colorVehicle = vehicles.find(vehicle => vehicle.id === colorVehicleId);
   return <ScreenShell><AppHeader title="Your garage" eyebrow="Vehicles" onBack={() => navigation.goBack()} /><Text style={styles.subtitle}>Manage your saved vehicles.</Text>
     <View style={styles.sectionRow}><Text style={styles.section}>Saved vehicles</Text><Text style={styles.count}>{vehicles.length}</Text></View>
-    {!vehicles.length ? <SurfaceCard style={styles.empty}><Ionicons name="car-outline" size={28} color={colors.textTertiary} /><Text style={styles.vehicleTitle}>Your garage is empty</Text><Text style={styles.detail}>Add a vehicle to begin a drive.</Text></SurfaceCard> : vehicles.map((vehicle) => <SurfaceCard key={vehicle.id} style={styles.vehicleCard}><View style={styles.vehicleTop}><View style={styles.carIcon}><VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} width={60} height={46} /></View><View style={styles.fill}><Text style={styles.vehicleTitle}>{vehicle.make} {vehicle.model}</Text><Text style={styles.detail}>{vehicle.year || 'Year not set'} · {vehicle.plate || vehicle.nickname}</Text></View>{vehicle.primary ? <View style={styles.primaryPill}><Text style={styles.primaryText}>SELECTED</Text></View> : null}</View><View style={styles.vehicleActions}>{!vehicle.primary ? <Pressable style={styles.secondaryButton} onPress={() => setPrimary(vehicle.id)}><Text style={styles.secondaryText}>Select</Text></Pressable> : <View style={styles.primarySpacer} />}<Pressable style={styles.iconButton} onPress={() => navigation.navigate('AddVehicle', { vehicleId: vehicle.id })}><Ionicons name="pencil-outline" size={18} color={colors.text} /></Pressable><Pressable style={styles.iconButton} onPress={() => setConfirmDelete(vehicle.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable></View>{confirmDelete === vehicle.id ? <View style={styles.confirm}><Text style={styles.confirmText}>Remove {vehicle.make} {vehicle.model}?</Text><Pressable onPress={() => setConfirmDelete(null)}><Text style={styles.cancel}>Cancel</Text></Pressable><Pressable onPress={() => { deleteVehicle(vehicle.id); setConfirmDelete(null); }}><Text style={styles.delete}>Delete</Text></Pressable></View> : null}</SurfaceCard>)}
+    {!vehicles.length ? <SurfaceCard style={styles.empty}><Ionicons name="car-outline" size={28} color={colors.textTertiary} /><Text style={styles.vehicleTitle}>Your garage is empty</Text><Text style={styles.detail}>Add a vehicle to begin a drive.</Text></SurfaceCard> : vehicles.map((vehicle) => <SurfaceCard key={vehicle.id} style={styles.vehicleCard}>
+      <View style={styles.vehicleTop}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Change color for ${vehicle.make} ${vehicle.model}`} onPress={() => setColorVehicleId(vehicle.id)} style={{ width: 76, height: 68, borderRadius: 16, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} width={76} height={56} />
+          <View pointerEvents="none" style={{ position: 'absolute', right: 0, bottom: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.card, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="pencil" size={13} color={colors.onAccent} /></View>
+        </Pressable>
+        <View style={styles.fill}><Text style={styles.vehicleTitle}>{vehicle.make} {vehicle.model}</Text><Text style={styles.detail}>{vehicle.year || 'Year not set'} · {vehicle.plate || vehicle.nickname}</Text></View>
+        {vehicle.primary ? <View style={styles.primaryPill}><Text style={styles.primaryText}>SELECTED</Text></View> : null}
+      </View>
+      <View style={styles.vehicleActions}>
+        {!vehicle.primary ? <Pressable style={[styles.secondaryButton, { minHeight: 44 }]} onPress={() => setPrimary(vehicle.id)}><Text style={styles.secondaryText}>Select</Text></Pressable> : <View style={styles.primarySpacer} />}
+        <Pressable accessibilityRole="button" accessibilityLabel={`View vehicle details for ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: vehicle.id })}><Ionicons name="pencil-outline" size={18} color={colors.text} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => setConfirmDelete(vehicle.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
+      </View>
+      {confirmDelete === vehicle.id ? <View style={styles.confirm}><Text style={styles.confirmText}>Remove {vehicle.make} {vehicle.model}?</Text><Pressable onPress={() => setConfirmDelete(null)}><Text style={styles.cancel}>Cancel</Text></Pressable><Pressable onPress={() => { deleteVehicle(vehicle.id); setConfirmDelete(null); }}><Text style={styles.delete}>Delete</Text></Pressable></View> : null}
+    </SurfaceCard>)}
+    {colorVehicle && <VehicleColorSheet key={colorVehicle.id} vehicle={colorVehicle} onClose={() => setColorVehicleId(null)} onSave={paint => { const { id, primary, ...details } = colorVehicle; updateVehicle(id, { ...details, paint }); setColorVehicleId(null); }} />}
     <Pressable accessibilityRole="button" accessibilityLabel="Add vehicle" style={{ minHeight: 64, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.accent, backgroundColor: colors.accentSoft, justifyContent: 'center', alignItems: 'center', marginTop: 12 }} onPress={() => navigation.navigate('AddVehicle')}><Ionicons name="add" size={28} color={colors.accent} /></Pressable>
   </ScreenShell>;
 }
