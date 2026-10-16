@@ -30,7 +30,7 @@ export function GarageScreen() {
       </View>
       <View style={styles.vehicleActions}>
         {!vehicle.primary ? <Pressable style={[styles.secondaryButton, { minHeight: 44 }]} onPress={() => setPrimary(vehicle.id)}><Text style={styles.secondaryText}>Select</Text></Pressable> : <View style={styles.primarySpacer} />}
-        <Pressable accessibilityRole="button" accessibilityLabel={`View vehicle details for ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: vehicle.id })}><Ionicons name="pencil-outline" size={18} color={colors.text} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`View vehicle details for ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: vehicle.id })}><Ionicons name="eye-outline" size={18} color={colors.text} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => setConfirmDelete(vehicle.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
       </View>
       {confirmDelete === vehicle.id ? <View style={styles.confirm}><Text style={styles.confirmText}>Remove {vehicle.make} {vehicle.model}?</Text><Pressable onPress={() => setConfirmDelete(null)}><Text style={styles.cancel}>Cancel</Text></Pressable><Pressable onPress={() => { deleteVehicle(vehicle.id); setConfirmDelete(null); }}><Text style={styles.delete}>Delete</Text></Pressable></View> : null}
