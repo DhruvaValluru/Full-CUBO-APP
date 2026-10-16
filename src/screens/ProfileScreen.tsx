@@ -36,13 +36,14 @@ export function ProfileScreen() {
     <Text style={styles.section}>Connections</Text>
     <View style={styles.group}>
       <SettingsRow icon="people-outline" title="Family safety" detail="Teen driving insights and sharing controls" onPress={() => navigation.navigate('Family')} colors={colors} styles={styles} />
-      <SettingsRow icon="business-outline" title="Insurance connection" detail="Choose what score summary to share" onPress={() => navigation.navigate('InsuranceConnection')} colors={colors} styles={styles} last />
+      <SettingsRow icon="business-outline" title="Insurance" detail="Savings preview and driver reports" onPress={() => navigation.navigate('InsuranceConnection')} colors={colors} styles={styles} last />
     </View>
 
     <Text style={styles.section}>Driving</Text>
     <View style={styles.group}>
       <SettingsRow icon="time-outline" title="Drive history" detail="Scores, events, and coaching" onPress={() => navigation.navigate('Drives')} colors={colors} styles={styles} />
-      <SettingsRow icon="hardware-chip-outline" title="Devices" detail="CUBO Cruise hardware and diagnostics" onPress={() => navigation.navigate('ConnectedDevices')} colors={colors} styles={styles} />
+      <SettingsRow icon="scan-outline" title="Camera calibration" detail="Set your driver and cabin frame" onPress={() => navigation.navigate('CameraCalibration')} colors={colors} styles={styles} />
+      <SettingsRow icon="hardware-chip-outline" title="Cubo Devices" detail="CUBO Cruise hardware and diagnostics" onPress={() => navigation.navigate('ConnectedDevices')} colors={colors} styles={styles} />
       <SettingsRow icon="shield-checkmark-outline" title="Privacy and safety" detail="Video stays on this device" onPress={() => navigation.navigate('SettingsDetail', { kind: 'privacy' })} colors={colors} styles={styles} />
     </View>
 
@@ -59,7 +60,7 @@ export function ProfileScreen() {
     <Text style={styles.section}>Support</Text>
     <View style={styles.group}>
       <SettingsRow icon="help-circle-outline" title="Help and feedback" onPress={() => navigation.navigate('SettingsDetail', { kind: 'help' })} colors={colors} styles={styles} />
-      <SettingsRow icon="information-circle-outline" title="About CUBO" detail="Competition build 0.2" onPress={() => navigation.navigate('SettingsDetail', { kind: 'about' })} colors={colors} styles={styles} last />
+      <SettingsRow icon="information-circle-outline" title="About CUBO" detail="Our mission and team" onPress={() => navigation.navigate('SettingsDetail', { kind: 'about' })} colors={colors} styles={styles} last />
     </View>
     <Pressable onPress={() => void signOut()} style={styles.signOut}><Ionicons name="log-out-outline" size={18} color={colors.danger} /><View style={styles.fill}><Text style={styles.signOutText}>Log out</Text><Text style={styles.rowDetail}>{user?.email}</Text></View></Pressable>
   </ScreenShell>;

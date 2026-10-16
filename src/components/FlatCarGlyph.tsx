@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
 
 type FlatCarGlyphProps = {
   color?: string;
@@ -9,7 +9,10 @@ type FlatCarGlyphProps = {
 };
 
 /** Minimal 2D car — flat shapes only (no “AI art” look). */
-export function FlatCarGlyph({ color = colors.text, fill = colors.surface }: FlatCarGlyphProps) {
+export function FlatCarGlyph({ color: suppliedColor, fill: suppliedFill }: FlatCarGlyphProps) {
+  const { colors } = useAppearance();
+  const color = suppliedColor ?? colors.text;
+  const fill = suppliedFill ?? colors.surface;
   return (
     <View style={styles.wrap}>
       <View style={[styles.cabin, { borderColor: color, backgroundColor: fill }]} />
@@ -36,7 +39,6 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 3,
-    backgroundColor: colors.surface,
   },
   body: {
     width: 36,
@@ -57,6 +59,5 @@ const styles = StyleSheet.create({
     height: 11,
     borderRadius: 6,
     borderWidth: 3,
-    backgroundColor: colors.surface,
   },
 });

@@ -51,6 +51,7 @@ import { SavedPlaceScreen } from './src/screens/SavedPlaceScreen';
 import { PlacesProvider } from './src/features/places/PlacesContext';
 import { NavChromeProvider } from './src/features/navigation/NavChromeContext';
 import { CruiseProvider } from './src/features/devices/CruiseContext';
+import { CameraCalibrationScreen } from './src/screens/CameraCalibrationScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -122,6 +123,7 @@ function AppNavigation() {
             <Stack.Screen name="Drives" component={DrivesScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="Garage" component={GarageScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="AddVehicle" component={AddVehicleScreen} options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="CameraCalibration" component={CameraCalibrationScreen} options={{ animation: 'slide_from_right', gestureEnabled: false }} />
             <Stack.Screen name="CruiseCamera" component={CruiseCameraScreen} />
             <Stack.Screen name="ConnectedDevices" component={ConnectedDevicesScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />

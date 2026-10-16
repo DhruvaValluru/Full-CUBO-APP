@@ -18,7 +18,7 @@ const content = {
   edit: ['Edit profile', 'Manage your profile, account details, and sign-in security.'],
   privacy: ['Privacy and safety', 'Camera frames are processed locally in the browser and are not stored. Trips retain scores, events, and route coordinates only.'],
   help: ['Help and feedback', 'Something not working? Tell us what happened, or share an idea for CUBO.'],
-  about: ['About CUBO', 'A calmer, more connected drive.'],
+  about: ['About CUBO', 'Student-built driver safety for the Congressional App Challenge.'],
 } as const;
 export function SettingsDetailScreen({ navigation, route }: Props) {
   const { colors } = useAppearance();

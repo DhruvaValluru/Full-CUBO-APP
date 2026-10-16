@@ -14,12 +14,13 @@ export type RootStackParamList = {
   Drives: undefined;
   Garage: undefined;
   AddVehicle: { vehicleId?: string } | undefined;
+  CameraCalibration: undefined;
   ConnectedDevices: undefined;
   CruiseCamera: { deviceId: string };
   Family: undefined;
   Notifications: undefined;
   FamilyMember: { uid: string };
-  InsuranceConnection: undefined;
+  InsuranceConnection: { demoMemberId?: string } | undefined;
   TripDetail: { sessionId: string };
   SettingsDetail: { kind: 'edit' | 'privacy' | 'help' | 'about' };
   LiveDrive: undefined;

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "APPRSA",
-    "slug": "APPRSA",
+    "name": "CUBO",
+    "slug": "cubo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -41,7 +41,8 @@
       ]
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cubocruise.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -51,7 +52,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.dhruva1234.APPRSA"
+      "package": "com.cubocruise.app",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -59,8 +65,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "2a5e9e05-075c-4aa1-bc87-77d078fe4a00"
+        "projectId": "70efa5c9-4ab3-49d0-8d66-1a9bdcda14df"
       }
-    }
+    },
+    "owner": "shashankm7"
   }
 }

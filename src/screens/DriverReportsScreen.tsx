@@ -11,12 +11,15 @@ import {
   getPrimaryVehicleIdForDriver,
 } from '../data/mockData';
 import { RootStackParamList } from '../navigation/types';
-import { colors } from '../theme/colors';
+import { useAppearance } from '../theme/AppearanceContext';
+import type { AppColors } from '../theme/colors';
 import { radii, spacing } from '../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DriverReports'>;
 
 export const DriverReportsScreen = ({ navigation, route }: Props) => {
+  const { colors } = useAppearance();
+  const styles = makeStyles(colors);
   const { driverId } = route.params;
   const driver = getDriverById(driverId);
   const snap = driverReportSnapshots[driverId] ?? driverReportSnapshots.pablo;
@@ -84,7 +87,7 @@ export const DriverReportsScreen = ({ navigation, route }: Props) => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
