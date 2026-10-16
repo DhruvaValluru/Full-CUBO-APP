@@ -36,8 +36,10 @@ the laptop is off. Set up and interact only while parked.
 - This initial export is online-only. There is no offline/service-worker cache.
 - Web maps currently display a schematic route, not native Apple Maps or a
   validated turn-by-turn navigation system.
-- Web camera calibration still needs implementation; the existing web preview
-  component does not provide calibration-ready or frame-capture behavior.
+- Web camera setup now requests permission on tap, previews the front camera,
+  and validates three frames in memory before saving completion metadata. It
+  discards the images and is a framing check, not a calibrated detection model.
+  Denied/interrupted camera access requires retry; backgrounding stops the stream.
 - iOS may suspend camera/GPS when backgrounded or locked. Do not rely on
   background monitoring, and do not treat this prototype as a safety device.
 - Demo family locations, insurance savings and notifications remain demos.
@@ -50,3 +52,11 @@ the laptop is off. Set up and interact only while parked.
 
 Rollback: use an earlier successful Pages deployment. Do not merge web-specific
 changes into `main` unless explicitly requested.
+
+## Safari font/icon deployment regression
+
+Expo exports dependency assets under `assets/node_modules`, which Pages omits.
+`scripts/prepare-web.cjs` copies these assets to `assets/vendor` and rewrites
+their bundle URLs. Do not bypass this post-export step. `test:web-build` checks
+that Manrope and Ionicons are present and no bundle references the excluded path.
+A font request must return font bytes, not the SPA HTML fallback with status 200.

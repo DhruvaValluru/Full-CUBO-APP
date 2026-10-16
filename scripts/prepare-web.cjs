@@ -3,6 +3,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
+// Pages excludes node_modules directories, including Expo's exported font paths.
+// Relocate dependencies and rewrite bundle URLs before anything is uploaded.
+const dependencyAssets = path.join(dist, 'assets', 'node_modules');
+const vendorAssets = path.join(dist, 'assets', 'vendor');
+if (fs.existsSync(dependencyAssets)) {
+  fs.cpSync(dependencyAssets, vendorAssets, { recursive: true });
+}
+function filesIn(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const file = path.join(directory, entry.name);
+    return entry.isDirectory() ? filesIn(file) : [file];
+  });
+}
+for (const file of filesIn(dist)) {
+  if (!/\.(js|css|html|json)$/.test(file)) continue;
+  const source = fs.readFileSync(file, 'utf8');
+  const updated = source.replaceAll('/assets/node_modules/', '/assets/vendor/');
+  if (source !== updated) fs.writeFileSync(file, updated);
+}
 const htmlPath = path.join(dist, 'index.html');
 let html = fs.readFileSync(htmlPath, 'utf8');
 if (!html.includes('</head>')) throw new Error('Export is missing an HTML head.');
@@ -43,6 +62,10 @@ fs.writeFileSync(path.join(dist, '_headers'), `/*
   Cache-Control: no-cache
 /manifest.webmanifest
   Cache-Control: no-cache
+/_expo/static/js/*
+  Cache-Control: no-cache
+/assets/vendor/*.ttf
+  Content-Type: font/ttf
 `);
 // No 404.html: Pages falls back to index.html for client-side navigation.
 console.log('CUBO web package ready in dist (online-only; no personal-data cache).');

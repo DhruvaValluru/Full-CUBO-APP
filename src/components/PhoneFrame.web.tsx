@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useAppearance } from '../theme/AppearanceContext';
@@ -13,7 +13,13 @@ const PHONE_H = 780;
  * The app content fills the inner safe area; you scroll/interact inside the frame.
  */
 export function PhoneFrame({ children }: { children: ReactNode }) {
-  const { colors: colors } = useAppearance();
+  const { colors, mode } = useAppearance();
+  useEffect(() => {
+    document.documentElement.style.backgroundColor = colors.background;
+    document.body.style.backgroundColor = colors.background;
+    document.documentElement.style.colorScheme = mode;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors.background);
+  }, [colors.background, mode]);
   const styles = makeThemeStyles(colors);
   const { width } = useWindowDimensions();
   if (width < 600) return <View style={{ flex: 1, backgroundColor: colors.background }}>{children}</View>;

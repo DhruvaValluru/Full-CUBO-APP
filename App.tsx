@@ -1,8 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Easing, Platform, View } from 'react-native';
+import { Easing, Platform, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
@@ -101,13 +102,14 @@ function AppNavigation() {
   const { user, loading } = useAuth();
   const [hasStarted, setHasStarted] = useState(false);
   const { colors, mode } = useAppearance();
-  const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, ...Ionicons.font });
   const [boot, setBoot] = useState(0);
   const [readyUid, setReadyUid] = useState<string | null>(null);
   useEffect(() => { const timer = setTimeout(() => setBoot(1), 400); return () => clearTimeout(timer); }, []);
   useEffect(() => { if (boot !== 1 || !fontsLoaded || loading) return; const timer = setTimeout(() => setBoot(2), 160); return () => clearTimeout(timer); }, [boot, fontsLoaded, loading]);
   useEffect(() => { setReadyUid(null); if (!user || loading) return; const timer = setTimeout(() => setReadyUid(user.uid), 180); return () => clearTimeout(timer); }, [user?.uid, loading]);
   if (boot === 0) return <LoadingScreen brand />;
+  if (fontError && Platform.OS === 'web') return <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 16, backgroundColor: colors.background }}><Text accessibilityRole="alert" style={{ color: colors.text, fontSize: 18 }}>CUBO couldn’t load its fonts. Check your connection and try again.</Text><Pressable accessibilityRole="button" onPress={() => window.location.reload()} style={{ minHeight: 48, backgroundColor: colors.accent, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.onAccent }}>Reload CUBO</Text></Pressable></View>;
   if (boot !== 2 || !fontsLoaded || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
   if (!user && !hasStarted) return <WelcomeScreen onGetStarted={() => setHasStarted(true)} />;

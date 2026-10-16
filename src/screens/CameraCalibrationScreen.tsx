@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalibrationCamera, type CalibrationCameraHandle } from '../components/CalibrationCamera';
 import { MotionPressable } from '../components/MotionPressable';
 import { saveCalibration } from '../features/calibration/calibrationStatus';
@@ -41,12 +42,24 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
       setSample(index + 1);
       setMessage(steps[index]);
       await new Promise(resolve => setTimeout(resolve, 850));
-      try { await camera.current?.captureFrame(); } catch { /* Keep the guided setup usable if a single sample fails. */ }
+      if (!alive.current) return;
+      try {
+        if (!camera.current) throw new Error('Camera is unavailable. Please retry.');
+        await camera.current.captureFrame();
+      } catch (error) {
+        if (!alive.current) return;
+        progress.stopAnimation(); progress.setValue(0);
+        setPhase('position');
+        setMessage(error instanceof Error ? error.message : 'Frame capture failed. Please retry.');
+        return;
+      }
     }
     if (!alive.current) return;
-    await saveCalibration(steps.length);
+    try { await saveCalibration(steps.length); }
+    catch { if (alive.current) { setPhase('position'); progress.setValue(0); setMessage('Could not save setup. Please try again.'); } return; }
+    if (!alive.current) return;
     setPhase('complete');
-    setMessage('Your camera position is ready for driving.');
+    setMessage('Your camera framing check is complete.');
     Animated.spring(successScale, { toValue: 1, damping: 13, stiffness: 170, useNativeDriver: true }).start();
   };
 
@@ -58,16 +71,16 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
     </View>
 
     <View style={styles.cameraShell}>
-      <CalibrationCamera ref={camera} onReady={() => setReady(true)} />
+      <CalibrationCamera ref={camera} onReady={() => setReady(true)} onUnavailable={message => { setReady(false); setMessage(message); }} />
       <View pointerEvents="none" style={styles.shade} />
       <View pointerEvents="none" style={styles.faceGuide} />
       <View pointerEvents="none" style={styles.horizon} />
       <View pointerEvents="none" style={styles.cornerTL} /><View pointerEvents="none" style={styles.cornerTR} /><View pointerEvents="none" style={styles.cornerBL} /><View pointerEvents="none" style={styles.cornerBR} />
 
-      {phase === 'complete' ? <View pointerEvents="none" style={styles.successOverlay}><Animated.View style={[styles.successMark, { transform: [{ scale: successScale }] }]}><Ionicons name="checkmark" size={42} color="#FFFFFF" /></Animated.View><Text style={styles.successTitle}>Calibration finished</Text><Text style={styles.successBody}>Driver position and cabin frame saved on this device.</Text></View> : null}
+      {phase === 'complete' ? <View pointerEvents="none" style={styles.successOverlay}><Animated.View style={[styles.successMark, { transform: [{ scale: successScale }] }]}><Ionicons name="checkmark" size={42} color="#FFFFFF" /></Animated.View><Text style={styles.successTitle}>Calibration finished</Text><Text style={styles.successBody}>Camera framing check saved on this device.</Text></View> : null}
 
       <View pointerEvents="none" style={styles.cameraFooter}>
-        <View style={styles.footerHeading}><Text style={styles.cameraLabel}>{phase === 'complete' ? 'CAMERA READY' : phase === 'capturing' ? `REFERENCE ${sample} OF ${steps.length}` : 'SETUP PREVIEW'}</Text><Text style={styles.cameraValue}>{phase === 'complete' ? 'Ready' : ready ? 'Aligned' : 'Connecting'}</Text></View>
+        <View style={styles.footerHeading}><Text style={styles.cameraLabel}>{phase === 'complete' ? 'CAMERA READY' : phase === 'capturing' ? `REFERENCE ${sample} OF ${steps.length}` : 'SETUP PREVIEW'}</Text><Text style={styles.cameraValue}>{phase === 'complete' ? 'Ready' : ready ? 'Live preview' : 'Connecting'}</Text></View>
         <View style={styles.track}><Animated.View style={[styles.progress, { width: phase === 'position' ? (ready ? '18%' : '4%') : progress.interpolate({ inputRange: [0, 1], outputRange: ['18%', '100%'] }) }]} /></View>
       </View>
     </View>
@@ -77,7 +90,7 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
       <View style={{ flex: 1 }}><Text style={styles.instructionTitle}>{phase === 'complete' ? 'Setup complete' : phase === 'capturing' ? 'Keep the mount steady' : 'Frame the driver and road'}</Text><Text style={styles.instructionBody}>{message}</Text></View>
     </View>
 
-    <View style={styles.privacy}><Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} /><Text style={styles.privacyText}>Reference frames remain on this device and are never added to your trip map.</Text></View>
+    <View style={styles.privacy}><Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} /><Text style={styles.privacyText}>{Platform.OS === 'web' ? 'Frames are checked in memory and discarded. Only the setup time is saved; this is not an attention-detection calibration.' : 'Reference frames remain on this device and are never added to your trip map.'}</Text></View>
 
     <View style={styles.actions}>
       {phase === 'complete' ? <MotionPressable style={styles.primary} onPress={() => navigation.goBack()}><Text style={styles.primaryText}>Done</Text><Ionicons name="checkmark" size={20} color="#FFFFFF" /></MotionPressable> : <MotionPressable disabled={!ready || phase === 'capturing'} style={[styles.primary, (!ready || phase === 'capturing') && styles.disabled]} onPress={() => void begin()}><Text style={styles.primaryText}>{phase === 'capturing' ? 'Calibrating…' : ready ? 'Start calibration' : 'Waiting for camera'}</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></MotionPressable>}
