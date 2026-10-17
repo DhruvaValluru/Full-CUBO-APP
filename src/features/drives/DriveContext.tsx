@@ -10,8 +10,13 @@ import { useAuth } from '../auth/AuthContext';
 import { useFamily } from '../family/FamilyContext';
 import { familyRequest } from '../family/familyApi';
 import { recoverCheckpoint } from './driveCheckpoint';
+import { DriveCommands } from '../cuboAI/driveCommands';
+import { appendVoiceTurn, type VoiceTurn } from './voiceTranscript';
 
 type DriveContextValue = {
+  voiceMemory: DriveCommands | null;
+  addVoiceTurn: (tripId: string, role: VoiceTurn['role'], text: string) => void;
+  clearVoiceTranscript: (tripId: string) => void;
   activeSession: DriveSession | null;
   sessions: DriveSession[];
   deleteTrip: (id: string) => void;
@@ -46,6 +51,13 @@ export function DriveProvider({ children }: { children: ReactNode }) {
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [monitoringStatus, setMonitoringStatus] = useState('Monitoring not started');
   const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const voiceMemory = useMemo(() => activeSession && owner === user?.uid ? new DriveCommands() : null, [activeSession?.id, owner, user?.uid]);
+  const addVoiceTurn = useCallback((tripId: string, role: VoiceTurn['role'], text: string) => {
+    setActiveSession(current => current?.id === tripId ? appendVoiceTurn(current, role, text) : current);
+  }, []);
+  const clearVoiceTranscript = useCallback((tripId: string) => {
+    setSessions(current => current.map(trip => trip.id === tripId ? { ...trip, voiceTranscript: [], voiceTranscriptLimited: false } : trip));
+  }, []);
   useEffect(() => {
     let mounted = true; setHydrated(false); setOwner(null); setSessions([]); setActiveSession(null); setCameraConfirmation(0); setPersistenceError(null);
     if (!user) return;
@@ -131,6 +143,7 @@ export function DriveProvider({ children }: { children: ReactNode }) {
   const clearTrips = useCallback(() => setSessions([]), []);
 
   const value = useMemo<DriveContextValue>(() => ({
+    voiceMemory, addVoiceTurn, clearVoiceTranscript,
     activeSession: owner === user?.uid ? activeSession : null,
     sessions: owner === user?.uid ? sessions : [],
     recordAttention,
@@ -146,7 +159,7 @@ export function DriveProvider({ children }: { children: ReactNode }) {
     updateDrive,
     endDrive,
     addRoutePoint,
-  }), [monitoringStatus, owner, user?.uid, persistenceError, recordAttention, activeSession, sessions, deleteTrip, clearTrips, startDrive, cameraConfirmation, confirmCamera, addEvent, updateDrive, endDrive, addRoutePoint]);
+  }), [voiceMemory, addVoiceTurn, clearVoiceTranscript, monitoringStatus, owner, user?.uid, persistenceError, recordAttention, activeSession, sessions, deleteTrip, clearTrips, startDrive, cameraConfirmation, confirmCamera, addEvent, updateDrive, endDrive, addRoutePoint]);
 
   return <DriveContext.Provider value={value}>{children}</DriveContext.Provider>;
 }

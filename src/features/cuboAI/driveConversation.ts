@@ -6,7 +6,7 @@ export class DriveConversation {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private followUpUntil = 0;
   private rapidEnds = 0;
-  constructor(private speech: SpeechPort, private allowed: () => boolean, private answer: (text: string) => DriveReply, private status: (active: boolean, text: string) => void, private now: () => number = Date.now) {}
+  constructor(private speech: SpeechPort, private allowed: () => boolean, private answer: (text: string) => DriveReply, private status: (active: boolean, text: string) => void, private now: () => number = Date.now, private context: { acceptsFollowUp: (text: string) => boolean; readyForReply: () => void } = { acceptsFollowUp: () => false, readyForReply: () => {} }) {}
   start() {
     this.stop(); this.rapidEnds = 0;
     // Runs synchronously from the user's tap to establish speech playback on Safari.
@@ -16,7 +16,7 @@ export class DriveConversation {
   private listen(version: number) {
     if (version !== this.revision || !this.allowed()) { if (version === this.revision) this.stop(); return; }
     let received = false; const began = this.now();
-    this.status(true, 'Voice assist on · listening for “Hey Cubo”');
+    this.status(true, this.context.acceptsFollowUp('confirm') ? 'Listening · say confirm or cancel (no Hey Cubo needed)' : 'Voice assist on · listening for “Hey Cubo”');
     const restart = () => {
       if (received || version !== this.revision) return;
       received = true;
@@ -30,7 +30,7 @@ export class DriveConversation {
         if (version !== this.revision || !this.allowed()) return;
         this.speech.stop();
         this.rapidEnds = 0;
-        if (!hasWakePhrase(text) && this.now() > this.followUpUntil) { this.schedule(version); return; }
+        if (!hasWakePhrase(text) && this.now() > this.followUpUntil && !this.context.acceptsFollowUp(text)) { this.schedule(version); return; }
         try { this.say(version, this.answer(text.slice(0, 1000))); }
         catch { this.stop('Command unavailable · voice off'); }
       }, message => {
@@ -53,6 +53,7 @@ export class DriveConversation {
         if (version !== this.revision) return;
         if (response.stop) { this.stop(); return; }
         this.followUpUntil = this.now() + 20000;
+        this.context.readyForReply();
         this.schedule(version);
       }, () => { if (version === this.revision) this.stop('Voice off · audio unavailable. Check volume and tap AI when parked.'); });
     } catch { this.stop('Voice off · audio unavailable. Check volume and tap AI when parked.'); }

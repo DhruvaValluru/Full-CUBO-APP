@@ -18,6 +18,7 @@ import { GarageScreen } from './src/screens/GarageScreen';
 import { LiveDriveScreen } from './src/screens/LiveDriveScreen';
 import { TripSummaryScreen } from './src/screens/TripSummaryScreen';
 import { DriveEventsScreen } from './src/screens/DriveEventsScreen';
+import { VoiceTranscriptScreen } from './src/screens/VoiceTranscriptScreen';
 import { DriveProvider } from './src/features/drives/DriveContext';
 import { DetectionScreen } from './src/screens/DetectionScreen';
 import { DriverReportsScreen } from './src/screens/DriverReportsScreen';
@@ -139,6 +140,7 @@ function AppNavigation() {
             <Stack.Screen name="ReturningHome" component={ReturningHomeScreen} options={{ animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="SavedPlace" component={SavedPlaceScreen} options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="DriveEvents" component={DriveEventsScreen} />
+            <Stack.Screen name="VoiceTranscript" component={VoiceTranscriptScreen} />
             <Stack.Screen name="TripSummary" component={TripSummaryScreen} options={{ animation: 'slide_from_right', gestureEnabled: false }} />
             <Stack.Screen name="VehicleDetail" component={VehicleDetailScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="DriverReports" component={DriverReportsScreen} options={{ animation: 'slide_from_right' }} />

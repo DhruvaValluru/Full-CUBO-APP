@@ -25,6 +25,8 @@ export type SafetyEvent = {
 };
 
 export type DriveSession = {
+  voiceTranscript?: import('./voiceTranscript').VoiceTurn[];
+  voiceTranscriptLimited?: boolean;
   id: string;
   driverName: string;
   vehicleName: string;

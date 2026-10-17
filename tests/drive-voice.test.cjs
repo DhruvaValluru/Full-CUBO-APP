@@ -21,7 +21,7 @@ test('spoken variants reuse account answers and live facts without inference', (
     ['what road do I drive on next', /Main Street/], ['what road do I turn onto next', /Main Street/],
     ['how fast am I going', /24 miles/], ['how am I doing this drive', /88 out of 100/],
     ['how long have I driven', /4 minutes and 2.3/], ['are you listening', /Voice is on/],
-    ['what is my eta', /not connected/], ['report a pothole', /Which hazard|not submitted/],
+    ['what is my eta', /unavailable/], ['report a pothole', /Which hazard|not submitted/],
   ]) assert.match(c.answer(q, data).text, expected, q);
   const last = c.answer('my vehicle', data).text;
   assert.equal(c.answer('repeat that', data).text, last);
@@ -36,6 +36,64 @@ test('missing data is not invented and destructive actions stay blocked', () => 
   assert.match(c.answer('end drive', data).text, /cannot/);
   assert.match(c.answer('and their score', data).text, /Which demo/);
 });
+test('confirmation survives long speech, respond repair and controller restart within a drive', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let now = 1000, input, done, reports = 0;
+  const memory = new DriveCommands(() => now);
+  const speech = { stop() {}, listen(consent, result) { input = result; }, speak(text, complete) { done = complete; } };
+  const controller = () => new DriveConversation(speech, () => true, text => { const r = memory.answer(text, data); if (r.report) reports++; return r; }, () => {}, () => now, memory);
+  let c = controller(); c.start(); done(); t.mock.timers.tick(650);
+  input('Hey Cubo report a crash'); now += 40000; done(); t.mock.timers.tick(650);
+  now += 25000; // Beyond normal follow-up window, but pending confirmation is still accepted.
+  input('Hey Cubo respond'); assert.match(memory.answer('what am i confirming', data).text, /crash/);
+  done(); t.mock.timers.tick(650); c.stop();
+  c = controller(); c.start(); done(); t.mock.timers.tick(650);
+  input('confirm'); assert.equal(reports, 1); done(); t.mock.timers.tick(650);
+  input('confirm'); assert.equal(reports, 1); c.stop();
+  assert.equal(memory.answer('confirm', { ...data, tripId: 'new-drive' }).report, undefined);
+});
+test('spoken off confirm works after respond and no wake word beyond ordinary follow-up window', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let now = 1000, input, done, on = false;
+  const memory = new DriveCommands(() => now);
+  const c = new DriveConversation({ stop() {}, listen(consent, r) { input = r; }, speak(text, d) { done = d; } }, () => true, text => memory.answer(text, data), active => on = active, () => now, memory);
+  c.start(); done(); t.mock.timers.tick(650); input('Hey Cubo turn off voice assist');
+  now += 35000; done(); t.mock.timers.tick(650); now += 25000;
+  input('confirm'); done(); assert.equal(on, false); c.stop();
+});
+test('navigation follows route context, destination, approximate ETA and history without a model', () => {
+  const c = new DriveCommands(() => 1000);
+  const route = { ...data, routeId: 'route-a', routeIndex: 0, routeSteps: ['Turn right on A', 'Turn left on B', 'Arrive at Library'], destination: 'Library', remainingSeconds: 600, remainingMiles: 4.5, history: [{ role: 'user', text: 'Who are my kids?' }] };
+  assert.match(c.answer('next turn', route).text, /right on A/);
+  assert.match(c.answer('and after that', route).text, /left on B/);
+  assert.match(c.answer('what then', route).text, /Library/);
+  assert.match(c.answer('my final destination', route).text, /Library/);
+  assert.match(c.answer('estimated time of arrival', route).text, /10 minutes and 4.5 miles/);
+  assert.match(c.answer('when will I get there', { ...route, gpsValid: false }).text, /unavailable/);
+  assert.match(c.answer('what did I ask earlier', route).text, /Who are my kids/);
+  assert.match(c.answer('next turn', { ...route, routeId: 'reroute', routeSteps: ['Turn onto C'] }).text, /onto C/);
+});
+test('remaining route estimate uses projected geometry and refuses off-route position', () => {
+  const { remainingRoute } = load('src/features/navigation/remainingRoute.ts');
+  const route = { coordinates: [{ latitude: 0, longitude: 0 }, { latitude: 0, longitude: .02 }], distanceMeters: 2224, durationSeconds: 200, steps: [] };
+  const half = remainingRoute(route, { latitude: 0, longitude: .01 });
+  assert.ok(Math.abs(half.seconds - 100) < .01);
+  assert.equal(remainingRoute(route, { latitude: 1, longitude: .01 }), undefined);
+  assert.equal(remainingRoute(null, null), undefined);
+});
+test('transcript is bounded, local, recovered with trip and never added to family payload', () => {
+  const { appendVoiceTurn, MAX_TRANSCRIPT_CHARS } = load('src/features/drives/voiceTranscript.ts');
+  const { recoverCheckpoint } = load('src/features/drives/driveCheckpoint.ts');
+  let trip = { id: 'test', durationSeconds: 12, voiceTranscript: [] };
+  trip = appendVoiceTurn(trip, 'user', 'Report crash'); trip = appendVoiceTurn(trip, 'assistant', 'Confirm?');
+  assert.equal(recoverCheckpoint({ version: 1, sessions: [], active: trip, savedAt: 'now' })[0].voiceTranscript.length, 2);
+  for (let i = 0; i < 1000; i++) trip = appendVoiceTurn(trip, 'user', 'x'.repeat(1200));
+  assert.equal(trip.voiceTranscriptLimited, true); assert.ok(JSON.stringify(trip.voiceTranscript).length <= MAX_TRANSCRIPT_CHARS);
+  const source = fs.readFileSync('src/features/drives/DriveContext.tsx', 'utf8');
+  const payload = source.match(/const drives = sessions[\s\S]*?familyRequest\('\/family\/drives', \{ drives \}\)/)[0];
+  assert.doesNotMatch(payload, /voiceTranscript/);
+  assert.match(source, /activeSession\?\.id, owner, user\?\.uid/);
+});
 test('hazards require confirmation, fresh coordinates and same trip; save original location once', () => {
   let now = 1000; const c = new DriveCommands(() => now);
   assert.equal(c.answer('report an object on the road here', data).report, undefined);
@@ -45,10 +103,10 @@ test('hazards require confirmation, fresh coordinates and same trip; save origin
   c.answer('report debris', data); c.answer('cancel', data);
   assert.equal(c.answer('confirm', data).report, undefined);
   c.answer('report crash', data); c.answer('my vehicle', data);
-  assert.equal(c.answer('yes', data).report, undefined);
+  assert.equal(c.answer('yes', data).report.kind, 'crash');
   c.answer('report police', data);
   assert.equal(c.answer('confirm', { ...data, tripId: 'trip-b' }).report, undefined);
-  c.answer('report debris', data); now = 22000;
+  c.answer('report debris', data); c.readyForReply(); now = 62000;
   assert.equal(c.answer('confirm', data).report, undefined);
   assert.match(c.answer('report debris', data).text, /fresh GPS/);
   now = 1000;
@@ -95,7 +153,7 @@ test('spoken off variants require fresh confirmation, never conflict with hazard
   }
   const c = new DriveCommands(() => now);
   c.answer('turn off voice assist', data); assert.match(c.answer('no', data).text, /still on/);
-  c.answer('turn off voice assist', data); now += 31000; assert.equal(c.answer('yes', data).stop, undefined);
+  c.answer('turn off voice assist', data); c.readyForReply(); now += 61000; assert.equal(c.answer('yes', data).stop, undefined);
   assert.match(c.answer('Hey Kubo could you tell me my first child score please', data).text, /89\/100/);
   assert.match(c.answer('what automobile do I have', data).text, /Toyota Prius/);
 });

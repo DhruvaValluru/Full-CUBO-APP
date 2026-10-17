@@ -3,6 +3,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MotionPressable } from '../components/MotionPressable';
+import { VoiceTranscriptLink } from '../components/VoiceTranscriptLink';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TripRouteSnapshot } from '../components/TripRouteSnapshot';
 import { useDrives } from '../features/drives/DriveContext';
@@ -51,6 +52,7 @@ export function TripSummaryScreen({ navigation, route }: Props) {
     {session ? <View style={styles.sectionCard}><View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Your route</Text><Text style={styles.sectionDescription}>{session.route.length > 1 ? `${session.route.length} GPS points recorded` : 'Not enough GPS data to draw this drive'}</Text></View></View><TripRouteSnapshot points={session.route} hazards={session.events} accent={colors.accent} background={colors.mapSurface} /></View> : null}
 
     <MotionPressable style={[styles.sectionCard, { flexDirection: 'row', alignItems: 'center', padding: 20 }]} onPress={() => navigation.navigate('DriveEvents', { sessionId: route.params.sessionId })}><Text style={[styles.sectionTitle, { flex: 1 }]}>Drive events</Text><Text style={{ color: colors.textSecondary, marginRight: 12 }}>{events.length}</Text><Ionicons name="chevron-forward" size={20} color={colors.accent} /></MotionPressable>
+    {session ? <VoiceTranscriptLink sessionId={session.id} /> : null}
     </ScrollView><View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
     <MotionPressable style={styles.done} scaleTo={0.96} onPress={backHome}><Text style={styles.doneText}>Return home</Text><Ionicons name="arrow-forward" size={18} color="#FFFFFF" /></MotionPressable>
   </View></SafeAreaView>;

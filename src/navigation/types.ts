@@ -29,6 +29,7 @@ export type RootStackParamList = {
   ReturningHome: { afterDrive?: boolean } | undefined;
   SavedPlace: { kind: 'home' | 'work' };
   DriveEvents: { sessionId: string };
+  VoiceTranscript: { sessionId: string };
   TripSummary: { sessionId: string };
   VehicleDetail: { vehicleId: string };
   DetectionLive: { vehicleId: string };
