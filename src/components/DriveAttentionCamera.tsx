@@ -24,7 +24,7 @@ export function DriveAttentionCamera({ speedMph, gpsValid }: { speedMph: number;
     const { activeSession: session, speedMph: speed, gpsValid: valid } = latest.current;
     if (!session || Date.now() - sample.at > 1500) return;
     lastFrame.current = Date.now();
-    const result = advanceAttention(state.current, sample, baseline.current, valid && speed >= 3);
+    const result = advanceAttention(state.current, sample, baseline.current, speed >= 3, valid);
     const previous = state.current;
     state.current = result.state; setStatus(result.status);
     // Keep video-frame traffic out of the whole application render tree.
