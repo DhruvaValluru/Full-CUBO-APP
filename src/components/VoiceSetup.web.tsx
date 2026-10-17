@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppearance } from '../theme/AppearanceContext';
 import { MicrophoneMeter } from '../features/cuboAI/microphoneMeter';
+import { accessError } from '../features/permissions/accessErrors';
 import type { VoiceSetupProps } from './VoiceSetup';
 
 export function VoiceSetup({ onContinue, onClose }: VoiceSetupProps) {
@@ -28,8 +29,8 @@ export function VoiceSetup({ onContinue, onClose }: VoiceSetupProps) {
     try {
       const started = await next.start(value => { if (alive.current && version === attempt.current) { setLevel(value); if (value > .06) setHeard(true); } });
       if (alive.current && version === attempt.current && started) setState('testing');
-    } catch {
-      if (alive.current && version === attempt.current) { setState('stopped'); setError('Could not access your microphone. Check this site’s microphone permission, retry, or skip for now.'); }
+    } catch (cause) {
+      if (alive.current && version === attempt.current) { setState('stopped'); setError(accessError(cause)); }
     }
   }
   const leave = (callback: () => void) => { stop(); callback(); };
@@ -43,7 +44,7 @@ export function VoiceSetup({ onContinue, onClose }: VoiceSetupProps) {
       <p role="status" style={{ fontSize: 14, minHeight: 24, margin: '12px 0 20px' }}>{state === 'requesting' ? 'Allow microphone access in your browser…' : state === 'testing' ? heard ? 'Sound detected · keep speaking' : 'Speak to test your microphone' : heard ? 'Test finished · sound was detected' : 'Microphone is off'}</p>
       {error && <p role="alert" style={{ color: c.text, fontSize: 14, lineHeight: 1.5 }}>{error}</p>}
       <button autoFocus style={{ ...button, width: '100%', background: c.accentSoft, color: c.accent }} onClick={state === 'testing' || state === 'requesting' ? stop : () => void test()}>{state === 'testing' || state === 'requesting' ? 'Stop microphone test' : 'Test microphone'}</button>
-      <p style={{ fontSize: 12, lineHeight: 1.6, color: c.textSecondary, margin: '20px 0' }}>Sound levels stay on this device; nothing is recorded or sent. Voice commands and spoken AI replies are not connected yet. The microphone turns off when you continue.</p>
+      <p style={{ fontSize: 12, lineHeight: 1.6, color: c.textSecondary, margin: '20px 0' }}>Test microphone requests browser access. Sound levels stay on this device; nothing is recorded or sent by this test. The microphone turns off when you continue. Manage access in Account → Preferences → Camera & microphone access. Voice assist has separate browser speech-recognition consent.</p>
       <button style={{ ...button, width: '100%', background: c.accent, color: c.onAccent }} onClick={() => leave(onContinue)}>{heard ? 'Continue to drive' : 'Skip & continue to drive'}</button>
       <button style={{ ...button, width: '100%', background: 'transparent', color: c.textSecondary, marginTop: 8 }} onClick={() => leave(onClose)}>Back to camera check</button>
     </div>

@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScreenShell } from '../components/ScreenShell';
 import { MapSourcePreference } from '../components/MapSourcePreference';
+import { MediaAccessPreference } from '../components/MediaAccessPreference';
 import { VoicePreference } from '../components/VoicePreference';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
@@ -58,6 +59,7 @@ export function ProfileScreen() {
       <ToggleRow icon="notifications-outline" title="Safety notifications" value={notifications} onChange={() => setNotifications((value) => !value)} colors={colors} styles={styles} />
       <ToggleRow icon="document-text-outline" title="Trip reports" value={tripReports} onChange={() => setTripReports((value) => !value)} colors={colors} styles={styles} />
       <MapSourcePreference />
+      <MediaAccessPreference />
       <VoicePreference />
     </View>
 

@@ -29,6 +29,19 @@ test('mic meter measures real samples, stops tracks and closes audio; late permi
   } finally { if (nav) Object.defineProperty(global, 'navigator', nav); else delete global.navigator; global.AudioContext = previousAudio; }
 });
 
+test('mic permission is requested immediately even when Web Audio resume is pending', async () => {
+  const original = Object.getOwnPropertyDescriptor(global, 'navigator'); const previousAudio = global.AudioContext;
+  let requested = false, resolveAudio, releasePermission, stopped = 0;
+  global.AudioContext = class { resume() { return new Promise(resolve => resolveAudio = resolve); } async close() {} };
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => { requested = true; return new Promise(resolve => releasePermission = resolve); } } } });
+  try {
+    const meter = new MicrophoneMeter(); const pending = meter.start(() => {});
+    assert.equal(requested, true); meter.stop();
+    releasePermission({ getTracks: () => [{ stop: () => stopped++ }] }); resolveAudio();
+    assert.equal(await pending, false); assert.equal(stopped, 1);
+  } finally { if (original) Object.defineProperty(global, 'navigator', original); else delete global.navigator; global.AudioContext = previousAudio; }
+});
+
 test('drive voice has explicit consent, no model integration and setup remains optional', () => {
   const control = fs.readFileSync('src/components/DriveVoiceControl.web.tsx', 'utf8');
   assert.doesNotMatch(control, /getUserMedia|SpeechRecognition|createWorkerFactory/);

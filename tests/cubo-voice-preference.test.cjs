@@ -34,7 +34,7 @@ test('Listen chooses preferred voice each time and falls back if unavailable', (
 });
 test('voice dropdown follows map source and listens for delayed browser voices', () => {
   const profile = fs.readFileSync('src/screens/ProfileScreen.tsx', 'utf8');
-  assert.match(profile, /<MapSourcePreference \/>\s*<VoicePreference \/>/);
+  assert.match(profile, /<MapSourcePreference \/>\s*<MediaAccessPreference \/>\s*<VoicePreference \/>/);
   const component = fs.readFileSync('src/components/VoicePreference.web.tsx', 'utf8');
   assert.match(component, /addEventListener\('voiceschanged', refresh\)/);
   assert.match(component, /removeEventListener\('voiceschanged', refresh\)/);
