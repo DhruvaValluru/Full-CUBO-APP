@@ -25,7 +25,8 @@ test('spoken variants reuse account answers and live facts without inference', (
   ]) assert.match(c.answer(q, data).text, expected, q);
   const last = c.answer('my vehicle', data).text;
   assert.equal(c.answer('repeat that', data).text, last);
-  assert.equal(c.answer('stop listening', data).stop, true);
+  assert.match(c.answer('stop listening', data).text, /Say yes/);
+  assert.equal(c.answer('yes', data).stop, true);
 });
 test('missing data is not invented and destructive actions stay blocked', () => {
   const c = new DriveCommands();
@@ -55,29 +56,68 @@ test('hazards require confirmation, fresh coordinates and same trip; save origin
   assert.match(c.answer('object', data).text, /Say confirm/);
   assert.equal(c.answer('yes', data).report.kind, 'object');
 });
-test('conversation has a hard 60-second limit even with ongoing speech', t => {
+test('voice stays on past 60 seconds, silence restarts, wake phrase gates idle conversation', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  let active = false;
-  const c = new DriveConversation({ stop() {}, listen() {}, speak() {} }, () => true, () => ({ text: '' }), value => active = value);
-  c.start(); assert.equal(active, true);
-  t.mock.timers.tick(60000); assert.equal(active, false); c.stop();
+  let active = false, result, end, complete, now = 1000, count = 0;
+  const c = new DriveConversation({ stop() {}, listen(consent, r, error, e) { result = r; end = e; }, speak(text, done) { complete = done; } }, () => true, () => { count++; return { text: 'Reply' }; }, value => active = value, () => now);
+  c.start(); assert.equal(active, true); complete(); t.mock.timers.tick(650);
+  now += 61000; t.mock.timers.tick(61000); assert.equal(active, true);
+  end(); t.mock.timers.tick(650); assert.equal(active, true);
+  result('unrelated passenger speech'); assert.equal(count, 0); t.mock.timers.tick(650);
+  result('Hey Cubo what is my vehicle'); assert.equal(count, 1);
+  complete(); t.mock.timers.tick(650); result('and my kids'); assert.equal(count, 2);
+  c.stop(); complete(); t.mock.timers.tick(650); assert.equal(active, false);
 });
-test('conversation alternates listen and speak, stops on silence/errors and ignores stale results', () => {
+test('conversation alternates listen and speak, stops on errors and ignores stale results', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let input, done, failed, ended, error, listens = 0, allowed = true, answers = 0;
   const states = [];
   const speech = { stop() {}, listen(consent, result, onerror, onend) { assert.equal(consent, true); listens++; input = result; error = onerror; ended = onend; }, speak(text, complete, failure) { done = complete; failed = failure; } };
   const c = new DriveConversation(speech, () => allowed, text => { answers++; return { text: 'Reply', stop: text === 'stop' }; }, (on, text) => states.push([on, text]));
   try {
-    c.start(); assert.equal(listens, 1);
+    c.start(); assert.equal(listens, 0); done(); t.mock.timers.tick(650); assert.equal(listens, 1);
     input('hello'); ended(); assert.equal(listens, 1); // no microphone during speech
-    done(); assert.equal(listens, 2);
+    done(); t.mock.timers.tick(650); assert.equal(listens, 2);
     input('stop'); done(); assert.equal(states.at(-1)[0], false);
     const old = input; old('late callback'); assert.equal(answers, 2);
-    c.start(); ended(); assert.match(states.at(-1)[1], /no speech/);
-    c.start(); error('permission denied'); assert.equal(states.at(-1)[0], false);
-    c.start(); input('hello'); failed(); assert.match(states.at(-1)[1], /playback unavailable/);
-    c.start(); allowed = false; input('late'); assert.equal(answers, 3);
+    c.start(); done(); t.mock.timers.tick(650); error('permission denied'); assert.equal(states.at(-1)[0], false);
+    c.start(); done(); t.mock.timers.tick(650); input('hello'); failed(); assert.match(states.at(-1)[1], /audio unavailable/);
+    c.start(); done(); t.mock.timers.tick(650); allowed = false; input('late'); assert.equal(answers, 3);
   } finally { c.stop(); }
+});
+test('spoken off variants require fresh confirmation, never conflict with hazard confirmation', () => {
+  let now = 1000;
+  for (const q of ['Hey Cubo turn off voice assist', 'please turn voice assistant off', 'could you disable voice assist please', 'stop listening', 'mute yourself']) {
+    const c = new DriveCommands(() => now);
+    c.answer('report debris', data);
+    assert.match(c.answer(q, data).text, /Say yes/);
+    const result = c.answer('yes', data); assert.equal(result.stop, true); assert.equal(result.report, undefined);
+  }
+  const c = new DriveCommands(() => now);
+  c.answer('turn off voice assist', data); assert.match(c.answer('no', data).text, /still on/);
+  c.answer('turn off voice assist', data); now += 31000; assert.equal(c.answer('yes', data).stop, undefined);
+  assert.match(c.answer('Hey Kubo could you tell me my first child score please', data).text, /89\/100/);
+  assert.match(c.answer('what automobile do I have', data).text, /Toyota Prius/);
+});
+test('consent is once per account and drive, including remount, without auto-enabling', () => {
+  const { driveConsent } = load('src/features/cuboAI/driveConsent.ts');
+  const map = new Map(); const store = { getItem: k => map.get(k), setItem: (k,v) => map.set(k,v) };
+  const a = driveConsent(store, 'a', 'trip-1'); assert.equal(a.accepted(), false); a.accept();
+  assert.equal(a.accepted(), true); assert.equal(driveConsent(store, 'a', 'trip-1').accepted(), true);
+  assert.equal(driveConsent(store, 'a', 'trip-2').accepted(), false);
+  assert.equal(driveConsent(store, 'b', 'trip-1').accepted(), false);
+  const blocked = driveConsent(undefined, 'a', 'trip-1'); blocked.accept(); assert.equal(blocked.accepted(), true);
+});
+test('silent or stuck speech fails visibly rather than leaving green icon forever', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');
+  const previous = global.window, previousUtterance = global.SpeechSynthesisUtterance;
+  let failed = false;
+  global.window = { speechSynthesis: { cancel() {}, getVoices: () => [], speak() {}, resume() {} } };
+  global.SpeechSynthesisUtterance = class {};
+  const voice = new CuboAIVoice(() => true);
+  try { voice.speak('Hello', assert.fail, () => failed = true); t.mock.timers.tick(10000); assert.equal(failed, true); }
+  finally { voice.dispose(); global.window = previous; global.SpeechSynthesisUtterance = previousUtterance; }
 });
 test('browser voice stops recognition BEFORE dispatching the command and honors selected output', () => {
   const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');

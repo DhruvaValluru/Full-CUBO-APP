@@ -15,6 +15,7 @@ import { DriveCommands, type DriveVoiceSnapshot } from '../features/cuboAI/drive
 import { DriveConversation } from '../features/cuboAI/driveConversation';
 import { readVoicePreference } from '../features/cuboAI/voicePreference';
 import type { LocalAnswerDetails } from '../features/cuboAI/quickAnswers';
+import { driveConsent } from '../features/cuboAI/driveConsent';
 
 type Props = { live: Pick<DriveVoiceSnapshot, 'point' | 'gpsValid' | 'speed' | 'nextTurn'>; onStatus: (text: string) => void };
 export function DriveVoiceControl(props: Props) {
@@ -28,6 +29,7 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
   const { vehicles, ready } = useVehicles();
   const [details, setDetails] = useState<LocalAnswerDetails>({});
   const [enabled, setEnabled] = useState(false); const [notice, setNotice] = useState(false);
+  const [consent] = useState(() => { let store; try { store = window.sessionStorage; } catch {} return driveConsent(store, uid, tripId); });
   const conversation = useRef<DriveConversation | null>(null); const voice = useRef<CuboAIVoice | null>(null);
   const latest = useRef({ user, activeSession, focused, live, details, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus });
   latest.current = { user, activeSession, focused, live, details, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus };
@@ -52,6 +54,7 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
   useEffect(() => { if (!focused) { conversation.current?.stop(); setNotice(false); } }, [focused]);
   function start() {
     setNotice(false);
+    consent.accept();
     if (!allowed() || !voice.current) return;
     if (!voice.current.supported().input || !voice.current.supported().output) { onStatus('Voice unavailable in this browser. Use the controls when parked.'); return; }
     conversation.current?.stop(); const commands = new DriveCommands();
@@ -68,13 +71,13 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
     }, (active, text) => { if (alive.current) { setEnabled(active); latest.current.onStatus(text); } });
     conversation.current.start();
   }
-  return <><Pressable accessibilityRole="switch" accessibilityLabel="Drive voice commands" accessibilityState={{ checked: enabled }} onPress={() => enabled ? conversation.current?.stop() : setNotice(true)} style={{ flex: .54, minWidth: 44, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: enabled ? c.accent : c.surfaceMuted, borderWidth: 1, borderColor: enabled ? c.accent : c.borderStrong }}>
+  return <><Pressable accessibilityRole="switch" accessibilityLabel="Drive voice commands" accessibilityState={{ checked: enabled }} onPress={() => enabled ? conversation.current?.stop() : consent.accepted() ? start() : setNotice(true)} style={{ flex: .54, minWidth: 44, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: enabled ? c.accent : c.surfaceMuted, borderWidth: 1, borderColor: enabled ? c.accent : c.borderStrong }}>
     <Ionicons name="sparkles-outline" size={22} color={enabled ? c.onAccent : c.textSecondary} />
   </Pressable><Modal visible={notice} transparent animationType="fade" onRequestClose={() => setNotice(false)}>
     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.55)', justifyContent: 'center', padding: 24 }}><View accessibilityViewIsModal style={{ backgroundColor: c.card, padding: 24, borderRadius: 24, gap: 16, maxWidth: 420, width: '100%', alignSelf: 'center' }}>
-      <Text style={{ color: c.text, fontSize: 22, fontWeight: '700' }}>A short voice conversation</Text>
-      <Text style={{ color: c.textSecondary, fontSize: 15, lineHeight: 22 }}>Set this up while parked. Ask about your next turn, score, family, or vehicle. CUBO speaks, then listens again for up to 60 seconds. Say “stop listening” to finish.</Text>
-      <Text style={{ color: c.textSecondary, fontSize: 14, lineHeight: 21 }}>Your browser provider may process audio online. CUBO does not save these transcripts or audio. Replies may read personal details aloud. Confirmed hazards are saved to this trip only. No always-on “Hey Cubo” detection.</Text>
+      <Text style={{ color: c.text, fontSize: 22, fontWeight: '700' }}>Voice assist for this drive</Text>
+      <Text style={{ color: c.textSecondary, fontSize: 15, lineHeight: 22 }}>Set this up while parked. Tap AI to turn voice on or off. While on, say “Hey Cubo” and your question. After a reply, you can ask a follow-up. Say “Hey Cubo, turn off voice assist” and confirm to turn it off hands-free.</Text>
+      <Text style={{ color: c.textSecondary, fontSize: 14, lineHeight: 21 }}>While enabled, your browser listens between replies and may process audio online, including speech not addressed to CUBO. CUBO does not save transcripts or audio. Replies use your Voice Preference. Keep the app visible; browser interruptions or attention warnings turn voice off. This notice appears once per drive after you agree.</Text>
       <Pressable onPress={start} style={{ backgroundColor: c.accent, padding: 15, borderRadius: 14, alignItems: 'center' }}><Text style={{ color: c.onAccent, fontWeight: '700' }}>Agree & start listening</Text></Pressable>
       <Pressable onPress={() => setNotice(false)} style={{ padding: 12, alignItems: 'center' }}><Text style={{ color: c.textSecondary }}>Not now</Text></Pressable>
     </View></View>

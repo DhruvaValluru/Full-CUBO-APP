@@ -6,17 +6,34 @@ export type DriveVoiceSnapshot = { tripId: string; point?: { latitude: number; l
 type Pending = { kind: RoadHazardKind; point: { latitude: number; longitude: number }; tripId: string; expires: number };
 export type DriveReply = { text: string; stop?: boolean; report?: Pending };
 const short = (text: string) => text.length <= 420 ? text : text.slice(0, 390).replace(/\s+\S*$/, '') + '. Ask for more while parked.';
+const wake = /^(?:(?:hey|hi|okay|ok) )?(?:cubo|kubo|cube o)\b\s*/;
+export const hasWakePhrase = (text: string) => wake.test(normalizeQuestion(text));
+export function spokenQuestion(text: string) {
+  return normalizeQuestion(text).replace(wake, '').replace(/^(?:(?:can|could|would) you |please |tell me )+/, '').replace(/ please$/, '')
+    .replace(/\bmy (first|oldest) child\b/g, 'child 1').replace(/\bmy second child\b/g, 'child 2')
+    .replace(/\b(automobile|ride)\b/g, 'vehicle');
+}
 /** One instance per voice session. No inference, persistence or external side effects. */
 export class DriveCommands {
   private pending: Pending | null = null;
   private last = '';
   private member = '';
   private askingHazard = false;
+  private stopUntil = 0;
   constructor(private now: () => number = Date.now) {}
   answer(input: string, data: DriveVoiceSnapshot): DriveReply {
-    let q = normalizeQuestion(input).replace(/^(hey |hi )?cubo\s*/, '').trim();
+    let q = spokenQuestion(input);
     const reply = (text: string, extra: Omit<DriveReply, 'text'> = {}) => { this.last = short(text); return { text: this.last, ...extra }; };
-    if (/^(stop( listening)?|mute|turn (voice |microphone )?off|goodbye)$/.test(q)) { this.pending = null; this.askingHazard = false; return reply('Voice off.', { stop: true }); }
+    if (/^(stop( listening)?|mute( yourself| voice( assist(ant)?)?)?|(?:turn|switch) (?:off (?:the )?(?:voice( assist(ant)?)?|microphone)|(?:the )?(?:voice( assist(ant)?)?|microphone) off)|disable (?:the )?voice(?: assist(?:ant)?)?|goodbye)$/.test(q)) {
+      this.pending = null; this.askingHazard = false; this.stopUntil = this.now() + 30000;
+      return reply('Turn off voice assist? Say yes to confirm, or no to keep it on.');
+    }
+    if (this.stopUntil) {
+      const current = this.now() <= this.stopUntil; this.stopUntil = 0;
+      if (/^(yes|yes please|confirm|i confirm|yes turn it off|turn it off|do it)$/.test(q)) return current ? reply('Voice assist is off. Tap the AI icon to turn it on again.', { stop: true }) : reply('That confirmation expired. Voice assist is still on.');
+      if (/^(no|no thanks|cancel|keep it on|never mind)$/.test(q)) return reply('Okay. Voice assist is still on.');
+    }
+    if (!q) return reply('I am listening. What would you like to know?');
     if (/^(cancel|no|no thanks|never mind|dont report it)$/.test(q)) { this.pending = null; this.askingHazard = false; return reply('Cancelled. No report was saved.'); }
     if (/^(repeat( that)?|say that again)$/.test(q)) return { text: this.last || 'Ask about your next turn, speed, score, or a CUBO feature.' };
     if (/^(yes|confirm|yes confirm|confirm report|yes please)$/.test(q)) {
@@ -41,7 +58,7 @@ export class DriveCommands {
     if (/\b(how am i doing|this drive.*score|current.*score|live score|score.*this drive)\b/.test(q)) return reply(Number.isFinite(data.score) && data.score! >= 0 && data.score! <= 100 ? `This drive’s measured focus estimate is ${data.score} out of 100. It is experimental, not a safety rating. ${data.monitoring}.` : `No measured focus score is available yet. ${data.monitoring}.`);
     if (/\b(how long|drive time|how far.*driven|distance.*drive)\b/.test(q)) return reply(`This trip: ${Math.floor(data.durationSeconds / 60)} minutes and ${data.distanceMiles.toFixed(1)} recorded miles.`);
     if (/\b(monitoring|camera status)\b/.test(q)) return reply(data.monitoring || 'Monitoring status is unavailable.');
-    if (/\b(microphone|mic|are you listening|voice on)\b/.test(q)) return reply('Voice is on for this short session. I pause listening while speaking. Say stop listening to finish.');
+    if (/\b(microphone|mic|are you listening|voice on)\b/.test(q)) return reply('Voice is on. Say Hey Cubo before a new question. I pause listening while speaking. Ask me to turn off voice assist when finished.');
     if (/\b(end drive|delete|remove|change|submit|send|navigate|take me)\b/.test(q)) return reply('I cannot do that by voice. Use the app controls when safely parked. Hazard reports support spoken confirmation.');
     const member = q.match(/\b(child (?:1|2|one|two)|parent)\b/)?.[0];
     if (member) this.member = member;

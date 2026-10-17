@@ -44,19 +44,32 @@ export class CuboAIVoice {
     if (this.disposed || !this.allowed()) throw Error('Voice is unavailable for this session.');
     this.stop();
     if (!this.supported().output) throw Error('Read-aloud is not supported here.');
-    // Call from an explicit Play reply tap so mobile browser audio policies can allow it.
+    // Drive activation speaks from the initial tap; subsequent replies reuse that session.
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 8000));
     this.utterance = utterance;
-    utterance.onend = () => { this.utterance = null; if (!this.disposed && this.allowed()) completed?.(); };
-    utterance.onerror = () => { this.utterance = null; if (!this.disposed && this.allowed()) failed?.(); };
+    const finish = (callback?: () => void) => {
+      if (this.utterance !== utterance) return;
+      if (this.timer) clearTimeout(this.timer); this.timer = null;
+      this.utterance = null;
+      utterance.onstart = null; utterance.onend = null; utterance.onerror = null;
+      if (!this.disposed && this.allowed()) callback?.();
+    };
+    const timeout = () => { this.stop(); if (!this.disposed && this.allowed()) failed?.(); };
+    utterance.onend = () => finish(completed);
+    utterance.onerror = () => finish(failed);
+    if (failed) {
+      this.timer = setTimeout(timeout, 10000);
+      utterance.onstart = () => { if (this.timer) clearTimeout(this.timer); this.timer = setTimeout(timeout, 60000); };
+    }
     let preference = '';
     try { preference = this.preferredVoice(); } catch { /* Storage blocked: use browser default. */ }
     const voice = selectedVoice(window.speechSynthesis.getVoices(), preference);
     if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang || 'en-US'; window.speechSynthesis.speak(utterance);
+    utterance.lang = voice?.lang || 'en-US'; utterance.volume = 1; utterance.rate = 1;
+    window.speechSynthesis.resume?.(); window.speechSynthesis.speak(utterance);
   }
   stop() {
-    if (this.utterance) { this.utterance.onend = null; this.utterance.onerror = null; this.utterance = null; }
+    if (this.utterance) { this.utterance.onstart = null; this.utterance.onend = null; this.utterance.onerror = null; this.utterance = null; }
     if (this.timer) clearTimeout(this.timer); this.timer = null;
     const recognition = this.recognition; this.recognition = null;
     if (recognition) { recognition.onresult = null; recognition.onerror = null; recognition.onend = null; recognition.abort(); }
