@@ -19,7 +19,7 @@ export function AttentionCamera({ onSample, onStatus }: AttentionCameraProps) {
     const timer = setTimeout(() => { setFailed(true); callbacks.current.onStatus('Monitoring unavailable · model loading timed out; retry when connected'); }, 30000);
     return () => clearTimeout(timer);
   }, [permission?.granted, modelReady, failed, attempt]);
-  useEffect(() => { const listener = AppState.addEventListener('change', state => { setForeground(state === 'active'); if (state !== 'active') callbacks.current.onStatus('Monitoring paused · app is in the background'); }); return () => listener.remove(); }, []);
+  useEffect(() => { const listener = AppState.addEventListener('change', state => { setForeground(state === 'active'); if (state !== 'active') { setCameraReady(false); callbacks.current.onStatus('Monitoring paused · app is in the background'); } }); return () => listener.remove(); }, []);
   useEffect(() => {
     if (!foreground || !cameraReady || !modelReady || failed) return;
     let active = true;
