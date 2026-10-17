@@ -7,6 +7,7 @@ import MapView, { Marker, Polyline, type Region, type DrivingMapHandle } from '.
 import Reanimated, { Easing, FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { usePlaceSuggestions } from '../features/places/usePlaceSuggestions';
 import { searchPlaces, type PlaceResult } from '../features/places/searchPlaces';
 import { usePlaces } from '../features/places/PlacesContext';
 import { DriveAttentionCamera } from '../components/DriveAttentionCamera';
@@ -100,8 +101,7 @@ export function MapScreen() {
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<{ latitude: number; longitude: number } | null>(null);
   const [searchMessage, setSearchMessage] = useState('');
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [suggesting, setSuggesting] = useState(false);
+  const { results: suggestions, setResults: setSuggestions, busy: suggesting, error: suggestionError } = usePlaceSuggestions(query, gps.point, focused && !searchResult);
   const [routing, setRouting] = useState(false);
   const [navigationRoute, setNavigationRoute] = useState<NavigationRoute | null>(null);
   const [navigating, setNavigating] = useState(!!activeSession);
@@ -200,20 +200,7 @@ export function MapScreen() {
       await buildRoute(destination);
     } catch { setSearchMessage('Search unavailable'); } finally { setSearching(false); }
   };
-  useEffect(() => {
-    const clean = query.trim();
-    if (clean.length < 2 || searchResult) { setSuggestions([]); setSuggesting(false); return; }
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setSuggesting(true);
-      try {
-        const next = await searchPlaces(clean, gps.point, controller.signal);
-        setSuggestions(next);
-      } catch (cause) { if (!(cause instanceof Error && cause.name === 'AbortError')) setSuggestions([]); }
-      finally { if (!controller.signal.aborted) setSuggesting(false); }
-    }, 250);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [query, searchResult, gps.point?.latitude, gps.point?.longitude]);
+  useEffect(() => { if (suggestionError) setSearchMessage(suggestionError); }, [suggestionError]);
 
   const chooseSuggestion = async (suggestion: PlaceSuggestion) => {
     dismissSearchKeyboard();

@@ -3,6 +3,7 @@ import { useNavigation, useRoute, usePreventRemove, type NavigationProp } from '
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { MotionPressable } from '../components/MotionPressable';
+import { usePlaceSuggestions } from '../features/places/usePlaceSuggestions';
 import { searchPlaces, type PlaceResult } from '../features/places/searchPlaces';
 import { usePlaces } from '../features/places/PlacesContext';
 import { useIsFocused } from '@react-navigation/native';
@@ -26,17 +27,17 @@ export function MapScreen() {
   const screenRoute = useRoute();
   const incoming = (screenRoute.params as { destination?: PlaceResult } | undefined)?.destination;
   const { remember } = usePlaces();
-  const [suggestions, setSuggestions] = useState<PlaceResult[]>([]);
   const awaiting = useRef<number | null>(null);
   const loaded = useRef<string | null>(null);
   const [query, setQuery] = useState('');
   const [route, setRoute] = useState<RoutePoint[]>([]);
   const [busy, setBusy] = useState(false);
+  const { results: suggestions, setResults: setSuggestions, error: suggestionError } = usePlaceSuggestions(query, gps.point, focused && !route.length && !busy);
   const [message, setMessage] = useState('Choose a destination to preview your route.');
   const [finished, setFinished] = useState<string | null>(null);
   const baseline = useRef(0);
   useEffect(() => { if (awaiting.current == null || !focused || cameraConfirmation <= awaiting.current) return; awaiting.current = null; baseline.current = gps.distanceMiles; startDrive(); }, [cameraConfirmation, focused]);
-  useEffect(() => { const controller = new AbortController(); if (query.trim().length < 2 || route.length) { setSuggestions([]); return; } const timer = setTimeout(() => { void searchPlaces(query, gps.point, controller.signal).then(results => { if (!controller.signal.aborted) setSuggestions(results); }).catch(() => { if (!controller.signal.aborted) setMessage('Search temporarily unavailable.'); }); }, 250); return () => { clearTimeout(timer); controller.abort(); }; }, [query, gps.point?.latitude, gps.point?.longitude, route.length]);
+  useEffect(() => { if (suggestionError) setMessage(suggestionError); }, [suggestionError]);
   usePreventRemove(!!activeSession, () => {});
   useEffect(() => {
     if (!activeSession) return;
