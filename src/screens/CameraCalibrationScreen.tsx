@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CalibrationCamera, type CalibrationCameraHandle } from '../components/CalibrationCamera';
+import { AttentionCamera } from '../components/AttentionCamera';
+import { calibrate, type FaceSample } from '../features/attention/attentionPolicy';
 import { MotionPressable } from '../components/MotionPressable';
 import { saveCalibration } from '../features/calibration/calibrationStatus';
 import type { RootStackParamList } from '../navigation/types';
@@ -11,12 +12,12 @@ import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
 
 type Phase = 'position' | 'capturing' | 'complete';
-const steps = ['Center your face', 'Check cabin framing', 'Confirm mount stability'];
 
 export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'CameraCalibration'>) {
   const { colors } = useAppearance();
   const styles = makeStyles(colors);
-  const camera = useRef<CalibrationCameraHandle>(null);
+  const latest = useRef<FaceSample | null>(null);
+  const running = useRef(false);
   const alive = useRef(true);
   const progress = useRef(new Animated.Value(0)).current;
   const successScale = useRef(new Animated.Value(.7)).current;
@@ -33,34 +34,30 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
   }, [phase, navigation]);
 
   const begin = async () => {
-    if (!ready || phase !== 'position') return;
+    if (!ready || phase !== 'position' || running.current) return;
+    running.current = true;
     setPhase('capturing');
-    setMessage('Hold still while CUBO captures three local reference frames.');
-    Animated.timing(progress, { toValue: 1, duration: 3100, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
-    for (let index = 0; index < steps.length; index += 1) {
-      if (!alive.current) return;
-      setSample(index + 1);
-      setMessage(steps[index]);
-      await new Promise(resolve => setTimeout(resolve, 850));
-      if (!alive.current) return;
-      try {
-        if (!camera.current) throw new Error('Camera is unavailable. Please retry.');
-        await camera.current.captureFrame();
-      } catch (error) {
+    setMessage('While parked, look at the road ahead with your eyes open. Keep the phone mounted and still.');
+    const started = Date.now(), samples: FaceSample[] = [];
+    try {
+      while (Date.now() - started < 12000) {
+        await new Promise(resolve => setTimeout(resolve, 100));
         if (!alive.current) return;
-        progress.stopAnimation(); progress.setValue(0);
-        setPhase('position');
-        setMessage(error instanceof Error ? error.message : 'Frame capture failed. Please retry.');
-        return;
+        const next = latest.current;
+        if (next && next.at >= started && next.at !== samples[samples.length - 1]?.at) samples.push(next);
+        setSample(samples.length);
+        progress.setValue(Math.min(.95, samples.length / 8));
+        if (samples.length >= 8 && samples[samples.length - 1].at - samples[0].at >= 3000) break;
       }
-    }
-    if (!alive.current) return;
-    try { await saveCalibration(steps.length); }
-    catch { if (alive.current) { setPhase('position'); progress.setValue(0); setMessage('Could not save setup. Please try again.'); } return; }
-    if (!alive.current) return;
-    setPhase('complete');
-    setMessage('Your camera framing check is complete.');
-    Animated.spring(successScale, { toValue: 1, damping: 13, stiffness: 170, useNativeDriver: true }).start();
+      const baseline = calibrate(samples);
+      await saveCalibration(samples.length, baseline);
+      if (!alive.current) return;
+      progress.setValue(1); setPhase('complete');
+      setMessage('Your eyes-open and forward-facing baseline is saved. Recalibrate if you move the phone.');
+      Animated.spring(successScale, { toValue: 1, damping: 13, stiffness: 170, useNativeDriver: true }).start();
+    } catch (error) {
+      if (alive.current) { setPhase('position'); progress.setValue(0); setMessage(error instanceof Error ? error.message : 'Could not save calibration. Please retry.'); }
+    } finally { running.current = false; }
   };
 
   return <SafeAreaView style={styles.page}>
@@ -71,16 +68,16 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
     </View>
 
     <View style={styles.cameraShell}>
-      <CalibrationCamera ref={camera} onReady={() => setReady(true)} onUnavailable={message => { setReady(false); setMessage(message); }} />
+      <AttentionCamera onSample={value => { latest.current = value; setReady(value.face); }} onStatus={value => { setReady(false); if (!running.current) setMessage(value); }} />
       <View pointerEvents="none" style={styles.shade} />
       <View pointerEvents="none" style={styles.faceGuide} />
       <View pointerEvents="none" style={styles.horizon} />
       <View pointerEvents="none" style={styles.cornerTL} /><View pointerEvents="none" style={styles.cornerTR} /><View pointerEvents="none" style={styles.cornerBL} /><View pointerEvents="none" style={styles.cornerBR} />
 
-      {phase === 'complete' ? <View pointerEvents="none" style={styles.successOverlay}><Animated.View style={[styles.successMark, { transform: [{ scale: successScale }] }]}><Ionicons name="checkmark" size={42} color="#FFFFFF" /></Animated.View><Text style={styles.successTitle}>Calibration finished</Text><Text style={styles.successBody}>Camera framing check saved on this device.</Text></View> : null}
+      {phase === 'complete' ? <View pointerEvents="none" style={styles.successOverlay}><Animated.View style={[styles.successMark, { transform: [{ scale: successScale }] }]}><Ionicons name="checkmark" size={42} color="#FFFFFF" /></Animated.View><Text style={styles.successTitle}>Calibration finished</Text><Text style={styles.successBody}>Your attention baseline is saved on this device.</Text></View> : null}
 
       <View pointerEvents="none" style={styles.cameraFooter}>
-        <View style={styles.footerHeading}><Text style={styles.cameraLabel}>{phase === 'complete' ? 'CAMERA READY' : phase === 'capturing' ? `REFERENCE ${sample} OF ${steps.length}` : 'SETUP PREVIEW'}</Text><Text style={styles.cameraValue}>{phase === 'complete' ? 'Ready' : ready ? 'Live preview' : 'Connecting'}</Text></View>
+        <View style={styles.footerHeading}><Text style={styles.cameraLabel}>{phase === 'complete' ? 'BASELINE SAVED' : phase === 'capturing' ? `${sample} SAMPLES CHECKED` : 'SETUP PREVIEW'}</Text><Text style={styles.cameraValue}>{phase === 'complete' ? 'Ready' : ready ? 'Face visible' : 'Waiting for face'}</Text></View>
         <View style={styles.track}><Animated.View style={[styles.progress, { width: phase === 'position' ? (ready ? '18%' : '4%') : progress.interpolate({ inputRange: [0, 1], outputRange: ['18%', '100%'] }) }]} /></View>
       </View>
     </View>
@@ -90,7 +87,7 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
       <View style={{ flex: 1 }}><Text style={styles.instructionTitle}>{phase === 'complete' ? 'Setup complete' : phase === 'capturing' ? 'Keep the mount steady' : 'Frame the driver and road'}</Text><Text style={styles.instructionBody}>{message}</Text></View>
     </View>
 
-    <View style={styles.privacy}><Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} /><Text style={styles.privacyText}>{Platform.OS === 'web' ? 'Frames are checked in memory and discarded. Only the setup time is saved; this is not an attention-detection calibration.' : 'Reference frames remain on this device and are never added to your trip map.'}</Text></View>
+    <View style={styles.privacy}><Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} /><Text style={styles.privacyText}>Set up only while parked. Images are discarded; only baseline measurements are saved. Experimental monitoring is not a guarantee of safety.</Text></View>
 
     <View style={styles.actions}>
       {phase === 'complete' ? <MotionPressable style={styles.primary} onPress={() => navigation.goBack()}><Text style={styles.primaryText}>Done</Text><Ionicons name="checkmark" size={20} color="#FFFFFF" /></MotionPressable> : <MotionPressable disabled={!ready || phase === 'capturing'} style={[styles.primary, (!ready || phase === 'capturing') && styles.disabled]} onPress={() => void begin()}><Text style={styles.primaryText}>{phase === 'capturing' ? 'Calibrating…' : ready ? 'Start calibration' : 'Waiting for camera'}</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></MotionPressable>}
