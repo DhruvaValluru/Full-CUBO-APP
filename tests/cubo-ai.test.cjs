@@ -27,8 +27,9 @@ test('demo family questions and app clarifications never call model inference', 
   assert.match((await session.send('what is child two score')).content, /92\/100/);
   assert.match((await session.send('Where is my child?')).content, /No live family data/);
   assert.match((await session.send('what is my safety score')).content, /83\/100/);
-  assert.match((await session.send('Explain my insurance')).content, /not sent to the model/);
-  for (const q of ['How does camera calibration work?', 'Explain insurance savings', 'report a hazard']) assert.match((await session.send(q)).content, /not sent to the model/);
+  assert.match((await session.send('Explain my insurance')).content, /simulated/);
+  assert.match((await session.send('How does camera calibration work?')).content, /While parked/);
+  assert.match((await session.send('report a hazard')).content, /not submitted/);
   await session.dispose();
 });
 
@@ -198,9 +199,10 @@ test('download requires consent and text/voice consume the same allowance', asyn
   session.remember('My preferred name is Sam'); session.clearHistory();
   assert.equal(session.state().used, 2); assert.equal(session.state().messages.length, 0); assert.equal(session.state().memory, '');
 });
-test('quota blocks inference and failures count without saving fabricated replies', async () => {
+test('quota blocks inference and failures save a labeled fallback then unload the model', async () => {
   const x = setup(async () => { throw Error('GPU lost'); }); await x.session.prepare(true);
-  await assert.rejects(x.session.send('Hello')); assert.equal(x.session.state().used, 1); assert.equal(x.session.state().messages.length, 0);
+  assert.match((await x.session.send('Hello')).content, /General AI could not finish/); assert.equal(x.session.state().used, 1); assert.equal(x.session.state().messages.length, 2);
+  assert.equal(x.session.hasModel(), false); assert.equal(x.disposals(), 1);
   writeState(x.store, { ...x.session.state(), used: 100 }); await assert.rejects(x.session.send('Hello'), /allowance/);
 });
 test('account switch during generation cannot publish or persist the late reply', async () => {

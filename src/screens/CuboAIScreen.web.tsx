@@ -14,6 +14,9 @@ import { accountContext, type AccountSnapshot } from '../features/cuboAI/appCont
 import { useVehicles } from '../features/vehicles/VehicleContext';
 import { readCalibration } from '../features/calibration/calibrationStatus';
 import { startupKeys, startupState } from '../features/cuboAI/startup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { LocalAnswerDetails } from '../features/cuboAI/quickAnswers';
+import { insuranceProviders } from '../features/insurance/InsuranceContext';
 
 const MODEL = 'Llama-3.2-1B-Instruct-q4f32_1-MLC';
 type Props = NativeStackScreenProps<RootStackParamList, 'CuboAI'>;
@@ -25,10 +28,21 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const { colors: c } = useAppearance();
   const { user } = useAuth(); const { activeSession, sessions } = useDrives();
   const { vehicles, ready: vehiclesReady } = useVehicles();
+  const [localDetails, setLocalDetails] = useState<LocalAnswerDetails>({});
+  useEffect(() => {
+    let active = true;
+    // Read only this signed-in account. Never send saved addresses to the model snapshot.
+    void Promise.all([AsyncStorage.getItem(`cubo-places:${uid}`), AsyncStorage.getItem(`cubo-insurance:${uid}`)]).then(([p, i]) => {
+      const places = p ? JSON.parse(p) : {}; const insurance = i ? JSON.parse(i) : {};
+      const place = (value: { title?: string; subtitle?: string } | undefined) => [value?.title, value?.subtitle].filter(v => typeof v === 'string').join(', ').slice(0, 240);
+      if (active) setLocalDetails({ ready: true, home: place(places?.home), work: place(places?.work), insurer: insurance?.providerId === 'other' ? insurance.customProviderName : insuranceProviders.find(p => p.id === insurance?.providerId)?.name, mode: insurance?.mode, cadence: insurance?.cadence });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [uid]);
   const [calibration, setCalibration] = useState<AccountSnapshot['calibration']>('unknown');
   useEffect(() => { let active = true; void readCalibration().then(record => { if (active) setCalibration(record ? 'completed' : 'not completed'); }).catch(() => {}); return () => { active = false; }; }, [uid]);
   const snapshot = { name: user?.displayName, vehicles, vehiclesReady, sessions, calibration };
-  const latest = useRef({ uid: user?.uid, driving: !!activeSession, snapshot }); latest.current = { uid: user?.uid, driving: !!activeSession, snapshot };
+  const latest = useRef({ uid: user?.uid, driving: !!activeSession, snapshot, localDetails }); latest.current = { uid: user?.uid, driving: !!activeSession, snapshot, localDetails };
   const session = useRef<CuboAISession | null>(null); const voice = useRef<CuboAIVoice | null>(null);
   const alive = useRef(true); const epoch = useRef(0); const end = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<LocalAIState | null>(null);
@@ -37,13 +51,10 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'thinking'>('idle');
   const [progress, setProgress] = useState(0); const [error, setError] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
-  const [configured, setConfigured] = useState(false);
-  const [visible, setVisible] = useState(!document.hidden);
-  const autoAttempted = useRef(false);
   const modelKeys = startupKeys(uid, MODEL);
   const [listening, setListening] = useState(false); const [voiceConsent, setVoiceConsent] = useState(false);
   const [settings, setSettings] = useState(false); const [notes, setNotes] = useState(''); const [clear, setClear] = useState(false);
-  const noticeKey = accountKey(uid) + ':notice-v2';
+  const noticeKey = accountKey(uid) + ':notice-v3';
   const recoveryKey = accountKey(uid) + ':interrupted';
   const allowed = () => alive.current && latest.current.uid === uid && !latest.current.driving && !document.hidden;
   const refresh = () => { if (alive.current && latest.current.uid === uid) setData(readState(window.localStorage, uid)); };
@@ -51,6 +62,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
     const runtime = createWorkerFactory(MODEL);
     return new CuboAISession({ uid, currentUid: () => latest.current.uid ?? null, isDriving: () => latest.current.driving,
       store: window.localStorage, appContext: () => accountContext(latest.current.snapshot),
+      localDetails: () => latest.current.localDetails,
       loadModel: runtime.load, cancelLoad: runtime.stop });
   }
   const report = (cause: unknown) => { if (alive.current) setError(cause instanceof Error ? cause.message : 'CuboAI could not finish. Please try again.'); };
@@ -58,10 +70,8 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
     alive.current = true;
     try {
       const startup = startupState(localStorage, uid, MODEL);
-      setConfigured(startup.configured);
       if (startup.interruptedLoad) {
-        autoAttempted.current = true;
-        setError('Model preparation was interrupted. Tap Start to retry; automatic retry is paused to avoid a restart loop.');
+        setError('General AI preparation was interrupted. Quick answers are available without retrying the model.');
       }
     } catch (cause) { report(cause); }
     try { session.current = makeSession(); refresh(); setNotice(localStorage.getItem(noticeKey) !== 'hidden'); }
@@ -71,7 +81,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
       if (interrupted) { setDraft(interrupted.slice(0, 1000)); setError('Your previous reply was interrupted. Your question is restored; it has not been sent again.'); }
     } catch (cause) { report(cause); }
     voice.current = new CuboAIVoice(allowed);
-    const suspend = () => { setVisible(!document.hidden); if (!document.hidden) { autoAttempted.current = false; return; } epoch.current++; voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; try { localStorage.removeItem(modelKeys.loading); } catch {} setPhase('idle'); };
+    const suspend = () => { if (!document.hidden) return; epoch.current++; voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; try { localStorage.removeItem(modelKeys.loading); } catch {} setPhase('idle'); };
     const sync = () => { try { refresh(); } catch (cause) { report(cause); } };
     document.addEventListener('visibilitychange', suspend); window.addEventListener('storage', sync);
     const timer = setInterval(sync, 30000);
@@ -81,34 +91,28 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   useEffect(() => { end.current?.scrollIntoView({ block: 'end', behavior: 'auto' }); }, [data?.messages.length, phase]);
   const badge = usageBadge(data?.used ?? 0); const exhausted = badge.percent === 0;
   const blocked = notice || !!activeSession || !data || exhausted;
-  useEffect(() => {
-    if (!configured || blocked || !visible || phase !== 'idle' || autoAttempted.current) return;
-    autoAttempted.current = true;
-    void load();
-  }, [configured, blocked, visible, phase]);
   async function load() {
     if (blocked || !allowed() || phase === 'loading') return;
     const version = epoch.current; setError(''); setPhase('loading'); setProgress(0);
-    autoAttempted.current = true;
     try {
       localStorage.setItem(modelKeys.loading, 'yes');
       session.current ??= makeSession();
       await session.current.prepare(true, (amount, status) => { if (allowed() && epoch.current === version) { setProgress(Math.round(amount * 100)); setLoadStatus(status); } });
       if (allowed() && epoch.current === version) {
         localStorage.setItem(modelKeys.ready, 'yes'); localStorage.removeItem(modelKeys.loading);
-        setConfigured(true); setPhase('ready'); refresh();
+        setPhase('ready'); refresh();
       }
     } catch (cause) { if (allowed() && epoch.current === version) { try { localStorage.removeItem(modelKeys.loading); } catch {} report(cause); void session.current?.dispose(); session.current = null; setPhase('idle'); } }
   }
   async function send() {
-    if (blocked || phase !== 'ready' || !draft.trim()) return;
+    if (blocked || !allowed() || phase === 'loading' || phase === 'thinking' || !draft.trim()) return;
     const text = draft; const version = epoch.current; setError(''); setPhase('thinking'); voice.current?.stop(); setListening(false);
-    try { localStorage.setItem(recoveryKey, text); await session.current!.send(text, source); if (allowed() && version === epoch.current) { localStorage.removeItem(recoveryKey); setDraft(''); setSource('text'); setPhase('ready'); refresh(); } }
+    try { localStorage.setItem(recoveryKey, text); session.current ??= makeSession(); await session.current.send(text, source); if (allowed() && version === epoch.current) { localStorage.removeItem(recoveryKey); setDraft(''); setSource('text'); setPhase(session.current.hasModel() ? 'ready' : 'idle'); refresh(); } }
     catch (cause) { if (allowed() && version === epoch.current) { report(cause); void session.current?.dispose(); session.current = null; setPhase('idle'); } }
     finally { if (allowed() && version === epoch.current) { try { refresh(); } catch (cause) { report(cause); } } }
   }
   function listen() {
-    if (blocked || phase !== 'ready') return;
+    if (blocked || phase === 'loading' || phase === 'thinking') return;
     if (listening) { voice.current?.stop(); setListening(false); return; }
     if (!voiceConsent) { setVoiceConsent(true); return; }
     startListening();
@@ -134,14 +138,15 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
     <footer className="ai-footer">
       {activeSession && <p role="status">End your drive before using CuboAI. Stay focused on the road.</p>}
       {error && <p role="alert" className="ai-error">{error}</p>}
-      {!blocked && phase === 'idle' && <div className="ai-load"><p>Runs on this device. Model files are reused from this site’s browser cache when available. Starting reloads them into memory, not necessarily from the internet. Safari may evict cached files.</p><button className="ai-primary" onClick={() => void load()}>Start CuboAI</button></div>}
+      {!blocked && phase === 'idle' && <div className="ai-load"><p>Quick answers ready · no AI model needed. Optional general AI uses more memory and may crash Safari. It is never started automatically.</p><button className="ai-secondary" onClick={() => void load()}>Load general AI (optional)</button></div>}
+      {!blocked && phase === 'ready' && <button className="ai-secondary" onClick={() => { voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; setPhase('idle'); }}>Stop general AI · use quick answers only</button>}
       {phase === 'loading' && <div role="status" className="ai-loading"><span>Preparing CuboAI · {progress}%</span><progress max="100" value={progress} /><small>{loadStatus || 'Checking saved model files…'}</small></div>}
       {exhausted && <p role="status">Your weekly allowance is used. Resets {data ? new Date(data.week + 604800000).toLocaleString() : 'Monday'}.</p>}
-      <div className="ai-composer"><textarea aria-label="Message CuboAI" rows={2} maxLength={2000} disabled={blocked || phase !== 'ready'} placeholder={exhausted ? 'Weekly usage done' : activeSession ? 'Available after your drive' : phase !== 'ready' ? 'Load CuboAI to start chatting' : 'Ask CuboAI anything…'} value={draft} onChange={e => { setDraft(e.target.value); setSource('text'); }} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} /><div className="ai-compose-actions"><button className="ai-icon" aria-label={listening ? 'Stop listening' : 'Use voice input'} aria-pressed={listening} disabled={blocked || phase !== 'ready'} onClick={listen}>{icon(listening ? 'stop-circle' : 'mic-outline', listening ? c.danger : c.accent)}</button><button className="ai-send" aria-label="Send message" disabled={blocked || phase !== 'ready' || !draft.trim()} onClick={() => void send()}>{icon('arrow-up', c.onAccent)}</button></div></div>
+      <div className="ai-composer"><textarea aria-label="Message CuboAI" rows={2} maxLength={1000} disabled={blocked || phase === 'loading' || phase === 'thinking'} placeholder={exhausted ? 'Weekly usage done' : activeSession ? 'Available after your drive' : 'Ask about your CUBO app…'} value={draft} onChange={e => { setDraft(e.target.value); setSource('text'); }} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} /><div className="ai-compose-actions"><button className="ai-icon" aria-label={listening ? 'Stop listening' : 'Use voice input'} aria-pressed={listening} disabled={blocked || phase === 'loading' || phase === 'thinking'} onClick={listen}>{icon(listening ? 'stop-circle' : 'mic-outline', listening ? c.danger : c.accent)}</button><button className="ai-send" aria-label="Send message" disabled={blocked || phase === 'loading' || phase === 'thinking' || !draft.trim()} onClick={() => void send()}>{icon('arrow-up', c.onAccent)}</button></div></div>
       <small className="ai-caption">{listening ? 'Listening… tap stop when finished. Review your words before sending.' : 'AI can be wrong. Local history · not a safety assessment.'}</small>
       <a className="ai-credit" href="/licenses/llama-3.2.txt" target="_blank" rel="noreferrer">Built with Llama · License</a>
     </footer>
-    {notice && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-notice-title"><h2 id="ai-notice-title">Before you chat</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>CuboAI is experimental and can make mistakes. It cannot certify safe driving, provide emergency help, or guarantee insurance savings. Only use it while parked.</p><p>Your messages and saved notes stay in this browser, under your account. Clearing browser data can erase them. CuboAI receives a small summary of your account name, saved vehicles, trip statistics and calibration status. Camera frames, plates, precise routes and other accounts are not included.</p><p>100 attempts per week. Failed attempts count. Voice input may use your browser provider’s servers and asks separately.</p><label className="ai-check"><input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} />Don’t show me this again on this browser</label><button autoFocus className="ai-primary" onClick={acknowledge}>Continue to CuboAI</button><button className="ai-secondary" onClick={() => navigation.goBack()}>Go back</button></section></div>}
+    {notice && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-notice-title"><h2 id="ai-notice-title">Before you chat</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>CuboAI is experimental and can make mistakes. It cannot certify safe driving, provide emergency help, or guarantee insurance savings. Only use it while parked.</p><p>Quick answers use saved app data without loading AI. Saved addresses and insurer preferences are read locally for preset answers; replies become part of this account’s local chat history. Optional general AI receives only a limited account summary, saved notes and your current question—not saved addresses or prior chat history automatically. Camera frames, plates and precise routes are excluded. Clearing browser data can erase history.</p><p>100 attempts per week. Failed attempts count. Voice input may use your browser provider’s servers and asks separately.</p><label className="ai-check"><input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} />Don’t show me this again on this browser</label><button autoFocus className="ai-primary" onClick={acknowledge}>Continue to CuboAI</button><button className="ai-secondary" onClick={() => navigation.goBack()}>Go back</button></section></div>}
     {voiceConsent && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-voice-title"><h2 id="ai-voice-title">Talk to CuboAI</h2><p>Your browser may send audio to its speech-recognition provider. CUBO does not save raw audio. You can review the transcript before sending.</p><button autoFocus className="ai-primary" onClick={startListening}>Allow voice for this message</button><button className="ai-secondary" onClick={() => setVoiceConsent(false)}>Keep typing</button></section></div>}
     {settings && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title"><h2 id="ai-settings-title">Your CuboAI</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>Local history: latest 200 messages. No cross-device sync. The weekly allowance resets Monday at 00:00 UTC; history and notes stay.</p><label>Notes you want CuboAI to remember<textarea aria-label="Saved memory notes" rows={3} maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} /></label><button className="ai-primary" onClick={() => { try { session.current ??= makeSession(); session.current.remember(notes); refresh(); setSettings(false); } catch (cause) { report(cause); } }}>Save notes</button><button className="ai-secondary" onClick={() => { setSettings(false); setNotice(true); }}>Show safety notice</button><button className="ai-secondary" onClick={() => setClear(true)}>Clear history and notes</button>{clear && <><p>This deletes this account’s local chats and notes. Your weekly allowance will not reset. If it cannot be recovered from corrupt data, chat stays unavailable until next Monday.</p><button className="ai-secondary" onClick={() => { try { session.current ??= makeSession(); session.current.clearHistory(); localStorage.removeItem(recoveryKey); setDraft(''); setError(''); refresh(); setClear(false); setSettings(false); } catch (cause) { report(cause); } }}>Yes, clear them</button></>}<button autoFocus className="ai-secondary" onClick={() => { setSettings(false); setClear(false); }}>Close</button></section></div>}
     {(notice || voiceConsent || settings) && <ModalKeys returnTo={settings ? '[aria-label="CuboAI settings"]' : voiceConsent ? '[aria-label="Use voice input"]' : '.ai-load button'} close={() => { if (notice) navigation.goBack(); else { setSettings(false); setVoiceConsent(false); } }} />}
