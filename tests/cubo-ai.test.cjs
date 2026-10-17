@@ -14,6 +14,32 @@ const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
 
+test('vehicle factual questions bypass inference and persist the fresh account answer', async () => {
+  let currentUid = 'alice', car = '2021 Toyota Prius', calls = 0;
+  const store = storage();
+  const session = new CuboAISession({ uid: 'alice', currentUid: () => currentUid, isDriving: () => false, store, now: () => monday,
+    appContext: () => JSON.stringify({ selectedVehicle: car, vehicleCount: 1 }),
+    loadModel: async () => ({ reply: async () => { calls++; return 'model response'; }, dispose() {} }) });
+  await session.prepare(true);
+  for (const question of ['What is my vehicle?', 'what vehicle do i have', 'Which car do I own?', 'Show me my vehicles']) {
+    assert.match((await session.send(question)).content, /2021 Toyota Prius/);
+  }
+  car = 'Honda Civic'; assert.match((await session.send('What is my car?')).content, /Honda Civic/);
+  assert.equal(calls, 0); assert.equal(session.state().used, 5);
+  assert.match(session.state().messages.at(-1).content, /Honda Civic/);
+  currentUid = 'bob'; await assert.rejects(session.send('What is my vehicle?'), /account changed/);
+  assert.equal(readState(store, 'bob', monday).messages.length, 0);
+  await session.dispose();
+});
+
+test('vehicle lookup handles unavailable data and does not hijack advice or other peoples questions', () => {
+  const { accountAnswer } = load('src/features/cuboAI/accountAnswers.ts');
+  assert.match(accountAnswer('What is my vehicle?', '{}'), /loading or unavailable/);
+  assert.match(accountAnswer('What is my vehicle?', '{'), /unavailable/);
+  assert.match(accountAnswer('What is my vehicle?', '{"selectedVehicle":"none saved"}'), /no vehicles saved/);
+  for (const q of ['What is my vehicle worth?', 'What is my child’s vehicle?', 'How do I change my car?', 'Is my car safe?', 'Tell me about cars']) assert.equal(accountAnswer(q, '{}'), null);
+});
+
 test('account context includes selected car and only measured scores, excludes private raw fields', () => {
   const { accountContext } = load('src/features/cuboAI/appContext.ts');
   const input = { name: 'Alice', vehiclesReady: true, calibration: 'completed',
@@ -35,7 +61,7 @@ test('each reply uses fresh own-account snapshot rather than stale model knowled
   const session = new CuboAISession({ uid: 'alice', currentUid: () => 'alice', isDriving: () => false, store: storage(), now: () => monday,
     appContext: () => JSON.stringify({ selectedVehicle: car }),
     loadModel: async () => ({ reply: async messages => { received = messages; return 'Your saved car.'; }, dispose() {} }) });
-  await session.prepare(true); await session.send('What is my vehicle?');
+  await session.prepare(true); await session.send('Explain my vehicle summary briefly');
   assert.match(received[0].content, /Toyota Prius/);
   car = 'Honda Civic'; await session.send('And now?');
   assert.match(received[0].content, /Honda Civic/);
