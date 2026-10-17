@@ -43,8 +43,7 @@ import { FamilyScreen } from './src/screens/FamilyScreen';
 import { InsuranceConnectionScreen } from './src/screens/InsuranceConnectionScreen';
 import { MapScreen } from './src/screens/MapScreen';
 import { AuthProvider, useAuth } from './src/features/auth/AuthContext';
-import { AuthScreen } from './src/screens/AuthScreen';
-import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { WelcomeFlow } from './src/screens/WelcomeFlow';
 
 import { LoadingScreen } from './src/components/LoadingScreen';
 import { ReturningHomeScreen } from './src/screens/ReturningHomeScreen';
@@ -100,7 +99,6 @@ const Wrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
 function AppNavigation() {
   const { user, loading } = useAuth();
-  const [hasStarted, setHasStarted] = useState(false);
   const { colors, mode } = useAppearance();
   const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
   const [boot, setBoot] = useState(0);
@@ -111,8 +109,7 @@ function AppNavigation() {
   if (boot === 0) return <LoadingScreen brand />;
   if (boot !== 2 || !fontsLoaded || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
-  if (!user && !hasStarted) return <WelcomeScreen onGetStarted={() => setHasStarted(true)} />;
-  if (!user) return <AuthScreen onBack={() => setHasStarted(false)} />;
+  if (!user) return <WelcomeFlow />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
   return (
         <DriveProvider>
