@@ -5,6 +5,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 
 import { useAuth } from '../auth/AuthContext';
 import { db } from '../../lib/firebase';
+import { syncIdentity } from '../auth/syncIdentity';
 
 type DriverProfile = { name: string; initials: string; photoUri?: string };
 type ProfileContextValue = { profile: DriverProfile; updateName: (name: string) => Promise<void>; updatePhoto: (photoUri?: string) => void };
@@ -46,6 +47,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateName = useCallback(async (name: string) => {
     const cleanName = name.trim();
     if (!cleanName || !user) return;
+    await syncIdentity(user);
     await Promise.all([
       updateProfile(user, { displayName: cleanName }),
       updateDoc(doc(db, 'users', user.uid), { name: cleanName, email: user.email, updatedAt: serverTimestamp() }),

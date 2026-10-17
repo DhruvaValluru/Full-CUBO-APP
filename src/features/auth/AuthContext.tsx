@@ -7,6 +7,7 @@ import { makeAccountDetails, type AccountDetails } from './accountDetails';
 import { commitAccountDetails } from './commitAccountDetails';
 import { db } from '../../lib/firebase';
 import { auth } from '../../lib/firebaseAuth';
+import { syncIdentity } from './syncIdentity';
 
 type AuthContextValue = {
   user: User | null;
@@ -84,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const saveAccountDetails = useCallback(async (details: AccountDetails) => {
     const current = auth.currentUser;
     if (!current) throw Error('Sign in before changing account details.');
+    await syncIdentity(current);
     const [year, month, day] = details.birthDate.split('-');
     const validated = makeAccountDetails(`${month}/${day}/${year}`, details.phoneNumber);
     await commitAccountDetails(validated, {

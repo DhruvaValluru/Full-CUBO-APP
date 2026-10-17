@@ -56,7 +56,7 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
       allow update: if isOwner(userId) && uidNotModified() && isValidUser(request.resource.data)
         && request.resource.data.email == request.auth.token.email
-        && request.resource.data.email == resource.data.email
+        && (request.resource.data.email == resource.data.email || request.auth.token.email_verified == true)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time;
       allow delete: if false;
