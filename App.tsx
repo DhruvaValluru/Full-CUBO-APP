@@ -52,7 +52,7 @@ import { LoadingScreen } from './src/components/LoadingScreen';
 import { ReturningHomeScreen } from './src/screens/ReturningHomeScreen';
 import { SavedPlaceScreen } from './src/screens/SavedPlaceScreen';
 import { PlacesProvider } from './src/features/places/PlacesContext';
-import { NavChromeProvider } from './src/features/navigation/NavChromeContext';
+import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CruiseProvider } from './src/features/devices/CruiseContext';
 import { CameraCalibrationScreen } from './src/screens/CameraCalibrationScreen';
 
@@ -78,15 +78,17 @@ const navTheme: Theme = {
 };
 
 const MainTabs = () => {
-  const { colors, mode } = useAppearance();
+  const { colors } = useAppearance();
+  const reduced = useReducedMotion();
+  const animateTabs = Platform.OS !== 'web' && !reduced;
   return (
     <Tab.Navigator
       initialRouteName="Home"
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        animation: 'shift',
-        transitionSpec: { animation: 'timing', config: { duration: 240, easing: Easing.inOut(Easing.cubic) } },
+        animation: animateTabs ? 'shift' : 'none',
+        transitionSpec: animateTabs ? { animation: 'timing', config: { duration: 240, easing: Easing.inOut(Easing.cubic) } } : undefined,
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
@@ -104,14 +106,15 @@ function AppNavigation() {
   const { user, loading } = useAuth();
   const { colors, mode } = useAppearance();
   const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, ...Ionicons.font });
+  const fontsReady = fontsLoaded || !!fontError;
   const [boot, setBoot] = useState(0);
   const [readyUid, setReadyUid] = useState<string | null>(null);
   useEffect(() => { const timer = setTimeout(() => setBoot(1), 400); return () => clearTimeout(timer); }, []);
-  useEffect(() => { if (boot !== 1 || !fontsLoaded || loading) return; const timer = setTimeout(() => setBoot(2), 160); return () => clearTimeout(timer); }, [boot, fontsLoaded, loading]);
+  useEffect(() => { if (boot !== 1 || !fontsReady || loading) return; const timer = setTimeout(() => setBoot(2), 160); return () => clearTimeout(timer); }, [boot, fontsReady, loading]);
   useEffect(() => { setReadyUid(null); if (!user || loading) return; const timer = setTimeout(() => setReadyUid(user.uid), 180); return () => clearTimeout(timer); }, [user?.uid, loading]);
   if (boot === 0) return <LoadingScreen brand />;
   if (fontError && Platform.OS === 'web') return <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 16, backgroundColor: colors.background }}><Text accessibilityRole="alert" style={{ color: colors.text, fontSize: 18 }}>CUBO couldn’t load its fonts. Check your connection and try again.</Text><Pressable accessibilityRole="button" onPress={() => window.location.reload()} style={{ minHeight: 48, backgroundColor: colors.accent, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.onAccent }}>Reload CUBO</Text></Pressable></View>;
-  if (boot !== 2 || !fontsLoaded || loading) return <LoadingScreen />;
+  if (boot !== 2 || !fontsReady || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
   if (!user) return <WelcomeFlow />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
@@ -158,7 +161,7 @@ export default function App() {
     <SafeAreaProvider><AppearanceProvider><MapSourceProvider>
       <PhoneFrame>
         <Wrapper style={{ flex: 1 }}>
-          <AuthProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><NavChromeProvider><AppNavigation /></NavChromeProvider></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AuthProvider>
+          <AuthProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><AppNavigation /></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AuthProvider>
         </Wrapper>
       </PhoneFrame>
     </MapSourceProvider></AppearanceProvider></SafeAreaProvider>

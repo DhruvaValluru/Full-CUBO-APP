@@ -36,23 +36,24 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
   }, [colors.background, mode]);
   const styles = makeThemeStyles(colors);
   const { width } = useWindowDimensions();
-  if (phone || width < 600) return <View style={{ flex: 1, backgroundColor: colors.background }}>
-    <View style={{ flex: 1, opacity: landscape ? 0 : 1 }} pointerEvents={landscape ? 'none' : 'auto'} accessibilityElementsHidden={landscape} importantForAccessibility={landscape ? 'no-hide-descendants' : 'auto'}>{children}</View>
-    {landscape ? <View accessibilityRole="alert" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
-      <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>Keep CUBO upright</Text>
-      <Text style={{ color: colors.textSecondary, fontSize: 15, textAlign: 'center', maxWidth: 360 }}>Rotate your phone back to portrait. Your drive stays open. Adjust your phone only when safely parked.</Text>
-    </View> : null}
-  </View>;
-
+  const fullScreen = phone || width < 600;
+  // Keep the same child ancestry across breakpoints: replacing wrappers remounts
+  // auth, navigation and active-drive state when the browser changes width.
   return (
-    <View style={styles.page}>
-      <View style={styles.hintWrap}>
+    <View style={fullScreen ? { flex: 1, backgroundColor: colors.background } : styles.page}>
+      <View style={[styles.hintWrap, fullScreen && { display: 'none' }]}>
         <Text style={styles.hint}>CUBO preview — use the phone frame below. Allow camera for live detection.</Text>
       </View>
-      <View style={styles.deviceOuter}>
-        <View style={styles.bezel}>
-          <View style={styles.notch} />
-          <View style={styles.screenCutout}>{children}</View>
+      <View style={fullScreen ? { flex: 1, width: '100%' } : styles.deviceOuter}>
+        <View style={fullScreen ? { flex: 1 } : styles.bezel}>
+          <View style={[styles.notch, fullScreen && { display: 'none' }]} />
+          <View style={[styles.screenCutout, fullScreen && { borderRadius: 0 }]}>
+            <View style={{ flex: 1, opacity: landscape ? 0 : 1 }} pointerEvents={landscape ? 'none' : 'auto'} accessibilityElementsHidden={landscape} importantForAccessibility={landscape ? 'no-hide-descendants' : 'auto'}>{children}</View>
+            {landscape ? <View accessibilityRole="alert" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
+              <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>Keep CUBO upright</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 15, textAlign: 'center', maxWidth: 360 }}>Rotate your phone back to portrait. Your drive stays open. Adjust your phone only when safely parked.</Text>
+            </View> : null}
+          </View>
         </View>
       </View>
     </View>
