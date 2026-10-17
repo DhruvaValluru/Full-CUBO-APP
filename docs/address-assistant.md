@@ -12,7 +12,7 @@ Standalone Assistant:
 - General AI controls are collapsed; saved-account answers and destination actions never require model inference.
 - Try “Hey Cubo set the address to [place]”, “take me to [place]”, or “navigate home”.
 - Public search results require an explicit option selection/confirmation. Full addresses are visible; spoken choices are short.
-- Saved Home/Work go straight to route preview. Search never overwrites these saved addresses and never starts a drive.
+- Saved Home/Work and selected search matches ask “Switch to Map?” first. Only yes/confirm or the Switch to Map button opens the preview. Search never overwrites these saved addresses and never starts a drive.
 - Choices expire after two minutes and are cleared on leaving chat; cancellation/account/drive guards prevent late navigation.
 - Requests and replies use existing account-local history and weekly usage. No Firebase chat storage added.
 
