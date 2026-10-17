@@ -13,7 +13,7 @@ test('permission query never starts hardware; grant checks request only selected
     assert.match(await access.requestMediaAccess('camera'), /Allowed just now/); assert.deepEqual(requested[0], { audio: false, video: true }); assert.equal(stopped, 2);
     await access.requestMediaAccess('microphone'); assert.deepEqual(requested[1], { audio: true, video: false }); assert.equal(stopped, 4);
     navigator.permissions.query = async () => { throw Error('unsupported'); };
-    assert.equal(await access.checkMediaAccess('microphone'), 'Browser manages access');
+    assert.equal(await access.checkMediaAccess('microphone'), 'Verified this session · browser manages permission');
     navigator.mediaDevices.getUserMedia = async () => { throw Object.assign(Error('blocked'), { name: 'NotAllowedError' }); };
     await assert.rejects(access.requestMediaAccess('microphone'), /blocked/);
   } finally { if (original) Object.defineProperty(global, 'navigator', original); else delete global.navigator; global.isSecureContext = secure; }
@@ -23,6 +23,26 @@ test('permissions setting follows map source and does not activate a preview or 
   assert.ok(profile.indexOf('<MediaAccessPreference />') > profile.indexOf('<MapSourcePreference />'));
   if (profile.includes('<VoicePreference />')) assert.ok(profile.indexOf('<MediaAccessPreference />') < profile.indexOf('<VoicePreference />'));
   const view = fs.readFileSync('src/components/MediaAccessPreference.tsx', 'utf8');
-  assert.match(view, /requestMediaAccess\(kind\)/); assert.match(view, /activeSession/);
+  assert.match(view, /requestMediaAccess\(kind, request.signal\)/); assert.match(view, /activeSession/);
   assert.doesNotMatch(view, /localStorage|AsyncStorage|CameraView|<video|MediaRecorder/);
+});
+
+test('ignored prompts time out; late grants and cancelled checks release hardware', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const original = Object.getOwnPropertyDescriptor(global, 'navigator'), secure = global.isSecureContext;
+  let grant, stopped = 0;
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: () => new Promise(resolve => grant = resolve) } } });
+  global.isSecureContext = true;
+  const stream = { getTracks: () => [{ stop: () => stopped++ }] };
+  try {
+    const pending = access.requestMediaAccess('camera');
+    const timeout = assert.rejects(pending, /No permission response/);
+    t.mock.timers.tick(20000); await timeout;
+    grant(stream); await Promise.resolve(); assert.equal(stopped, 1);
+    const controller = new AbortController();
+    const cancelled = access.requestMediaAccess('microphone', controller.signal);
+    const rejection = assert.rejects(cancelled, /cancelled/);
+    controller.abort(); await rejection;
+    grant(stream); await Promise.resolve(); assert.equal(stopped, 2);
+  } finally { if (original) Object.defineProperty(global, 'navigator', original); else delete global.navigator; global.isSecureContext = secure; }
 });
