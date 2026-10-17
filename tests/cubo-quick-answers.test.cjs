@@ -46,6 +46,8 @@ test('all presets work without model load or GPU, including unknown questions', 
   uid = 'bob'; await assert.rejects(session.send('what is my home address'), /account changed/);
 });
 test('malformed or missing data never invents a score, name, address or policy', () => {
+  assert.doesNotMatch(accountAnswer('what is my email address', '{}', details), /PRIVATE HOME|PRIVATE WORK/);
+  assert.match(accountAnswer('turn off the microphone', '{}'), /dictate/);
   for (const value of ['{', 'null', '[]', '{}']) {
     assert.match(accountAnswer('my score', value), /no measured/i);
     assert.match(accountAnswer('my name', value), /unavailable/);
