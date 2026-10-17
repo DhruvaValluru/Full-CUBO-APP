@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotionPressable } from '../components/MotionPressable';
 import { useAppearance } from '../theme/AppearanceContext';
+import { WelcomeCarousel } from '../components/WelcomeCarousel';
 
 type Props = { onGetStarted: () => void };
-const roadPhoto = require('../../assets/welcome-road.jpg');
 
 export function WelcomeScreen({ onGetStarted }: Props) {
   const { height } = useWindowDimensions();
@@ -18,8 +18,8 @@ export function WelcomeScreen({ onGetStarted }: Props) {
     <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
       <View style={[s.header, compact && { minHeight: 60 }]}><Text style={[s.wordmark, { color: c.text }]}>CUBO</Text><Text style={[s.headerNote, { color: c.textSecondary }]}>Stay Alert. Stay Alive.</Text></View>
-      <Image source={roadPhoto} accessibilityLabel="A real road winding beside trees and a river" resizeMode="cover" style={[s.photo, { height: Math.max(140, Math.min(390, availableHeight * (compact ? .29 : .39))) }]} />
-      <View style={[s.copy, compact && { paddingTop: 18, paddingBottom: 16, gap: 10 }]}>
+      <WelcomeCarousel height={Math.max(140, Math.min(360, availableHeight * (compact ? .26 : .35)))} />
+      <View style={[s.copy, compact && { paddingTop: 4, paddingBottom: 16, gap: 10 }]}>
         <Text style={[s.title, { color: c.text }, compact && { fontSize: 30, lineHeight: 35 }]}>Your attention.{'\n'}On the road.</Text>
         <Text style={[s.subtitle, { color: c.textSecondary }, compact && { fontSize: 13, lineHeight: 20 }]}>Focus alerts, driving insights, and family sharing. Get to know your habits and build safer ones with CUBO.</Text>
       </View>
@@ -37,8 +37,7 @@ const s = StyleSheet.create({
   header: { minHeight: 72, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   wordmark: { fontFamily: 'Manrope_800ExtraBold', fontSize: 26, letterSpacing: 2.6 },
   headerNote: { fontFamily: 'Manrope_500Medium', fontSize: 11 },
-  photo: { width: '100%', backgroundColor: '#DCE5DE' },
-  copy: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24, gap: 14 },
+  copy: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 14 },
   title: { fontFamily: 'Manrope_800ExtraBold', fontSize: 36, lineHeight: 41, letterSpacing: -1.3 },
   subtitle: { fontFamily: 'Manrope_400Regular', fontSize: 14, lineHeight: 23, maxWidth: 420 },
   footer: { paddingHorizontal: 24, marginTop: 'auto', gap: 12 },

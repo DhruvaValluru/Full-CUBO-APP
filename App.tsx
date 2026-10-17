@@ -44,8 +44,7 @@ import { FamilyScreen } from './src/screens/FamilyScreen';
 import { InsuranceConnectionScreen } from './src/screens/InsuranceConnectionScreen';
 import { MapScreen } from './src/screens/MapScreen';
 import { AuthProvider, useAuth } from './src/features/auth/AuthContext';
-import { AuthScreen } from './src/screens/AuthScreen';
-import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { WelcomeFlow } from './src/screens/WelcomeFlow';
 
 import { LoadingScreen } from './src/components/LoadingScreen';
 import { ReturningHomeScreen } from './src/screens/ReturningHomeScreen';
@@ -101,7 +100,6 @@ const Wrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
 function AppNavigation() {
   const { user, loading } = useAuth();
-  const [hasStarted, setHasStarted] = useState(false);
   const { colors, mode } = useAppearance();
   const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, ...Ionicons.font });
   const [boot, setBoot] = useState(0);
@@ -113,8 +111,7 @@ function AppNavigation() {
   if (fontError && Platform.OS === 'web') return <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 16, backgroundColor: colors.background }}><Text accessibilityRole="alert" style={{ color: colors.text, fontSize: 18 }}>CUBO couldn’t load its fonts. Check your connection and try again.</Text><Pressable accessibilityRole="button" onPress={() => window.location.reload()} style={{ minHeight: 48, backgroundColor: colors.accent, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.onAccent }}>Reload CUBO</Text></Pressable></View>;
   if (boot !== 2 || !fontsLoaded || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
-  if (!user && !hasStarted) return <WelcomeScreen onGetStarted={() => setHasStarted(true)} />;
-  if (!user) return <AuthScreen onBack={() => setHasStarted(false)} />;
+  if (!user) return <WelcomeFlow />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
   return (
         <DriveProvider>
