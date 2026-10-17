@@ -1,111 +1,214 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AttentionCamera } from '../components/AttentionCamera';
-import { calibrate, type FaceSample } from '../features/attention/attentionPolicy';
 import { MotionPressable } from '../components/MotionPressable';
+import { AttentionAudio } from '../features/attention/attentionAudio';
+import type { FaceSample } from '../features/attention/attentionPolicy';
+import { advanceCalibrationTest, beginBaseline, beginLookAway, calibrationTimeout, freshFace, newCalibrationTest, type CalibrationTest } from '../features/calibration/calibrationTest';
 import { saveCalibration } from '../features/calibration/calibrationStatus';
+import { useDrives } from '../features/drives/DriveContext';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
 
-type Phase = 'position' | 'capturing' | 'complete';
+const alertMessage = 'Distraction detected. Look forward again.';
+const stepCopy = {
+  position: ['Try your attention alert', 'While parked, mount your phone with your whole face visible. We’ll learn your forward-facing position, then ask you to look away briefly.'],
+  baseline: ['Look at the road ahead', 'Keep your eyes open and your head still for 3 seconds. Look forward in your normal driving position, not down at the preview.'],
+  ready: ['Now test a distraction', 'Stay parked. Turn your head slightly left or right for about 3 seconds, keeping your face in view. You’ll hear an alert when the detector notices.'],
+  away: ['Look away briefly', 'Turn your head slightly to either side and keep your eyes open. Hold until the alert, then look forward again.'],
+  return: ['Look forward again', 'The detector noticed your head turn. Return to your normal forward-facing position with your eyes open.'],
+  confirm: ['Did you hear the alert?', 'Your head turn and return were detected. Confirm that you heard the spoken warning before saving.'],
+} as const;
 
 export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'CameraCalibration'>) {
   const { colors } = useAppearance();
   const styles = makeStyles(colors);
+  const focused = useIsFocused();
+  const { activeSession } = useDrives();
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [test, setTest] = useState(newCalibrationTest);
+  const state = useRef(test);
   const latest = useRef<FaceSample | null>(null);
-  const running = useRef(false);
+  const audio = useRef<AttentionAudio | null>(null);
+  const audioEpoch = useRef(0);
   const alive = useRef(true);
-  const progress = useRef(new Animated.Value(0)).current;
-  const successScale = useRef(new Animated.Value(.7)).current;
+  const saveLock = useRef(false);
   const [ready, setReady] = useState(false);
-  const [phase, setPhase] = useState<Phase>('position');
-  const [sample, setSample] = useState(0);
-  const [message, setMessage] = useState('Place your phone in its driving mount and keep your normal seating position.');
-
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const [cameraMessage, setCameraMessage] = useState('Connecting camera and attention detector…');
+  const [audioError, setAudioError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [complete, setComplete] = useState(false);
+  const active = focused && foreground && !activeSession && !complete;
+  const enabled = useRef(active); enabled.current = active;
+  const update = useCallback((next: CalibrationTest) => { state.current = next; setTest(next); }, []);
+  const stopAudio = useCallback(() => { audioEpoch.current++; audio.current?.dispose(); audio.current = null; }, []);
+  const speak = useCallback((message: string) => {
+    const epoch = ++audioEpoch.current;
+    setAudioError('');
+    audio.current ??= new AttentionAudio();
+    void audio.current.speak(message).catch(error => {
+      if (alive.current && enabled.current && audioEpoch.current === epoch) setAudioError(error instanceof Error ? error.message : 'Sound could not play. Try Hear alert.');
+    });
+  }, []);
   useEffect(() => {
-    if (phase !== 'complete') return;
-    const timer = setTimeout(() => navigation.popTo('MainTabs', { screen: 'Home' }), 1200);
-    return () => clearTimeout(timer);
-  }, [phase, navigation]);
-
-  const begin = async () => {
-    if (!ready || phase !== 'position' || running.current) return;
-    running.current = true;
-    setPhase('capturing');
-    setMessage('While parked, look at the road ahead with your eyes open. Keep the phone mounted and still.');
-    const started = Date.now(), samples: FaceSample[] = [];
-    try {
-      while (Date.now() - started < 12000) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (!alive.current) return;
-        const next = latest.current;
-        if (next && next.at >= started && next.at !== samples[samples.length - 1]?.at) samples.push(next);
-        setSample(samples.length);
-        progress.setValue(Math.min(.95, samples.length / 8));
-        if (samples.length >= 8 && samples[samples.length - 1].at - samples[0].at >= 3000) break;
+    alive.current = true;
+    return () => { alive.current = false; stopAudio(); };
+  }, [stopAudio]);
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', value => setForeground(value === 'active'));
+    const visibility = () => setForeground(!document.hidden);
+    if (Platform.OS === 'web') document.addEventListener('visibilitychange', visibility);
+    return () => { listener.remove(); if (Platform.OS === 'web') document.removeEventListener('visibilitychange', visibility); };
+  }, []);
+  useEffect(() => {
+    if (active) return;
+    stopAudio(); latest.current = null; setReady(false);
+    if (!complete) update({ ...newCalibrationTest(), hint: activeSession ? 'Finish your drive and park before testing.' : 'Test paused. Begin again when you are ready and parked.' });
+  }, [active, complete, activeSession, stopAudio, update]);
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      if (!latest.current || !freshFace(latest.current, now)) {
+        setReady(false);
+        if (latest.current && now - latest.current.at > 3000) setCameraMessage('Camera frames paused. Check the preview or retry the camera.');
       }
-      const baseline = calibrate(samples);
-      await saveCalibration(samples.length, baseline);
-      if (!alive.current) return;
-      progress.setValue(1); setPhase('complete');
-      setMessage('Your eyes-open and forward-facing baseline is saved. Recalibrate if you move the phone.');
-      Animated.spring(successScale, { toValue: 1, damping: 13, stiffness: 170, useNativeDriver: true }).start();
-    } catch (error) {
-      if (alive.current) { setPhase('position'); progress.setValue(0); setMessage(error instanceof Error ? error.message : 'Could not save calibration. Please retry.'); }
-    } finally { running.current = false; }
-  };
+      const next = calibrationTimeout(state.current, now);
+      if (next !== state.current) { stopAudio(); update(next); }
+    }, 300);
+    return () => clearInterval(timer);
+  }, [active, stopAudio, update]);
 
+  const onSample = useCallback((sample: FaceSample) => {
+    if (!enabled.current) return;
+    const now = Date.now();
+    latest.current = sample; setReady(freshFace(sample, now));
+    setCameraMessage(sample.face ? 'Face visible' : 'No face detected. Keep your whole face in view.');
+    const result = advanceCalibrationTest(state.current, sample, now);
+    if (result.state !== state.current) update(result.state);
+    if (result.alert) speak(alertMessage);
+  }, [update, speak]);
+  const onStatus = useCallback((message: string) => {
+    if (!enabled.current) return;
+    latest.current = null; setReady(false); setCameraMessage(message);
+    if (['baseline', 'away', 'return'].includes(state.current.phase)) {
+      stopAudio(); update({ ...newCalibrationTest(), hint: 'Camera interrupted. Reconnect it, then begin again.' });
+    }
+  }, [stopAudio, update]);
+
+  const begin = () => {
+    if (!active || !latest.current || !freshFace(latest.current, Date.now())) return;
+    setSaveError(''); update(beginBaseline(Date.now()));
+    // Spoken from the user tap to enable subsequent browser audio in this visit.
+    speak('Look forward with your eyes open.');
+  };
+  const startTest = () => {
+    if (!active || !latest.current || !freshFace(latest.current, Date.now())) return;
+    update(beginLookAway(state.current, Date.now()));
+    speak('While parked, turn your head slightly to either side.');
+  };
+  const save = async () => {
+    const current = state.current;
+    if (saveLock.current || !active || current.phase !== 'confirm' || !current.baseline) return;
+    saveLock.current = true; setSaving(true); setSaveError('');
+    try {
+      await saveCalibration(current.samples.length, current.baseline, true);
+      if (alive.current) { stopAudio(); setComplete(true); }
+    } catch { if (alive.current) setSaveError('Calibration could not be saved. Check device storage and try again.'); }
+    finally { saveLock.current = false; if (alive.current) setSaving(false); }
+  };
+  const close = () => { stopAudio(); if (navigation.canGoBack()) navigation.goBack(); else navigation.navigate('MainTabs', { screen: 'Home' }); };
+  const busy = ['baseline', 'away', 'return'].includes(test.phase);
+  const step = ['position', 'baseline'].includes(test.phase) ? 0 : ['ready', 'away'].includes(test.phase) ? 1 : 2;
+  const [title, body] = complete ? ['Calibration saved', 'You tested a real head-turn alert and returned to looking forward. Recalibrate if you move the phone.'] : stepCopy[test.phase];
+  const buttonLabel = complete ? 'Done' : saving ? 'Saving…' : test.phase === 'confirm' ? 'I heard it — save calibration' : test.phase === 'ready' ? 'Start distraction test' : busy ? 'Test in progress…' : 'I’m parked — begin';
+  const disabled = !complete && (Boolean(activeSession) || !foreground || saving || busy || (test.phase !== 'confirm' && !ready));
   return <SafeAreaView style={styles.page}>
     <View style={styles.topbar}>
-      <MotionPressable accessibilityLabel="Close calibration" style={styles.close} onPress={() => navigation.goBack()}><Ionicons name="close" size={22} color={colors.text} /></MotionPressable>
-      <View style={styles.topCopy}><Text style={styles.title}>Camera calibration</Text><Text style={styles.subtitle}>Driver and cabin frame setup</Text></View>
-      <View style={[styles.status, ready && styles.statusReady]}><View style={[styles.statusDot, ready && styles.statusDotReady]} /><Text style={[styles.statusText, ready && styles.statusTextReady]}>{ready ? 'LIVE' : 'WAITING'}</Text></View>
+      <MotionPressable accessibilityLabel="Close calibration" style={styles.close} onPress={close}><Ionicons name="close" size={22} color={colors.text} /></MotionPressable>
+      <View style={styles.topCopy}><Text style={styles.title}>Camera calibration</Text><Text style={styles.subtitle}>Parked test · no driving required</Text></View>
     </View>
-
-    <View style={styles.cameraShell}>
-      <AttentionCamera onSample={value => { latest.current = value; setReady(value.face); }} onStatus={value => { setReady(false); if (!running.current) setMessage(value); }} />
-      <View pointerEvents="none" style={styles.shade} />
-      <View pointerEvents="none" style={styles.faceGuide} />
-      <View pointerEvents="none" style={styles.horizon} />
-      <View pointerEvents="none" style={styles.cornerTL} /><View pointerEvents="none" style={styles.cornerTR} /><View pointerEvents="none" style={styles.cornerBL} /><View pointerEvents="none" style={styles.cornerBR} />
-
-      {phase === 'complete' ? <View pointerEvents="none" style={styles.successOverlay}><Animated.View style={[styles.successMark, { transform: [{ scale: successScale }] }]}><Ionicons name="checkmark" size={42} color="#FFFFFF" /></Animated.View><Text style={styles.successTitle}>Calibration finished</Text><Text style={styles.successBody}>Your attention baseline is saved on this device.</Text></View> : null}
-
-      <View pointerEvents="none" style={styles.cameraFooter}>
-        <View style={styles.footerHeading}><Text style={styles.cameraLabel}>{phase === 'complete' ? 'BASELINE SAVED' : phase === 'capturing' ? `${sample} SAMPLES CHECKED` : 'SETUP PREVIEW'}</Text><Text style={styles.cameraValue}>{phase === 'complete' ? 'Ready' : ready ? 'Face visible' : 'Waiting for face'}</Text></View>
-        <View style={styles.track}><Animated.View style={[styles.progress, { width: phase === 'position' ? (ready ? '18%' : '4%') : progress.interpolate({ inputRange: [0, 1], outputRange: ['18%', '100%'] }) }]} /></View>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.steps} accessibilityLabel={complete ? 'All calibration steps complete' : `Step ${step + 1} of 3`}>
+        {['Look ahead', 'Test alert', 'Return'].map((label, index) => <View key={label} style={styles.step}>
+          <View style={[styles.stepLine, (complete || index <= step) && styles.stepLineActive]} />
+          <Text style={[styles.stepText, (complete || index === step) && styles.stepTextActive]}>{index + 1}. {label}</Text>
+        </View>)}
       </View>
-    </View>
-
-    <View style={styles.instructions}>
-      <View style={styles.instructionIcon}><Ionicons name={phase === 'complete' ? 'shield-checkmark-outline' : 'scan-outline'} size={23} color={colors.accent} /></View>
-      <View style={{ flex: 1 }}><Text style={styles.instructionTitle}>{phase === 'complete' ? 'Setup complete' : phase === 'capturing' ? 'Keep the mount steady' : 'Frame the driver and road'}</Text><Text style={styles.instructionBody}>{message}</Text></View>
-    </View>
-
-    <View style={styles.privacy}><Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} /><Text style={styles.privacyText}>Set up only while parked. Images are discarded; only baseline measurements are saved. Experimental monitoring is not a guarantee of safety.</Text></View>
-
+      <View style={styles.cameraShell}>
+        {active ? <AttentionCamera previewFit="contain" onSample={onSample} onStatus={onStatus} /> : <View style={styles.cameraStopped}>
+          <Ionicons name={complete ? 'checkmark-circle-outline' : 'videocam-off-outline'} size={48} color={colors.accent} />
+          <Text style={styles.cameraStoppedText}>{complete ? 'Camera stopped · test complete' : 'Camera paused'}</Text>
+        </View>}
+        {active && /^(Loading|Connecting)/.test(cameraMessage) && <View pointerEvents="none" style={styles.cameraLoading}>
+          <ActivityIndicator color={colors.accent} /><Text style={styles.cameraStoppedText}>Starting camera…</Text>
+        </View>}
+      </View>
+      <View style={styles.cameraStatus}>
+        <Ionicons name={complete || ready ? 'checkmark-circle-outline' : 'scan-outline'} size={18} color={complete || ready ? colors.accent : colors.textSecondary} />
+        <Text style={styles.cameraStatusText}>{complete ? 'Baseline and alert check saved on this device' : ready ? 'Face visible · keep the phone steady' : cameraMessage}</Text>
+      </View>
+      <View style={styles.instruction} accessibilityLiveRegion="polite">
+        <Text style={styles.instructionTitle}>{activeSession ? 'Finish your drive first' : title}</Text>
+        <Text style={styles.instructionBody}>{activeSession ? 'This test asks you to look away. End the drive and park safely before starting calibration.' : body}</Text>
+      </View>
+      {busy && <View accessibilityRole="progressbar" accessibilityLabel="Current calibration step" accessibilityValue={{ min: 0, max: 100, now: Math.round(test.progress * 100) }} style={styles.track}><View style={[styles.progress, { width: `${test.progress * 100}%` }]} /></View>}
+      {!complete && test.hint ? <Text style={styles.hint}>{test.hint}</Text> : null}
+      {!complete && !activeSession && <View style={styles.audioRow}>
+        <View style={styles.audioCopy}><Text style={styles.audioTitle}>Sound check</Text><Text style={styles.audioHint}>Turn up media volume. On iPhone, turn Silent Mode off.</Text></View>
+        <MotionPressable disabled={!active || saving || busy} accessibilityLabel="Hear calibration alert" style={[styles.hear, busy && styles.disabled]} onPress={() => speak(alertMessage)}><Ionicons name="volume-high-outline" size={18} color={colors.accent} /><Text style={styles.hearText}>Hear alert</Text></MotionPressable>
+      </View>}
+      {audioError ? <Text accessibilityRole="alert" style={styles.error}>{audioError} If Bluetooth is connected, check that speaker too.</Text> : null}
+      {saveError ? <Text accessibilityRole="alert" style={styles.error}>{saveError}</Text> : null}
+      <Text style={styles.privacy}>Test only while parked. The 3 mph threshold still applies during drives. No test events affect your score. Images are discarded; only baseline measurements and test completion are saved. Detection is experimental, not a safety guarantee.</Text>
+    </ScrollView>
     <View style={styles.actions}>
-      {phase === 'complete' ? <MotionPressable style={styles.primary} onPress={() => navigation.goBack()}><Text style={styles.primaryText}>Done</Text><Ionicons name="checkmark" size={20} color="#FFFFFF" /></MotionPressable> : <MotionPressable disabled={!ready || phase === 'capturing'} style={[styles.primary, (!ready || phase === 'capturing') && styles.disabled]} onPress={() => void begin()}><Text style={styles.primaryText}>{phase === 'capturing' ? 'Calibrating…' : ready ? 'Start calibration' : 'Waiting for camera'}</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></MotionPressable>}
+      <MotionPressable disabled={disabled} style={[styles.primary, disabled && styles.disabled]} onPress={() => { if (complete) close(); else if (test.phase === 'confirm') void save(); else if (test.phase === 'ready') startTest(); else begin(); }}>
+        <Text style={styles.primaryText}>{buttonLabel}</Text>
+        <Ionicons name={complete || test.phase === 'confirm' ? 'checkmark' : 'arrow-forward'} size={20} color={colors.onAccent} />
+      </MotionPressable>
+      {!complete && test.phase !== 'position' && !saving && <MotionPressable style={styles.restart} onPress={() => { stopAudio(); setSaveError(''); setAudioError(''); update(newCalibrationTest()); }}><Text style={styles.restartText}>Restart test</Text></MotionPressable>}
     </View>
   </SafeAreaView>;
 }
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
-  page: { flex: 1, backgroundColor: c.background, paddingHorizontal: 16 },
-  topbar: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12 }, close: { width: 44, height: 44, borderRadius: 15, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
-  topCopy: { flex: 1 }, title: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 19 }, subtitle: { color: c.textSecondary, fontSize: 11, marginTop: 3 },
-  status: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, paddingHorizontal: 10, borderRadius: 12, backgroundColor: c.surfaceMuted }, statusReady: { backgroundColor: c.accentSoft }, statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.textTertiary }, statusDotReady: { backgroundColor: c.accent }, statusText: { color: c.textSecondary, fontFamily: 'Manrope_800ExtraBold', fontSize: 9, letterSpacing: 1 }, statusTextReady: { color: c.accent },
-  cameraShell: { flex: 1, minHeight: 350, maxHeight: 450, borderRadius: 30, overflow: 'hidden', backgroundColor: '#090D0C', borderWidth: 1, borderColor: c.accent }, shade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(3, 12, 9, .12)' },
-  faceGuide: { position: 'absolute', width: 148, height: 194, borderRadius: 74, borderWidth: 1.5, borderColor: 'rgba(150, 224, 192, .72)', top: 60, alignSelf: 'center' }, horizon: { position: 'absolute', left: 42, right: 42, top: 270, height: 1, backgroundColor: 'rgba(255,255,255,.3)' },
-  cornerTL: { position: 'absolute', left: 24, top: 24, width: 32, height: 32, borderLeftWidth: 3, borderTopWidth: 3, borderColor: '#70D3A7' }, cornerTR: { position: 'absolute', right: 24, top: 24, width: 32, height: 32, borderRightWidth: 3, borderTopWidth: 3, borderColor: '#70D3A7' }, cornerBL: { position: 'absolute', left: 24, bottom: 96, width: 32, height: 32, borderLeftWidth: 3, borderBottomWidth: 3, borderColor: '#70D3A7' }, cornerBR: { position: 'absolute', right: 24, bottom: 96, width: 32, height: 32, borderRightWidth: 3, borderBottomWidth: 3, borderColor: '#70D3A7' },
-  cameraFooter: { position: 'absolute', left: 12, right: 12, bottom: 12, padding: 16, borderRadius: 20, backgroundColor: 'rgba(8, 17, 13, .88)' }, footerHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, cameraLabel: { color: '#A9CDBB', fontFamily: 'Manrope_800ExtraBold', fontSize: 9, letterSpacing: 1.4 }, cameraValue: { color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 12 }, track: { height: 5, backgroundColor: 'rgba(255,255,255,.12)', borderRadius: 3, overflow: 'hidden', marginTop: 12 }, progress: { height: '100%', backgroundColor: '#62C89B', borderRadius: 3 },
-  successOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(5, 18, 13, .74)', paddingBottom: 60 }, successMark: { width: 78, height: 78, borderRadius: 39, backgroundColor: '#24845F', alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: 'rgba(255,255,255,.18)' }, successTitle: { color: '#FFFFFF', fontFamily: 'Manrope_800ExtraBold', fontSize: 24, marginTop: 18 }, successBody: { color: '#C8D9D0', fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 250, marginTop: 6 },
-  instructions: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 20, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginTop: 12 }, instructionIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }, instructionTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 14 }, instructionBody: { color: c.textSecondary, fontSize: 11, lineHeight: 16, marginTop: 3 },
-  privacy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 12, paddingHorizontal: 12 }, privacyText: { color: c.textSecondary, fontSize: 10, lineHeight: 15, flexShrink: 1 },
-  actions: { paddingBottom: 8 }, primary: { minHeight: 54, borderRadius: 18, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, shadowColor: c.shadow, shadowOpacity: .18, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 5 }, primaryText: { color: '#FFFFFF', fontFamily: 'Manrope_800ExtraBold', fontSize: 14 }, disabled: { opacity: .48 },
+  page: { flex: 1, backgroundColor: c.background },
+  topbar: { paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  close: { width: 48, height: 48, borderRadius: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+  topCopy: { flex: 1 }, title: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 19 },
+  subtitle: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 12, marginTop: 4 },
+  content: { paddingHorizontal: 16, paddingBottom: 16, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  steps: { flexDirection: 'row', gap: 12, marginBottom: 16 }, step: { flex: 1, gap: 8 },
+  stepLine: { height: 3, borderRadius: 2, backgroundColor: c.borderStrong }, stepLineActive: { backgroundColor: c.accent },
+  stepText: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 12 }, stepTextActive: { color: c.accent, fontFamily: 'Manrope_700Bold' },
+  cameraShell: { width: '100%', aspectRatio: 4 / 3, borderRadius: 24, overflow: 'hidden', backgroundColor: '#090D0C', borderWidth: 1, borderColor: c.borderStrong },
+  cameraLoading: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#090D0C' },
+  cameraStopped: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  cameraStoppedText: { color: '#E2EEE8', fontFamily: 'Manrope_500Medium', fontSize: 13, textAlign: 'center' },
+  cameraStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  cameraStatusText: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, flex: 1 },
+  instruction: { marginTop: 20, gap: 8 }, instructionTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 22, lineHeight: 30 },
+  instructionBody: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 14, lineHeight: 22 },
+  track: { height: 6, backgroundColor: c.surfaceMuted, borderRadius: 4, overflow: 'hidden', marginTop: 16 },
+  progress: { height: '100%', backgroundColor: c.accent },
+  hint: { color: c.text, fontFamily: 'Manrope_500Medium', fontSize: 13, lineHeight: 20, marginTop: 12 },
+  audioRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderColor: c.border },
+  audioCopy: { flex: 1, minWidth: 150 }, audioTitle: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 14 },
+  audioHint: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, marginTop: 4 },
+  hear: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: c.accentSoft },
+  hearText: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 12 },
+  error: { color: c.warning, fontFamily: 'Manrope_500Medium', fontSize: 13, lineHeight: 20, marginTop: 12 },
+  privacy: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 12, lineHeight: 18, marginTop: 20 },
+  actions: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, borderTopWidth: 1, borderColor: c.border, backgroundColor: c.background },
+  primary: { minHeight: 54, paddingVertical: 12, borderRadius: 18, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 20 },
+  primaryText: { color: c.onAccent, fontFamily: 'Manrope_800ExtraBold', fontSize: 14, flexShrink: 1 },
+  disabled: { opacity: .48 }, restart: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  restartText: { color: c.textSecondary, fontFamily: 'Manrope_700Bold', fontSize: 13 },
 });

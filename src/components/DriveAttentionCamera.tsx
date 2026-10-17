@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, Text, Vibration, View } from 'react-native';
 import { AttentionCamera } from './AttentionCamera';
+import { AttentionAudio } from '../features/attention/attentionAudio';
 import { advanceAttention, emptyAttention, type AttentionBaseline, type FaceSample } from '../features/attention/attentionPolicy';
 import { readCalibration } from '../features/calibration/calibrationStatus';
 import { useDrives } from '../features/drives/DriveContext';
@@ -10,6 +11,8 @@ export function DriveAttentionCamera({ speedMph, gpsValid }: { speedMph: number;
   const latest = useRef({ activeSession, speedMph, gpsValid }); latest.current = { activeSession, speedMph, gpsValid };
   const state = useRef(emptyAttention());
   const baseline = useRef<AttentionBaseline | null>(null);
+  const nativeAudio = useRef<AttentionAudio | null>(null);
+  useEffect(() => () => { nativeAudio.current?.dispose(); nativeAudio.current = null; }, [activeSession?.id]);
   const lastFrame = useRef(Date.now());
   const [status, setStatus] = useState('Loading attention monitor…');
   useEffect(() => { setMonitoringStatus(status); }, [status, setMonitoringStatus]);
@@ -33,7 +36,12 @@ export function DriveAttentionCamera({ speedMph, gpsValid }: { speedMph: number;
       const closed = result.event.kind === 'eyes_closed';
       addEvent({ type: result.event.kind, severity: 'warning', title: closed ? 'Prolonged eye closure' : 'Sustained head turn', detail: 'Experimental camera estimate; not a confirmed diagnosis or proof of distraction.', elapsedSeconds: session.durationSeconds, speedMph: speed, durationMs: result.event.duration });
       Vibration.vibrate([0, 250, 150, 250]);
-      const message = closed ? 'Eyes closed. Pull over safely if tired.' : 'Keep your attention on the road.';
+      const message = closed ? 'Eyes closed. Pull over safely if tired.' : 'Distraction detected. Look forward again.';
+      if (Platform.OS !== 'web') {
+        nativeAudio.current ??= new AttentionAudio();
+        const player = nativeAudio.current;
+        void player.speak(message).catch(() => { if (nativeAudio.current === player) setStatus('Attention alert · sound unavailable; check volume and silent mode'); });
+      }
       if (Platform.OS === 'web' && typeof window !== 'undefined') window.dispatchEvent(new Event('cubo-attention-warning'));
       AccessibilityInfo.announceForAccessibility(message);
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window && !window.speechSynthesis.speaking) window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
