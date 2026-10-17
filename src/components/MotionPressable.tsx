@@ -15,12 +15,13 @@ type Props = {
   onPressOut?: (event: GestureResponderEvent) => void;
   disabled?: boolean;
   accessibilityLabel?: string;
+  accessibilityHint?: string;
   accessibilityRole?: AccessibilityRole;
   accessibilityState?: AccessibilityState;
   scaleTo?: number;
 };
 
-export function MotionPressable({ children, style, onPress, onLongPress, onPressIn, onPressOut, disabled, accessibilityLabel, accessibilityState, accessibilityRole = 'button', scaleTo = 0.97 }: Props) {
+export function MotionPressable({ children, style, onPress, onLongPress, onPressIn, onPressOut, disabled, accessibilityLabel, accessibilityHint, accessibilityState, accessibilityRole = 'button', scaleTo = 0.97 }: Props) {
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
@@ -29,6 +30,7 @@ export function MotionPressable({ children, style, onPress, onLongPress, onPress
   return (
     <AnimatedPressable
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
       disabled={disabled}
