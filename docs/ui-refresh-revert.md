@@ -28,3 +28,12 @@ colors.ts and this note: dark canvas/elevation stay intact; feature surfaces bec
 forest green; ivory controls become sage; light canvas becomes neutral near-white.
 Revert this palette commit independently of the microphone/voice fixes if requested.
 No placement, spacing, navigation, dependencies or models changed in this refinement.
+
+## Follow-up: emerald hierarchy and Assistant controls
+Visual commit: **Clarify green hierarchy and Assistant surfaces**.
+Shared: preserve the cool dark canvas, use a more distinct emerald action accent,
+separate the Home shortcut surface from the forest drive panel, and correct selected
+icon contrast. Light mode uses a white shortcut and dark green feature panels.
+Standalone: forest Assistant header, green message surfaces, distinct outlined Voice
+Assist pill and an elevated composer with focus indication; placement stays unchanged.
+Keep the separate chat microphone-startup fix when reverting this visual commit.

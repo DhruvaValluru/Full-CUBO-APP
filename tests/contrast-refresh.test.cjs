@@ -9,6 +9,6 @@ for (const [mode, c] of [['light', m.exports.lightColors], ['dark', m.exports.da
   test(mode + ' refreshed surfaces retain readable text and buttons', () => {
     for (const bg of [c.background, c.card, c.cardElevated, c.surfaceMuted])
       for (const fg of [c.text, c.textSecondary, c.textTertiary]) assert.ok(contrast(fg, bg) >= 4.5, `${fg} on ${bg}`);
-    for (const [fg, bg] of [[c.onAccent, c.accent], [c.featureText, c.featureSurface], [c.featureMuted, c.featureSurface], [c.featureActionText, c.featureAction], [c.secondaryInk, c.secondarySurface]]) assert.ok(contrast(fg, bg) >= 4.5, `${fg} on ${bg}`);
+    for (const [fg, bg] of [[c.shortcutText, c.shortcutSurface], [c.messageText, c.messageSurface], [c.text, c.composerSurface], [c.textSecondary, c.composerSurface], [c.onAccent, c.accent], [c.featureText, c.featureSurface], [c.featureMuted, c.featureSurface], [c.featureActionText, c.featureAction], [c.secondaryInk, c.secondarySurface]]) assert.ok(contrast(fg, bg) >= 4.5, `${fg} on ${bg}`);
   });
 }
