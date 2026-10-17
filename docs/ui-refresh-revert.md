@@ -20,3 +20,11 @@ Visual scope:
 No dependencies, image downloads, animation work, model loading, routing logic, user data, or platform configuration changed in the visual-only commit.
 
 Browser control timed out during local inspection. Type and contrast tests are not a substitute for phone-rendered verification; ask the user to check both themes before treating the visual direction as accepted.
+
+## Follow-up: green refinement
+The user liked the dark background hue but rejected the ivory/blue accents and light tint.
+The separate commit **Refine CUBO green palette without layout changes** changes only
+colors.ts and this note: dark canvas/elevation stay intact; feature surfaces become
+forest green; ivory controls become sage; light canvas becomes neutral near-white.
+Revert this palette commit independently of the microphone/voice fixes if requested.
+No placement, spacing, navigation, dependencies or models changed in this refinement.
