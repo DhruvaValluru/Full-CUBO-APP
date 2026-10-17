@@ -9,7 +9,10 @@ import { CuboAISession } from '../features/cuboAI/session';
 import { CuboAIVoice } from '../features/cuboAI/browserVoice';
 import { createWorkerFactory } from '../features/cuboAI/workerClient';
 import { accountKey, readState, type LocalAIState } from '../features/cuboAI/localState';
-import { drivingContext, usageBadge } from '../features/cuboAI/presentation';
+import { usageBadge } from '../features/cuboAI/presentation';
+import { accountContext, type AccountSnapshot } from '../features/cuboAI/appContext';
+import { useVehicles } from '../features/vehicles/VehicleContext';
+import { readCalibration } from '../features/calibration/calibrationStatus';
 import { startupKeys, startupState } from '../features/cuboAI/startup';
 
 const MODEL = 'Llama-3.2-1B-Instruct-q4f32_1-MLC';
@@ -21,7 +24,11 @@ export function CuboAIScreen(props: Props) {
 function Chat({ navigation, uid }: Props & { uid: string }) {
   const { colors: c } = useAppearance();
   const { user } = useAuth(); const { activeSession, sessions } = useDrives();
-  const latest = useRef({ uid: user?.uid, driving: !!activeSession, sessions }); latest.current = { uid: user?.uid, driving: !!activeSession, sessions };
+  const { vehicles, ready: vehiclesReady } = useVehicles();
+  const [calibration, setCalibration] = useState<AccountSnapshot['calibration']>('unknown');
+  useEffect(() => { let active = true; void readCalibration().then(record => { if (active) setCalibration(record ? 'completed' : 'not completed'); }).catch(() => {}); return () => { active = false; }; }, [uid]);
+  const snapshot = { name: user?.displayName, vehicles, vehiclesReady, sessions, calibration };
+  const latest = useRef({ uid: user?.uid, driving: !!activeSession, snapshot }); latest.current = { uid: user?.uid, driving: !!activeSession, snapshot };
   const session = useRef<CuboAISession | null>(null); const voice = useRef<CuboAIVoice | null>(null);
   const alive = useRef(true); const epoch = useRef(0); const end = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<LocalAIState | null>(null);
@@ -36,14 +43,14 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const modelKeys = startupKeys(uid, MODEL);
   const [listening, setListening] = useState(false); const [voiceConsent, setVoiceConsent] = useState(false);
   const [settings, setSettings] = useState(false); const [notes, setNotes] = useState(''); const [clear, setClear] = useState(false);
-  const noticeKey = accountKey(uid) + ':notice-v1';
+  const noticeKey = accountKey(uid) + ':notice-v2';
   const recoveryKey = accountKey(uid) + ':interrupted';
   const allowed = () => alive.current && latest.current.uid === uid && !latest.current.driving && !document.hidden;
   const refresh = () => { if (alive.current && latest.current.uid === uid) setData(readState(window.localStorage, uid)); };
   function makeSession() {
     const runtime = createWorkerFactory(MODEL);
     return new CuboAISession({ uid, currentUid: () => latest.current.uid ?? null, isDriving: () => latest.current.driving,
-      store: window.localStorage, appContext: () => drivingContext(latest.current.sessions),
+      store: window.localStorage, appContext: () => accountContext(latest.current.snapshot),
       loadModel: runtime.load, cancelLoad: runtime.stop });
   }
   const report = (cause: unknown) => { if (alive.current) setError(cause instanceof Error ? cause.message : 'CuboAI could not finish. Please try again.'); };
@@ -134,7 +141,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
       <small className="ai-caption">{listening ? 'Listening… tap stop when finished. Review your words before sending.' : 'AI can be wrong. Local history · not a safety assessment.'}</small>
       <a className="ai-credit" href="/licenses/llama-3.2.txt" target="_blank" rel="noreferrer">Built with Llama · License</a>
     </footer>
-    {notice && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-notice-title"><h2 id="ai-notice-title">Before you chat</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>CuboAI is experimental and can make mistakes. It cannot certify safe driving, provide emergency help, or guarantee insurance savings. Only use it while parked.</p><p>Your messages and saved notes stay in this browser, under your account. Clearing browser data can erase them. Your own saved trip summaries are provided to the model; camera frames and precise routes are not.</p><p>100 attempts per week. Failed attempts count. Voice input may use your browser provider’s servers and asks separately.</p><label className="ai-check"><input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} />Don’t show me this again on this browser</label><button autoFocus className="ai-primary" onClick={acknowledge}>Continue to CuboAI</button><button className="ai-secondary" onClick={() => navigation.goBack()}>Go back</button></section></div>}
+    {notice && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-notice-title"><h2 id="ai-notice-title">Before you chat</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>CuboAI is experimental and can make mistakes. It cannot certify safe driving, provide emergency help, or guarantee insurance savings. Only use it while parked.</p><p>Your messages and saved notes stay in this browser, under your account. Clearing browser data can erase them. CuboAI receives a small summary of your account name, saved vehicles, trip statistics and calibration status. Camera frames, plates, precise routes and other accounts are not included.</p><p>100 attempts per week. Failed attempts count. Voice input may use your browser provider’s servers and asks separately.</p><label className="ai-check"><input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} />Don’t show me this again on this browser</label><button autoFocus className="ai-primary" onClick={acknowledge}>Continue to CuboAI</button><button className="ai-secondary" onClick={() => navigation.goBack()}>Go back</button></section></div>}
     {voiceConsent && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-voice-title"><h2 id="ai-voice-title">Talk to CuboAI</h2><p>Your browser may send audio to its speech-recognition provider. CUBO does not save raw audio. You can review the transcript before sending.</p><button autoFocus className="ai-primary" onClick={startListening}>Allow voice for this message</button><button className="ai-secondary" onClick={() => setVoiceConsent(false)}>Keep typing</button></section></div>}
     {settings && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title"><h2 id="ai-settings-title">Your CuboAI</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>Local history: latest 200 messages. No cross-device sync. The weekly allowance resets Monday at 00:00 UTC; history and notes stay.</p><label>Notes you want CuboAI to remember<textarea aria-label="Saved memory notes" rows={3} maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} /></label><button className="ai-primary" onClick={() => { try { session.current ??= makeSession(); session.current.remember(notes); refresh(); setSettings(false); } catch (cause) { report(cause); } }}>Save notes</button><button className="ai-secondary" onClick={() => { setSettings(false); setNotice(true); }}>Show safety notice</button><button className="ai-secondary" onClick={() => setClear(true)}>Clear history and notes</button>{clear && <><p>This deletes this account’s local chats and notes. Your weekly allowance will not reset. If it cannot be recovered from corrupt data, chat stays unavailable until next Monday.</p><button className="ai-secondary" onClick={() => { try { session.current ??= makeSession(); session.current.clearHistory(); localStorage.removeItem(recoveryKey); setDraft(''); setError(''); refresh(); setClear(false); setSettings(false); } catch (cause) { report(cause); } }}>Yes, clear them</button></>}<button autoFocus className="ai-secondary" onClick={() => { setSettings(false); setClear(false); }}>Close</button></section></div>}
     {(notice || voiceConsent || settings) && <ModalKeys returnTo={settings ? '[aria-label="CuboAI settings"]' : voiceConsent ? '[aria-label="Use voice input"]' : '.ai-load button'} close={() => { if (notice) navigation.goBack(); else { setSettings(false); setVoiceConsent(false); } }} />}

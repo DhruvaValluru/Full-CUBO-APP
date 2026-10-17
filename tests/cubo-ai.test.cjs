@@ -13,6 +13,35 @@ const { readState, writeState, accountKey, weekStart } = load('src/features/cubo
 const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
+
+test('account context includes selected car and only measured scores, excludes private raw fields', () => {
+  const { accountContext } = load('src/features/cuboAI/appContext.ts');
+  const input = { name: 'Alice', vehiclesReady: true, calibration: 'completed',
+    vehicles: [{ make: 'Toyota', model: 'Prius', year: '2021', nickname: 'Daily', primary: true, plate: 'SECRET' }],
+    sessions: [{ endedAt: 'today', focusScore: 80, attentionMeasured: true, distanceMiles: 2, location: 'SECRET' }, { endedAt: 'today', focusScore: 100, distanceMiles: 1 }] };
+  const text = accountContext(input), data = JSON.parse(text);
+  assert.equal(data.selectedVehicle, '2021 Toyota Prius');
+  assert.equal(data.averageFocusOutOf100, 80);
+  assert.equal(data.completedTrips, 2);
+  assert.equal(text.includes('SECRET'), false);
+  assert.equal(JSON.parse(accountContext({ ...input, vehiclesReady: false })).selectedVehicle, 'loading/unavailable');
+  assert.equal(JSON.parse(accountContext({ ...input, sessions: [] })).averageFocusOutOf100, null);
+  const huge = accountContext({ ...input, name: '"'.repeat(1000), vehicles: Array.from({ length: 100 }, () => ({ make: '"'.repeat(1000), model: '\\'.repeat(1000), year: '2021', nickname: '"'.repeat(1000), primary: false })) });
+  assert.ok(huge.length <= 800); assert.doesNotThrow(() => JSON.parse(huge));
+});
+
+test('each reply uses fresh own-account snapshot rather than stale model knowledge', async () => {
+  let car = 'Toyota Prius', received;
+  const session = new CuboAISession({ uid: 'alice', currentUid: () => 'alice', isDriving: () => false, store: storage(), now: () => monday,
+    appContext: () => JSON.stringify({ selectedVehicle: car }),
+    loadModel: async () => ({ reply: async messages => { received = messages; return 'Your saved car.'; }, dispose() {} }) });
+  await session.prepare(true); await session.send('What is my vehicle?');
+  assert.match(received[0].content, /Toyota Prius/);
+  car = 'Honda Civic'; await session.send('And now?');
+  assert.match(received[0].content, /Honda Civic/);
+  assert.doesNotMatch(received[0].content, /Toyota Prius/);
+  await session.dispose();
+});
 test('automatic setup is account/model scoped and records interrupted loading separately', () => {
   const { startupKeys, startupState } = load('src/features/cuboAI/startup.ts');
   const store = storage(), keys = startupKeys('alice', 'llama');
