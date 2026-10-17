@@ -122,7 +122,7 @@ test('chat capture failure retries once, keeps pending state, then gives non-dri
   let fail, done, count = 0, latest;
   const speech = { stop() {}, speak(text, complete) { done = complete; }, listen(consent, result, error) { fail = error; count++; } };
   const c = new DriveConversation(speech, () => true, () => ({ text: 'Reply' }), (active, text) => latest = { active, text }, Date.now, { mode: 'chat', acceptsFollowUp: () => true, readyForReply() {} });
-  c.start(); done(); t.mock.timers.tick(650);
+  c.start(); assert.equal(count, 1, 'chat capture starts in the tap, before any speech/timer');
   fail('Microphone could not start (audio-capture). You can type instead.');
   assert.equal(latest.active, true); assert.match(latest.text, /Reconnecting/);
   t.mock.timers.tick(1500); assert.equal(count, 2);

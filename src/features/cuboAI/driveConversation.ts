@@ -11,6 +11,12 @@ export class DriveConversation {
   private recovery() { return this.context.mode === 'chat' ? 'Tap Voice Assist to retry, or type your message.' : 'Retry Voice Assist when parked.'; }
   start() {
     this.stop(); this.rapidEnds = 0; this.captureRetries = 0;
+    if (this.context.mode === 'chat') {
+      // Chat has no pre-drive mic setup. Capture begins in the tap handler,
+      // not from a speech completion timer after transient activation is lost.
+      this.followUpUntil = this.now() + 20000;
+      this.listen(this.revision); return;
+    }
     // Runs synchronously from the user's tap to establish speech playback on Safari.
     this.say(this.revision, { text: 'Cubo Voice Assist is on. Say Hey Cubo, then your question.' });
   }
