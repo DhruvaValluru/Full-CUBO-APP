@@ -10,9 +10,11 @@ export class AttentionAudio {
     if (this.disposed) return Promise.reject(Error('Audio stopped.'));
     const generation = this.generation;
     return new Promise((resolve, reject) => {
+      let settled = false;
       let timer: ReturnType<typeof setTimeout>;
       const finish = (error?: Error) => {
-        if (generation !== this.generation) return;
+        if (settled || generation !== this.generation) return;
+        settled = true;
         clearTimeout(timer); this.finish = null;
         error ? reject(error) : resolve();
       };
@@ -20,7 +22,7 @@ export class AttentionAudio {
       timer = setTimeout(() => { finish(Error('Audio did not finish. Check silent mode and volume.')); void Speech.stop().catch(() => {}); }, 12000);
       // stop() is asynchronous on native; never start a stale prompt after leaving.
       void Speech.stop().then(() => {
-        if (generation !== this.generation || this.disposed) return;
+        if (settled || generation !== this.generation || this.disposed) return;
         Speech.speak(text, { language: 'en-US', rate: .95, volume: 1,
           onDone: () => finish(), onError: () => finish(Error('Audio could not play. Check silent mode and volume.')),
           onStopped: () => finish(Error('Audio stopped.')) });

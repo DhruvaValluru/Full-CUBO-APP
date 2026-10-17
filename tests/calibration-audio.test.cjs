@@ -56,3 +56,20 @@ test('native uses real speech without accessibility or microphone dependencies',
   audio.dispose(); await Promise.resolve();
   assert.match(await stale, /stopped/); assert.equal(spoken.length, 1); assert.equal(timers.size, 0);
 });
+
+test('native cannot start a timed-out alert after a delayed speech engine stop', async () => {
+  const spoken = [], stops = [], timers = new Map(); let next = 0;
+  const speech = { stop: () => new Promise(resolve => stops.push(resolve)), speak: text => spoken.push(text) };
+  const { AttentionAudio } = moduleIn('src/features/attention/attentionAudio.native.ts', {
+    require: () => speech,
+    setTimeout: fn => { timers.set(++next, fn); return next; }, clearTimeout: id => timers.delete(id),
+  });
+  const audio = new AttentionAudio();
+  const done = audio.speak('Expired alert').catch(error => error.message);
+  [...timers.values()][0]();
+  assert.match(await done, /did not finish/);
+  stops.forEach(resolve => resolve());
+  await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(spoken, [], 'A delayed engine must not speak after the UI reports timeout');
+  audio.dispose();
+});
