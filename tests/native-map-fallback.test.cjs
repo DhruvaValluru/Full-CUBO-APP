@@ -17,7 +17,8 @@ function harness() {
     constructor(value) { this.value = value; pins.push(this); } setLngLat(value) { this.location = value; return this; } addTo() { return this; } remove() {}
   }
   const window = { ReactNativeWebView: { postMessage: message => messages.push(JSON.parse(message)) } };
-  const document = { createElement: () => ({ style: {}, setAttribute() {} }), querySelector: () => ({ style: {} }) };
+  const element = () => ({ style: {}, setAttribute() {}, appendChild() {} });
+  const document = { createElement: element, createElementNS: element, querySelector: () => ({ style: {} }) };
   const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
   vm.runInNewContext(script, { window, document, maplibregl: { Map, Marker, AttributionControl: class {} }, innerHeight: 844 });
   return { receive: window.cuboReceive, events, messages, moves, sources, pins };
@@ -38,4 +39,9 @@ test('route and driver pins update and manual map gestures release follow', () =
   assert.equal(h.pins[0].value.rotation, 90); assert.equal(h.pins[0].value.rotationAlignment, 'map');
   h.events.dragstart(); assert.equal(h.messages.at(-1).type, 'pan');
   h.events.error(); assert.equal(h.messages.at(-1).type, 'error');
+});
+test('summary Web renderer accepts distinct event symbols and static map mode', () => {
+  const h = harness();
+  h.receive({ kind: 'state', value: { center: { latitude: 35, longitude: -78 }, mode: 'light', route: [], preview: true, attributionBottom: 0, pins: ['eye', 'phone', 'shield', 'warning', 'box'].map(symbol => ({ latitude: 35, longitude: -78, symbol })) } });
+  h.events.load(); assert.equal(h.pins.length, 5); assert.equal(h.messages.at(-1).type, 'ready');
 });
