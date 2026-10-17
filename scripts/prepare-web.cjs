@@ -54,7 +54,7 @@ fs.writeFileSync(htmlPath, html);
 fs.writeFileSync(path.join(dist, '_headers'), `/*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(self), microphone=(), geolocation=(self)
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=(self)
   X-Frame-Options: DENY
 /
   Cache-Control: no-cache

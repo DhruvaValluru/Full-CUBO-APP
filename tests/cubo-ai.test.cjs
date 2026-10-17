@@ -13,6 +13,31 @@ const { readState, writeState, accountKey, weekStart } = load('src/features/cubo
 const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
+test('confirmed corrupt history recovery isolates account and conservatively retains allowance', () => {
+  const { clearAccountState } = load('src/features/cuboAI/localState.ts');
+  const store = storage(); store.setItem(accountKey('alice'), '{broken');
+  const bob = readState(store, 'bob', monday); bob.memory = 'private'; writeState(store, bob);
+  const result = clearAccountState(store, 'alice', monday);
+  assert.equal(result.used, 100); assert.deepEqual(result.messages, []);
+  assert.equal(readState(store, 'bob', monday).memory, 'private');
+  assert.equal(readState(store, 'alice', monday + 7 * 86400000).used, 0);
+});
+
+test('voice transcript is bounded, stops recognition, and does not auto-send', () => {
+  const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');
+  let recognition, heard = '', aborted = 0;
+  const original = global.window;
+  global.window = { SpeechRecognition: class { constructor() { recognition = this; } start() {} abort() { aborted++; } } };
+  try {
+    const voice = new CuboAIVoice(() => true);
+    assert.throws(() => voice.listen(false, () => {}, () => {}), /Confirm/);
+    voice.listen(true, text => { heard = text; }, () => {});
+    recognition.onresult({ results: [[{ transcript: 'hello' }]] });
+    assert.equal(heard, 'hello'); assert.equal(aborted, 1);
+    voice.dispose();
+    assert.throws(() => voice.listen(true, () => {}, () => {}), /unavailable/);
+  } finally { global.window = original; }
+});
 function setup(reply = async () => 'Hello') {
   let uid = 'alice', driving = false, disposals = 0;
   const store = storage();
@@ -62,9 +87,24 @@ test('clear during generation discards the answer and storage errors stop infere
   x.store.setItem = () => { throw Error('Quota exceeded'); };
   await assert.rejects(x.session.send('Hi'), /Quota exceeded/);
 });
-test('framework never imports Firebase or automatically wires itself into the app', () => {
+test('chat persistence never imports Firebase and screen is registered', () => {
   for (const name of ['localState', 'session', 'browserVoice', 'webllmAdapter']) assert.doesNotMatch(fs.readFileSync(`src/features/cuboAI/${name}.ts`, 'utf8'), /from ['"]firebase|fetch\(/);
-  assert.doesNotMatch(fs.readFileSync('App.tsx', 'utf8'), /cuboAI/);
+  assert.match(fs.readFileSync('App.tsx', 'utf8'), /name="CuboAI"/);
+});
+
+test('usage circle follows requested thresholds and never goes negative', () => {
+  const { usageBadge } = load('src/features/cuboAI/presentation.ts');
+  assert.equal(usageBadge(0).background, '#137858');
+  assert.equal(usageBadge(20).background, '#D87920');
+  assert.equal(usageBadge(40).background, '#F0CC51');
+  assert.equal(usageBadge(80).background, '#BD2929');
+  assert.equal(usageBadge(110).percent, 0);
+});
+
+test('unmeasured trips do not become invented focus scores', () => {
+  const { drivingContext } = load('src/features/cuboAI/presentation.ts');
+  assert.match(drivingContext([{ endedAt: 'today', attentionMeasured: false, focusScore: 100, distanceMiles: 1 }]), /unavailable/);
+  assert.match(drivingContext([{ endedAt: 'today', attentionMeasured: true, focusScore: 85, distanceMiles: 1 }]), /85\/100/);
 });
 test('logout while loading disposes the late model and never makes it usable', async () => {
   let resolve, uid = 'alice', disposed = 0;

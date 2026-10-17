@@ -19,6 +19,7 @@ export type RootStackParamList = {
   CruiseCamera: { deviceId: string };
   Family: undefined;
   Notifications: undefined;
+  CuboAI: undefined;
   FamilyMember: { uid: string };
   InsuranceConnection: { demoMemberId?: string } | undefined;
   TripDetail: { sessionId: string };

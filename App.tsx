@@ -39,6 +39,7 @@ import { ConnectedDevicesScreen } from './src/screens/ConnectedDevicesScreen';
 import { FamilyProvider } from './src/features/family/FamilyContext';
 import { InsuranceProvider } from './src/features/insurance/InsuranceContext';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { CuboAIScreen } from './src/screens/CuboAIScreen';
 import { FamilyMemberScreen } from './src/screens/FamilyMemberScreen';
 import { FamilyScreen } from './src/screens/FamilyScreen';
 import { InsuranceConnectionScreen } from './src/screens/InsuranceConnectionScreen';
@@ -127,6 +128,7 @@ function AppNavigation() {
             <Stack.Screen name="CruiseCamera" component={CruiseCameraScreen} />
             <Stack.Screen name="ConnectedDevices" component={ConnectedDevicesScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="CuboAI" component={CuboAIScreen} />
             <Stack.Screen name="FamilyMember" component={FamilyMemberScreen} />
             <Stack.Screen name="Family" component={FamilyScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="InsuranceConnection" component={InsuranceConnectionScreen} options={{ animation: 'slide_from_right' }} />
