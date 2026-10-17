@@ -11,3 +11,10 @@ OSRM supplies route geometry and maneuver steps; Photon supplies search. These p
 Map tiles require internet and contact OpenFreeMap for the viewed area. Attribution must remain visible. MapLibre's bundled stylesheet is required for controls and attribution; the production export must include its CSS. Map resources are disposed when the component unmounts. Denied GPS and network failures show guidance instead of a silent blank map.
 
 Phone check: test Safari location allowed/denied, pinch zoom, light/dark appearance, route preview, leaving/reopening the tab, and loss of network. Public tile hosting has no uptime guarantee. Do not treat this preview as a safety-critical navigation system.
+# Trip maps and source preference
+
+Trip summaries and Activity trip details use a non-interactive OpenFreeMap street-map preview with the recorded path, start/finish labels, and located road-hazard/attention-event icons. Bounds include event locations as well as the route. Missing/invalid coordinates are not plotted; the preview reports events without GPS. New events inherit only a recent recorded fix (up to 15 seconds old) when they lack their own location. This does not enable attention detection on devices where it is not connected.
+
+Account → Preferences → Map source is directly below Trip reports. This browser build uses **Web**; **Apple** is marked unavailable because the native Apple Maps renderer is exclusive to the iOS app. In the Expo main branch both options work on iPhone, and holding locate toggles them without resetting a drive.
+
+The preview loads street tiles when displayed; it is not an offline saved image. No new route screenshots or personal trip-data caches are persisted.

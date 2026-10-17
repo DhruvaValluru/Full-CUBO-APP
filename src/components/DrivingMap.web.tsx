@@ -18,11 +18,13 @@ type Props = {
   onPress?: () => void; onPanDrag?: () => void; userLocation?: Coordinate | null; showsUserLocation?: boolean;
   showsMyLocationButton?: boolean; showsCompass?: boolean; toolbarEnabled?: boolean;
   attributionBottom?: number;
+  interactive?: boolean; onMapReady?: () => void;
 };
 const MapContext = createContext<LibreMap | null>(null);
 const coords = (point: Coordinate): [number, number] => [point.longitude, point.latitude];
 const valid = (p: Coordinate) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && Math.abs(p.latitude) <= 85 && Math.abs(p.longitude) <= 180;
 export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
+  const scope = `cubo-map-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const host = useRef<HTMLDivElement>(null);
   const instance = useRef<LibreMap | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
@@ -51,10 +53,10 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
     setMap(null); setError('');
     const timer = setTimeout(() => { if (live) setError('Map is taking longer than expected. Check your connection.'); }, 20000);
     try {
-      current = new LibreMap({ container: host.current, style: `https://tiles.openfreemap.org/styles/${props.userInterfaceStyle === 'dark' ? 'dark' : 'liberty'}`, center: coords(props.initialRegion), zoom: 13, attributionControl: false });
+      current = new LibreMap({ container: host.current, style: `https://tiles.openfreemap.org/styles/${props.userInterfaceStyle === 'dark' ? 'dark' : 'liberty'}`, center: coords(props.initialRegion), zoom: 13, attributionControl: false, interactive: props.interactive ?? true });
       instance.current = current;
       current.addControl(new AttributionControl({ compact: true }), 'top-left');
-      current.on('load', () => { if (!live) return; clearTimeout(timer); setError(''); setMap(current!); });
+      current.on('load', () => { if (!live) return; clearTimeout(timer); setError(''); setMap(current!); callbacks.current.onMapReady?.(); });
       current.on('error', () => { if (live) setError('Some map tiles could not load. Check your connection.'); });
       current.on('click', () => callbacks.current.onPress?.());
       current.on('dragstart', () => callbacks.current.onPanDrag?.());
@@ -65,8 +67,8 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
     return () => { live = false; clearTimeout(timer); observer?.disconnect(); instance.current = null; current?.remove(); };
   }, [props.userInterfaceStyle, attempt]);
   return <View style={props.style}>
-    <style>{`.cubo-driving-map .maplibregl-ctrl-top-left{top:auto;bottom:${props.attributionBottom ?? 250}px;left:4px}.cubo-driving-map .maplibregl-ctrl-attrib{font:10px/18px sans-serif;max-width:220px}.cubo-driving-map canvas{outline:none}`}</style>
-    <div ref={host} className="cubo-driving-map" aria-label="Driving map" style={{ position: 'absolute', inset: 0 }} />
+    <style>{`.${scope} .maplibregl-ctrl-top-left{top:auto;bottom:${props.attributionBottom ?? 250}px;left:4px}.${scope} .maplibregl-ctrl-attrib{font:10px/18px sans-serif;max-width:220px}.${scope} canvas{outline:none}`}</style>
+    <div ref={host} className={scope} aria-label={props.interactive === false ? 'Trip route map' : 'Driving map'} style={{ position: 'absolute', inset: 0 }} />
     <MapContext.Provider value={map}>{props.children}{props.showsUserLocation && props.userLocation && <Marker coordinate={props.userLocation}><div aria-label="Your location" style={{ width: 16, height: 16, borderRadius: 20, background: '#2985E8', border: '3px solid white', boxShadow: '0 0 0 8px #2985e826' }} /></Marker>}</MapContext.Provider>
     {error && <div role="status" style={{ position: 'absolute', top: '42%', left: 12, right: 64, padding: 12, borderRadius: 12, background: '#FFFFFF', color: '#162820', font: '12px sans-serif' }}>{error}<button style={{ minHeight: 44, marginLeft: 8 }} onClick={() => setAttempt(n => n + 1)}>Retry map</button></div>}
   </View>;
