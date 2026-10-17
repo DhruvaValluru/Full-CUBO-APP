@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Map, NavigationControl, GeolocateControl, LngLatBounds, type GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { applyWebDarkMapPaint } from './webDarkMapPaint';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { RoutePoint } from '../features/drives/types';
 
@@ -29,6 +30,7 @@ export function RouteMap({ points, accent, background }: { points: RoutePoint[];
       location.on('geolocate', () => setMessage(''));
       timer = setTimeout(() => setMessage('Map is taking longer than expected. Check your connection or retry.'), 20000);
       map.on('load', () => {
+        applyWebDarkMapPaint(map, mode);
         clearTimeout(timer); setMessage('');
         map.addSource('cubo-route', { type: 'geojson', data: routeData(latest.current) });
         map.addLayer({ id: 'cubo-route-halo', type: 'line', source: 'cubo-route', paint: { 'line-color': '#FFFFFF', 'line-width': 8 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });

@@ -2,6 +2,7 @@ import { createContext, forwardRef, useContext, useEffect, useId, useImperativeH
 import { createPortal } from 'react-dom';
 import { Map as LibreMap, Marker as LibreMarker, LngLatBounds, AttributionControl, type GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { applyWebDarkMapPaint } from './webDarkMapPaint';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { nearestBearing } from '../features/navigation/courseHeading';
 
@@ -56,7 +57,7 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
       current = new LibreMap({ container: host.current, style: `https://tiles.openfreemap.org/styles/${props.userInterfaceStyle === 'dark' ? 'dark' : 'liberty'}`, center: coords(props.initialRegion), zoom: 13, attributionControl: false, interactive: props.interactive ?? true });
       instance.current = current;
       current.addControl(new AttributionControl({ compact: true }), 'top-left');
-      current.on('load', () => { if (!live) return; clearTimeout(timer); setError(''); setMap(current!); callbacks.current.onMapReady?.(); });
+      current.on('load', () => { if (!live) return; applyWebDarkMapPaint(current!, props.userInterfaceStyle); clearTimeout(timer); setError(''); setMap(current!); callbacks.current.onMapReady?.(); });
       current.on('error', () => { if (live) setError('Some map tiles could not load. Check your connection.'); });
       current.on('click', () => callbacks.current.onPress?.());
       current.on('dragstart', () => callbacks.current.onPanDrag?.());
