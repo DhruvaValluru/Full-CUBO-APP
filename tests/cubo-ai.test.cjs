@@ -13,6 +13,19 @@ const { readState, writeState, accountKey, weekStart } = load('src/features/cubo
 const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
+test('automatic setup is account/model scoped and records interrupted loading separately', () => {
+  const { startupKeys, startupState } = load('src/features/cuboAI/startup.ts');
+  const store = storage(), keys = startupKeys('alice', 'llama');
+  assert.deepEqual(startupState(store, 'alice', 'llama'), { configured: false, interruptedLoad: false });
+  store.setItem(keys.ready, 'yes');
+  assert.equal(startupState(store, 'alice', 'llama').configured, true);
+  assert.equal(startupState(store, 'bob', 'llama').configured, false);
+  assert.equal(startupState(store, 'alice', 'other').configured, false);
+  store.setItem(keys.loading, 'yes');
+  assert.equal(startupState(store, 'alice', 'llama').interruptedLoad, true);
+  store.removeItem(keys.loading);
+  assert.equal(startupState(store, 'alice', 'llama').interruptedLoad, false);
+});
 test('worker cancellation immediately terminates a pending model load', async () => {
   const { createWorkerFactory } = load('src/features/cuboAI/workerClient.ts');
   const originalWindow = global.window, originalWorker = global.Worker;

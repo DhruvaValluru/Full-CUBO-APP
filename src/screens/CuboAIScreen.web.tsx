@@ -10,6 +10,7 @@ import { CuboAIVoice } from '../features/cuboAI/browserVoice';
 import { createWorkerFactory } from '../features/cuboAI/workerClient';
 import { accountKey, readState, type LocalAIState } from '../features/cuboAI/localState';
 import { drivingContext, usageBadge } from '../features/cuboAI/presentation';
+import { startupKeys, startupState } from '../features/cuboAI/startup';
 
 const MODEL = 'Llama-3.2-1B-Instruct-q4f32_1-MLC';
 type Props = NativeStackScreenProps<RootStackParamList, 'CuboAI'>;
@@ -29,6 +30,10 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'thinking'>('idle');
   const [progress, setProgress] = useState(0); const [error, setError] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
+  const [configured, setConfigured] = useState(false);
+  const [visible, setVisible] = useState(!document.hidden);
+  const autoAttempted = useRef(false);
+  const modelKeys = startupKeys(uid, MODEL);
   const [listening, setListening] = useState(false); const [voiceConsent, setVoiceConsent] = useState(false);
   const [settings, setSettings] = useState(false); const [notes, setNotes] = useState(''); const [clear, setClear] = useState(false);
   const noticeKey = accountKey(uid) + ':notice-v1';
@@ -44,6 +49,14 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const report = (cause: unknown) => { if (alive.current) setError(cause instanceof Error ? cause.message : 'CuboAI could not finish. Please try again.'); };
   useEffect(() => {
     alive.current = true;
+    try {
+      const startup = startupState(localStorage, uid, MODEL);
+      setConfigured(startup.configured);
+      if (startup.interruptedLoad) {
+        autoAttempted.current = true;
+        setError('Model preparation was interrupted. Tap Start to retry; automatic retry is paused to avoid a restart loop.');
+      }
+    } catch (cause) { report(cause); }
     try { session.current = makeSession(); refresh(); setNotice(localStorage.getItem(noticeKey) !== 'hidden'); }
     catch (cause) { report(cause); }
     try {
@@ -51,24 +64,34 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
       if (interrupted) { setDraft(interrupted.slice(0, 1000)); setError('Your previous reply was interrupted. Your question is restored; it has not been sent again.'); }
     } catch (cause) { report(cause); }
     voice.current = new CuboAIVoice(allowed);
-    const suspend = () => { if (!document.hidden) return; epoch.current++; voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; setPhase('idle'); };
+    const suspend = () => { setVisible(!document.hidden); if (!document.hidden) { autoAttempted.current = false; return; } epoch.current++; voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; try { localStorage.removeItem(modelKeys.loading); } catch {} setPhase('idle'); };
     const sync = () => { try { refresh(); } catch (cause) { report(cause); } };
     document.addEventListener('visibilitychange', suspend); window.addEventListener('storage', sync);
     const timer = setInterval(sync, 30000);
-    return () => { alive.current = false; epoch.current++; clearInterval(timer); document.removeEventListener('visibilitychange', suspend); window.removeEventListener('storage', sync); voice.current?.dispose(); void session.current?.dispose().catch(() => {}); };
+    return () => { alive.current = false; epoch.current++; clearInterval(timer); document.removeEventListener('visibilitychange', suspend); window.removeEventListener('storage', sync); voice.current?.dispose(); void session.current?.dispose().catch(() => {}); try { localStorage.removeItem(modelKeys.loading); } catch {} };
   }, [uid]);
   useEffect(() => { if (activeSession) { epoch.current++; voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; setPhase('idle'); } }, [activeSession?.id]);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end', behavior: 'auto' }); }, [data?.messages.length, phase]);
   const badge = usageBadge(data?.used ?? 0); const exhausted = badge.percent === 0;
   const blocked = notice || !!activeSession || !data || exhausted;
+  useEffect(() => {
+    if (!configured || blocked || !visible || phase !== 'idle' || autoAttempted.current) return;
+    autoAttempted.current = true;
+    void load();
+  }, [configured, blocked, visible, phase]);
   async function load() {
     if (blocked || !allowed() || phase === 'loading') return;
     const version = epoch.current; setError(''); setPhase('loading'); setProgress(0);
+    autoAttempted.current = true;
     try {
+      localStorage.setItem(modelKeys.loading, 'yes');
       session.current ??= makeSession();
       await session.current.prepare(true, (amount, status) => { if (allowed() && epoch.current === version) { setProgress(Math.round(amount * 100)); setLoadStatus(status); } });
-      if (allowed() && epoch.current === version) { setPhase('ready'); refresh(); }
-    } catch (cause) { if (allowed() && epoch.current === version) { report(cause); void session.current?.dispose(); session.current = null; setPhase('idle'); } }
+      if (allowed() && epoch.current === version) {
+        localStorage.setItem(modelKeys.ready, 'yes'); localStorage.removeItem(modelKeys.loading);
+        setConfigured(true); setPhase('ready'); refresh();
+      }
+    } catch (cause) { if (allowed() && epoch.current === version) { try { localStorage.removeItem(modelKeys.loading); } catch {} report(cause); void session.current?.dispose(); session.current = null; setPhase('idle'); } }
   }
   async function send() {
     if (blocked || phase !== 'ready' || !draft.trim()) return;

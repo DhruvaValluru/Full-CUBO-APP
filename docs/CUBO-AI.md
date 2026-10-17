@@ -4,6 +4,13 @@ Home's chat icon opens CuboAI. Expo main is unchanged.
 
 ## First use
 
+After one successful explicit Start on this version, future visits prepare the saved
+model automatically once the safety notice is dismissed. Preparation still takes time;
+Safari can evict cached files. Consent/setup is account- and model-scoped.
+Failed preparation does not auto-retry in a loop. If the browser dies while preparing,
+the next visit requires an explicit retry. Interrupted prompts are never auto-sent.
+This startup improvement does not establish that reported iPhone generation crashes are fixed.
+
 Read the safety notice; optionally hide it for this account in this browser.
 Tap Load CuboAI to explicitly download/load Llama-3.2-1B-Instruct-q4f32_1-MLC
 through pinned @mlc-ai/web-llm 0.2.86. HTTPS and WebGPU are required.
