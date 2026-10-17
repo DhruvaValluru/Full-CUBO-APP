@@ -33,7 +33,7 @@ export function DemoFamilyProfile({ member, navigation }: { member: typeof demoF
     <AppHeader title={member.name} onBack={() => navigation.goBack()} />
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12 }}>
       <FamilyAvatar id={member.uid} size={88} />
-      <View style={{ flex: 1, gap: 6 }}><Text style={heading}>{member.name.split(' ')[0]}</Text><Text style={{ color: c.accent, fontFamily: 'Manrope_700Bold' }}>{member.role}</Text><Text style={body}>{sharing ? 'Sharing location · Demo' : 'Location private · Demo'}</Text></View>
+      <View style={{ flex: 1, gap: 6 }}><Text style={heading}>{member.name}</Text><Text style={{ color: c.accent, fontFamily: 'Manrope_700Bold' }}>{member.role}</Text><Text style={body}>{sharing ? 'Sharing location · Demo' : 'Location private · Demo'}</Text></View>
     </View>
     <Text style={body}>DEMO FAMILY · Fictional people, trips and locations.</Text>
     <View style={{ padding: 24, borderRadius: 24, backgroundColor: '#183D2D', gap: 8 }}>
@@ -43,7 +43,7 @@ export function DemoFamilyProfile({ member, navigation }: { member: typeof demoF
     <View style={{ flexDirection: 'row', gap: 8 }}>{[[Math.floor(member.minutes / 60) + 'h ' + member.minutes % 60 + 'm', 'Drive time'], [String(member.miles), 'Miles'], [String(member.trips), 'Trips']].map(([value, label]) => <View key={label} style={{ flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: c.card, alignItems: 'center', gap: 4 }}><Text style={{ color: c.text, fontSize: 17, fontFamily: 'Manrope_800ExtraBold' }}>{value}</Text><Text style={body}>{label}</Text></View>)}</View>
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={heading}>{sharing ? 'Driving now' : 'Location sharing'}</Text><Ionicons name={sharing ? 'navigate-circle' : 'lock-closed-outline'} size={24} color={c.accent} /></View>
     {sharing ? <>
-      <Text style={body}>Taylor has location sharing enabled in this demo. Downtown Raleigh · {progress >= 1 ? 'Trip complete' : 'Simulated trip in progress'}</Text>
+      <Text style={body}>Child 2 has location sharing enabled in this demo. Downtown Raleigh · {progress >= 1 ? 'Trip complete' : 'Simulated trip in progress'}</Text>
       <DemoLiveMap progress={progress} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={body}>SIMULATED LIVE · {Math.round(progress * 100)}% of route</Text><MotionPressable accessibilityLabel={progress >= 1 ? 'Replay demo drive' : playing ? 'Pause demo drive' : 'Resume demo drive'} onPress={() => { if (progress >= 1) { setProgress(0); setPlaying(true); } else setPlaying(value => !value); }} style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' }}><Text style={{ color: c.accent }}>{progress >= 1 ? 'Replay' : playing ? 'Pause' : 'Resume'}</Text></MotionPressable></View>
       <Text style={body}>Fictional movement only. No live GPS or real person is being tracked.</Text>
