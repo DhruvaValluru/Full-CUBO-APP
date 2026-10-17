@@ -1,11 +1,11 @@
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
+import { estimateSpeedMph, freshFix, GPS_FRESH_MS } from './gpsSpeed';
 
 export type DriveGpsStatus = 'requesting' | 'active' | 'weak' | 'denied' | 'unavailable' | 'error';
 type GpsPoint = { latitude: number; longitude: number; accuracy: number | null; heading: number | null; timestamp: number };
 
 const METERS_TO_MILES = 0.000621371;
-const MPS_TO_MPH = 2.236936;
 
 function distanceMeters(a: GpsPoint, b: GpsPoint) {
   const radius = 6371000;
@@ -21,6 +21,7 @@ export function useDriveLocation(enabled: boolean) {
   const [status, setStatus] = useState<DriveGpsStatus>('requesting');
   const [point, setPoint] = useState<GpsPoint | null>(null);
   const [speedMph, setSpeedMph] = useState(0);
+  const [speedAvailable, setSpeedAvailable] = useState(false);
   const [distanceMiles, setDistanceMiles] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const previous = useRef<GpsPoint | null>(null);
@@ -30,6 +31,13 @@ export function useDriveLocation(enabled: boolean) {
     if (!enabled) return;
     let mounted = true;
     previous.current = null; speeds.current = [];
+    setPoint(null); setSpeedMph(0); setSpeedAvailable(false); setError(null);
+    const freshnessTimer = setInterval(() => {
+      if (previous.current && Date.now() - previous.current.timestamp > GPS_FRESH_MS) {
+        setStatus(current => current === 'active' ? 'weak' : current);
+        setSpeedAvailable(false); setSpeedMph(0); speeds.current = [];
+      }
+    }, 1000);
     let subscription: Location.LocationSubscription | null = null;
 
     const start = async () => {
@@ -43,7 +51,7 @@ export function useDriveLocation(enabled: boolean) {
         subscription = await Location.watchPositionAsync({
           accuracy: Location.Accuracy.BestForNavigation,
           timeInterval: 1000,
-          distanceInterval: 2,
+          distanceInterval: 0,
           mayShowUserSettingsDialog: true,
         }, (location) => {
           if (!mounted) return;
@@ -54,27 +62,26 @@ export function useDriveLocation(enabled: boolean) {
             heading: location.coords.heading != null && location.coords.heading >= 0 ? location.coords.heading : null,
             timestamp: location.timestamp,
           };
-          const weak = next.accuracy != null && next.accuracy > 40;
+          if (!Number.isFinite(next.latitude) || !Number.isFinite(next.longitude) || !Number.isFinite(next.timestamp) || (previous.current && next.timestamp <= previous.current.timestamp)) return;
+          const weak = !freshFix(next, Date.now());
           setStatus(weak ? 'weak' : 'active');
           setPoint(next);
 
           const last = previous.current;
-          let measuredMps = location.coords.speed != null && location.coords.speed >= 0 ? location.coords.speed : null;
-          if (measuredMps == null && last) {
-            const seconds = Math.max(0.1, (next.timestamp - last.timestamp) / 1000);
-            measuredMps = distanceMeters(last, next) / seconds;
-          }
-          if (measuredMps != null) {
-            const mph = measuredMps < 0.7 ? 0 : Math.min(160, measuredMps * MPS_TO_MPH);
-            speeds.current = [...speeds.current.slice(-4), mph];
+          const mph = estimateSpeedMph(location.coords.speed, next, last, last ? distanceMeters(last, next) : 0, Date.now());
+          setSpeedAvailable(mph != null);
+          if (mph != null) {
+            speeds.current = mph === 0 ? [0] : [...speeds.current.slice(-2), mph];
             setSpeedMph(speeds.current.reduce((sum, value) => sum + value, 0) / speeds.current.length);
+          } else {
+            speeds.current = []; setSpeedMph(0);
           }
           if (last && !weak) {
             const delta = distanceMeters(last, next);
             if (delta >= Math.max(5, next.accuracy ?? 5, last.accuracy ?? 5) && delta < 250) setDistanceMiles((total) => total + delta * METERS_TO_MILES);
           }
           previous.current = next;
-        }, (message) => { if (mounted) { setError(message); setStatus('error'); } });
+        }, (message) => { if (mounted) { setError(message); setStatus('error'); setSpeedAvailable(false); setSpeedMph(0); } });
         if (!mounted) subscription.remove();
       } catch (cause) {
         if (mounted) { setError(cause instanceof Error ? cause.message : 'GPS could not start.'); setStatus('error'); }
@@ -82,8 +89,8 @@ export function useDriveLocation(enabled: boolean) {
     };
 
     start();
-    return () => { mounted = false; subscription?.remove(); };
+    return () => { mounted = false; clearInterval(freshnessTimer); subscription?.remove(); };
   }, [enabled]);
 
-  return { status, point, speedMph: Math.round(speedMph), distanceMiles, error, hasFix: point != null };
+  return { status, point, speedMph: Math.round(speedMph), speedAvailable: enabled && status === 'active' && speedAvailable, distanceMiles, error, hasFix: point != null };
 }

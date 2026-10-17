@@ -26,10 +26,10 @@ export function calibrate(samples: FaceSample[]): AttentionBaseline {
   return { version: 1, yaw: average('yaw'), pitch: average('pitch'), eyes: average('eyes') };
 }
 
-export function advanceAttention(previous: AttentionState, sample: FaceSample, baseline: AttentionBaseline | null, moving: boolean) {
+export function advanceAttention(previous: AttentionState, sample: FaceSample, baseline: AttentionBaseline | null, moving: boolean, gpsValid = true) {
   const gap = sample.at - previous.lastAt;
-  const valid = Boolean(baseline && sample.face && moving && sample.width >= .08);
-  if (!valid) return { state: { ...previous, lastAt: 0, since: 0, kind: null, emitted: false }, event: null, status: !baseline ? 'Calibrate camera before monitoring' : !moving ? 'Monitoring paused · stationary / GPS unavailable' : 'Monitoring unavailable · face not visible' };
+  const valid = Boolean(baseline && sample.face && moving && gpsValid && sample.width >= .08);
+  if (!valid) return { state: { ...previous, lastAt: 0, since: 0, kind: null, emitted: false }, event: null, status: !baseline ? 'Calibrate camera before monitoring' : !sample.face || sample.width < .08 ? 'Monitoring unavailable · face not visible' : !gpsValid ? 'Camera ready · waiting for reliable GPS speed' : 'Camera ready · alerts start at 3 mph' };
   const kind: AttentionKind | null = sample.eyes < baseline!.eyes * .55 ? 'eyes_closed' : Math.abs(sample.yaw - baseline!.yaw) > .16 || Math.abs(sample.pitch - baseline!.pitch) > .18 ? 'looking_away' : null;
   const continuous = previous.lastAt > 0 && gap > 0 && gap <= 1500;
   const since = continuous && kind === previous.kind ? previous.since : sample.at;
