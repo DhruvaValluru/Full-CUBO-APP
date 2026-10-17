@@ -47,9 +47,11 @@ test('typed and voice destination variants require explicit place selection, nev
   let reply = await resolver.answer('set my destination to central library');
   assert.equal(reply.destination, undefined); assert.equal(reply.choices.length, 2);
   assert.equal((await resolver.answer('confirm')).destination, undefined);
-  assert.equal((await resolver.answer('Hey Cubo option two')).destination.id, '2');
+  assert.equal((await resolver.answer('Hey Cubo option two')).confirmation.id, '2');
+  assert.equal((await resolver.answer('yes')).destination.id, '2');
   assert.equal(resolver.acceptsFollowUp(), false);
-  assert.equal((await resolver.answer('take me to home')).destination.id, '1');
+  assert.equal((await resolver.answer('take me to home')).confirmation.id, '1');
+  assert.equal((await resolver.answer('confirm')).destination.id, '1');
   assert.equal(calls, 1);
   await resolver.answer('navigate to central library'); now += 120001;
   assert.equal(await resolver.answer('option one'), null);
