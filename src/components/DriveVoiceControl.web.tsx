@@ -1,18 +1,11 @@
-import { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppearance } from '../theme/AppearanceContext';
 
-/** Interface preview only: never requests the microphone or starts inference. */
-export function DriveVoiceControl() {
+/** Visual toggle only. Microphone off; commands are not connected yet. */
+export function DriveVoiceControl({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   const { colors: c } = useAppearance();
-  const [enabled, setEnabled] = useState(false);
-  return <View style={{ marginTop: 8 }}>
-    <Pressable accessibilityRole="switch" accessibilityLabel="CUBO voice interface preview" accessibilityState={{ checked: enabled }} onPress={() => setEnabled(value => !value)} style={{ alignSelf: 'flex-end', minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center', borderRadius: 14, paddingHorizontal: 12, backgroundColor: enabled ? c.accentSoft : c.surfaceMuted, borderWidth: 1, borderColor: enabled ? c.accent : c.border }}>
-      <Image source={require('../../assets/cubo-logo.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
-      <Text style={{ color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 12 }}>CUBO voice · {enabled ? 'Preview on' : 'Off'}</Text>
-      <Ionicons name="mic-off-outline" size={18} color={c.textSecondary} />
-    </Pressable>
-    {enabled && <Text accessibilityLiveRegion="polite" style={{ color: c.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 8 }}>Interface preview only. Microphone off; voice commands are not connected yet.</Text>}
-  </View>;
+  return <Pressable accessibilityRole="switch" accessibilityLabel="AI voice preview, commands not connected" accessibilityState={{ checked: enabled }} onPress={onToggle} style={{ flex: .54, minWidth: 44, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: enabled ? c.accent : c.surfaceMuted, borderWidth: 1, borderColor: enabled ? c.accent : c.borderStrong }}>
+    <Ionicons name="sparkles-outline" size={22} color={enabled ? c.onAccent : c.textSecondary} />
+  </Pressable>;
 }

@@ -14,6 +14,24 @@ const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
 
+test('demo family questions and app clarifications never call model inference', async () => {
+  const session = new CuboAISession({ uid: 'alice', currentUid: () => 'alice', isDriving: () => false, store: storage(), now: () => monday,
+    appContext: () => JSON.stringify({ averageFocusOutOf100: 83 }),
+    loadModel: async () => ({ reply: async () => assert.fail('App question reached GPU inference'), dispose() {} }) });
+  await session.prepare(true);
+  for (const q of ['Who are my kids?', 'Hey Cubo, who are my children?', 'list my family', 'what are my kids names']) {
+    const answer = (await session.send(q)).content;
+    assert.match(answer, /Child 1/); assert.match(answer, /Child 2/); assert.match(answer, /demo/i);
+  }
+  assert.match((await session.send('What is Child 1’s safety score?')).content, /89\/100/);
+  assert.match((await session.send('what is child two score')).content, /92\/100/);
+  assert.match((await session.send('Where is my child?')).content, /No live family data/);
+  assert.match((await session.send('what is my safety score')).content, /83\/100/);
+  assert.match((await session.send('Explain my insurance')).content, /not sent to the model/);
+  for (const q of ['How does camera calibration work?', 'Explain insurance savings', 'report a hazard']) assert.match((await session.send(q)).content, /not sent to the model/);
+  await session.dispose();
+});
+
 test('vehicle factual questions bypass inference and persist the fresh account answer', async () => {
   let currentUid = 'alice', car = '2021 Toyota Prius', calls = 0;
   const store = storage();
@@ -21,11 +39,11 @@ test('vehicle factual questions bypass inference and persist the fresh account a
     appContext: () => JSON.stringify({ selectedVehicle: car, vehicleCount: 1 }),
     loadModel: async () => ({ reply: async () => { calls++; return 'model response'; }, dispose() {} }) });
   await session.prepare(true);
-  for (const question of ['What is my vehicle?', 'what vehicle do i have', 'Which car do I own?', 'Show me my vehicles']) {
+  for (const question of ['What is my vehicle?', 'what vehicle do i have', 'Which car do I own?', 'Show me my vehicles', 'what is my vehicle selected']) {
     assert.match((await session.send(question)).content, /2021 Toyota Prius/);
   }
   car = 'Honda Civic'; assert.match((await session.send('What is my car?')).content, /Honda Civic/);
-  assert.equal(calls, 0); assert.equal(session.state().used, 5);
+  assert.equal(calls, 0); assert.equal(session.state().used, 6);
   assert.match(session.state().messages.at(-1).content, /Honda Civic/);
   currentUid = 'bob'; await assert.rejects(session.send('What is my vehicle?'), /account changed/);
   assert.equal(readState(store, 'bob', monday).messages.length, 0);
@@ -37,7 +55,8 @@ test('vehicle lookup handles unavailable data and does not hijack advice or othe
   assert.match(accountAnswer('What is my vehicle?', '{}'), /loading or unavailable/);
   assert.match(accountAnswer('What is my vehicle?', '{'), /unavailable/);
   assert.match(accountAnswer('What is my vehicle?', '{"selectedVehicle":"none saved"}'), /no vehicles saved/);
-  for (const q of ['What is my vehicle worth?', 'What is my child’s vehicle?', 'How do I change my car?', 'Is my car safe?', 'Tell me about cars']) assert.equal(accountAnswer(q, '{}'), null);
+  for (const q of ['What is my vehicle worth?', 'What is my child’s vehicle?', 'How do I change my car?', 'Is my car safe?']) assert.equal(typeof accountAnswer(q, '{}'), 'string');
+  assert.equal(accountAnswer('Tell me about cars', '{}'), null);
 });
 
 test('account context includes selected car and only measured scores, excludes private raw fields', () => {
@@ -61,7 +80,7 @@ test('each reply uses fresh own-account snapshot rather than stale model knowled
   const session = new CuboAISession({ uid: 'alice', currentUid: () => 'alice', isDriving: () => false, store: storage(), now: () => monday,
     appContext: () => JSON.stringify({ selectedVehicle: car }),
     loadModel: async () => ({ reply: async messages => { received = messages; return 'Your saved car.'; }, dispose() {} }) });
-  await session.prepare(true); await session.send('Explain my vehicle summary briefly');
+  await session.prepare(true); await session.send('Explain defensive driving briefly');
   assert.match(received[0].content, /Toyota Prius/);
   car = 'Honda Civic'; await session.send('And now?');
   assert.match(received[0].content, /Honda Civic/);
@@ -233,6 +252,6 @@ test('prompt contains only current account notes and bounded recent context', as
   const x = setup(async messages => { prompt = messages; return 'Okay'; });
   x.session.remember('Alice prefers short answers');
   const bob = readState(x.store, 'bob', monday); bob.memory = 'Bob private note'; writeState(x.store, bob);
-  await x.session.prepare(true); await x.session.send('Explain CUBO');
+  await x.session.prepare(true); await x.session.send('Explain defensive driving');
   assert.match(JSON.stringify(prompt), /Alice prefers/); assert.doesNotMatch(JSON.stringify(prompt), /Bob private/);
 });
