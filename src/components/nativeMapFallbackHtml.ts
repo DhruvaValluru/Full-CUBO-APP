@@ -1,3 +1,5 @@
+import { webDarkMapPaint } from './webDarkMapPaint';
+
 /** The fallback is embedded, not a navigation to the hosted app. No account data crosses this bridge. */
 export const nativeMapFallbackHtml = `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
@@ -9,6 +11,14 @@ export const nativeMapFallbackHtml = `<!doctype html><html><head>
 (function(){
   var map, state, camera, loaded=false, markers=[];
   function send(type){window.ReactNativeWebView.postMessage(JSON.stringify({type:type}));}
+  var nightPaint=${JSON.stringify(webDarkMapPaint)};
+  function paintNightMap(){
+    if(state.mode!=='dark')return;
+    Object.keys(nightPaint).forEach(function(id){
+      if(!map.getLayer(id))return;
+      Object.keys(nightPaint[id]).forEach(function(name){map.setPaintProperty(id,name,nightPaint[id][name]);});
+    });
+  }
   function draw(){
     if(!loaded || !state)return;
     var route={type:'Feature',properties:{},geometry:{type:'LineString',coordinates:(state.route||[]).map(function(p){return [p.longitude,p.latitude];})}};
@@ -16,7 +26,7 @@ export const nativeMapFallbackHtml = `<!doctype html><html><head>
     if(!map.getSource('route')){
       map.addSource('route',{type:'geojson',data:route});
       map.addLayer({id:'route-edge',type:'line',source:'route',paint:{'line-color':'#fff','line-width':11},layout:{'line-cap':'round','line-join':'round'}});
-      map.addLayer({id:'route-fill',type:'line',source:'route',paint:{'line-color':'#167655','line-width':7},layout:{'line-cap':'round','line-join':'round'}});
+      map.addLayer({id:'route-fill',type:'line',source:'route',paint:{'line-color':state.mode==='dark'?'#71D3A4':'#167655','line-width':7},layout:{'line-cap':'round','line-join':'round'}});
     }else map.getSource('route').setData(route);
     markers.forEach(function(m){m.remove();});markers=[];
     (state.pins||[]).forEach(function(p){
@@ -51,7 +61,7 @@ export const nativeMapFallbackHtml = `<!doctype html><html><head>
       if(!map){
         map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/'+(state.mode==='dark'?'dark':'liberty'),center:[state.center.longitude,state.center.latitude],zoom:15,attributionControl:false,interactive:!state.preview});
         map.addControl(new maplibregl.AttributionControl({compact:true}),'top-left');
-        map.on('load',function(){loaded=true;draw();if(camera)move(camera);send('ready');});
+        map.on('load',function(){paintNightMap();loaded=true;draw();if(camera)move(camera);send('ready');});
         map.on('error',function(){send('error');});
         map.on('click',function(){send('press');});
         map.on('dragstart',function(){send('pan');});
@@ -59,7 +69,7 @@ export const nativeMapFallbackHtml = `<!doctype html><html><head>
         map.on('rotatestart',function(e){if(e.originalEvent)send('pan');});
       }else if(previousMode!==state.mode){
         loaded=false;map.setStyle('https://tiles.openfreemap.org/styles/'+(state.mode==='dark'?'dark':'liberty'));
-        map.once('style.load',function(){loaded=true;draw();});
+        map.once('style.load',function(){paintNightMap();loaded=true;draw();});
       }
       draw();
     }else move(message);
