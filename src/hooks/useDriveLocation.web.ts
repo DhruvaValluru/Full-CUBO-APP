@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { placeDistance } from '../features/places/searchPlaces';
 import { subscribeBrowserLocation } from '../features/navigation/browserLocation';
 import { createCourseTracker } from '../features/navigation/courseHeading';
+import { estimateSpeedMph, freshFix } from './gpsSpeed';
 
 type Point = { latitude: number; longitude: number; accuracy: number | null; heading: number | null; timestamp: number };
 type Status = 'requesting' | 'active' | 'weak' | 'denied' | 'unavailable' | 'error';
@@ -12,6 +13,7 @@ export function useDriveLocation(enabled: boolean) {
   const [status, setStatus] = useState<Status>('requesting');
   const [error, setError] = useState<string | null>(null);
   const [speedMph, setSpeed] = useState(0);
+  const [measuredSpeedAvailable, setMeasuredSpeedAvailable] = useState(false);
   const [distanceMiles, setDistance] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState(Date.now());
@@ -19,6 +21,7 @@ export function useDriveLocation(enabled: boolean) {
   const retry = useCallback(() => setAttempt(value => value + 1), []);
   useEffect(() => {
     if (!enabled) return;
+    setMeasuredSpeedAvailable(false); setSpeed(0); setPoint(null);
     if (!window.isSecureContext || !navigator.geolocation) {
       setStatus('unavailable'); setError('Location requires HTTPS and a browser with location support.'); return;
     }
@@ -31,24 +34,27 @@ export function useDriveLocation(enabled: boolean) {
       const { latitude, longitude, accuracy, heading, speed } = location.coords;
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
       const fix = { latitude, longitude, accuracy, timestamp: location.timestamp };
+      if (!Number.isFinite(fix.timestamp) || (previous.current && fix.timestamp <= previous.current.timestamp)) return;
       const next: Point = { ...fix, heading: trackCourse(fix, heading, speed) };
       const last = previous.current;
-      const weak = accuracy > 40;
+      const weak = !freshFix(next, Date.now());
       const elapsed = last ? (next.timestamp - last.timestamp) / 1000 : 0;
       const distance = last ? placeDistance(last, next) : 0;
       const reliableDelta = !!last && elapsed > 0 && elapsed < 20 && !weak && (last.accuracy ?? 100) <= 40 && distance >= Math.max(5, accuracy, last.accuracy ?? 5) && distance / elapsed < 75;
       if (reliableDelta) setDistance(value => value + distance / 1609.344);
-      const mps = speed != null && Number.isFinite(speed) && speed >= 0 ? speed : reliableDelta ? distance / elapsed : 0;
-      setSpeed(Math.round(Math.min(160, mps < .7 ? 0 : mps * 2.236936)));
+      const mph = estimateSpeedMph(speed, next, last, distance, Date.now());
+      setMeasuredSpeedAvailable(mph != null);
+      setSpeed(mph == null ? 0 : Math.round(mph));
       previous.current = next; setPoint(next); setNow(Date.now()); setStatus(weak ? 'weak' : 'active'); setError(null);
     }, failure => {
       if (!active) return;
-      setStatus(failure.code === 1 ? 'denied' : 'error'); setSpeed(0);
+      setStatus(failure.code === 1 ? 'denied' : 'error'); setSpeed(0); setMeasuredSpeedAvailable(false);
       setError(failure.code === 1 ? 'Location is blocked. Allow Location in this website’s Safari settings, then tap Enable location.' : 'GPS is unavailable. Move somewhere with a clear signal and retry.');
     });
-    const timer = setInterval(() => setNow(Date.now()), 5000);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => { active = false; unsubscribe(); clearInterval(timer); previous.current = null; };
   }, [enabled, attempt]);
   const hasFix = enabled && !!point && now - point.timestamp < 30000 && (status === 'active' || status === 'weak');
-  return { point, status, error, speedMph: hasFix ? speedMph : 0, distanceMiles, hasFix, retry };
+  const speedAvailable = enabled && status === 'active' && measuredSpeedAvailable && freshFix(point, now);
+  return { point, status, error, speedMph: speedAvailable ? speedMph : 0, speedAvailable, distanceMiles, hasFix, retry };
 }
