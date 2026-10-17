@@ -12,6 +12,7 @@ export function AttentionCamera({ onSample, onStatus }: AttentionCameraProps) {
   const pending = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraReady, setCameraReady] = useState(false), [modelReady, setModelReady] = useState(false);
+  const [pictureSize, setPictureSize] = useState<string>();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -47,7 +48,14 @@ export function AttentionCamera({ onSample, onStatus }: AttentionCameraProps) {
   }, [permission?.granted, attempt]);
   if (!permission?.granted) return <View style={s.permission}><Text style={s.text}>Camera access is required for monitoring.</Text><Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={s.button}><Text style={s.text}>Allow camera</Text></Pressable></View>;
   return <View style={StyleSheet.absoluteFill}>
-    {foreground ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="front" onCameraReady={() => setCameraReady(true)} onMountError={() => { setFailed(true); callbacks.current.onStatus('Monitoring unavailable · camera could not start'); }} /> : null}
+    {foreground ? <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="front" pictureSize={pictureSize} onCameraReady={() => {
+      setCameraReady(true);
+      if (!pictureSize) void camera.current?.getAvailablePictureSizesAsync().then(sizes => {
+        const area = (size: string) => size.split('x').map(Number).reduce((a, b) => a * b, 1);
+        const supported = sizes.filter(size => /^\d+x\d+$/.test(size) && area(size) >= 640 * 480).sort((a, b) => area(a) - area(b));
+        if (supported[0]) setPictureSize(supported[0]);
+      }).catch(() => undefined);
+    }} onMountError={() => { setFailed(true); callbacks.current.onStatus('Monitoring unavailable · camera could not start'); }} /> : null}
     <View pointerEvents="none" style={{ position: 'absolute', width: 1, height: 1, opacity: .01 }}><WebView key={attempt} ref={worker} source={{ html: nativeDetectorHtml }} javaScriptEnabled originWhitelist={['*']} onMessage={event => {
       try { const message = JSON.parse(event.nativeEvent.data); if (message.type === 'ready') setModelReady(true); else if (message.type === 'sample') { pending.current = false; if (foreground && !failed) callbacks.current.onSample(message.sample); } else { setFailed(true); callbacks.current.onStatus('Monitoring unavailable · model failed to load'); } } catch { setFailed(true); }
     }} onError={() => { setFailed(true); callbacks.current.onStatus('Monitoring unavailable · model could not load'); }} /></View>
