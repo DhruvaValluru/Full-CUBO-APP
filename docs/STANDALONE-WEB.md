@@ -1,6 +1,7 @@
 # CUBO standalone web deployment
 
-`standaloneapp` is the web deployment branch. `main` preserves the Expo Go version.
+`main` is the web deployment branch. `expo-version` preserves the Expo Go version.
+`standaloneapp` is retained as the pre-migration web branch, not the production target.
 Expo still builds the source; visitors do not need Expo Go or a running laptop.
 
 ## Cloudflare Pages (free plan)
@@ -8,11 +9,11 @@ Expo still builds the source; visitors do not need Expo Go or a running laptop.
 1. Open https://dash.cloudflare.com/ and choose Workers & Pages, Create application,
    then Pages / Connect to Git (not a Workers deployment).
 2. Authorize only the CUBO-APP-CAC GitHub repository if possible.
-3. Select production branch `standaloneapp`, framework None, build command
+3. Select production branch `main`, framework None, build command
    `npm run build:web`, output directory `dist`, root directory blank.
 4. Set build environment variable `NODE_VERSION` to `22.16.0`.
-5. Under preview branch controls, disable automatic previews for other branches
-   so `main` and `old-app` do not trigger unsupported web builds.
+5. Under preview branch controls, exclude `expo-version` and other native-only
+   branches so Expo commits do not trigger unsupported web builds.
 6. Deploy. Use the assigned HTTPS `*.pages.dev` URL; no paid domain is required.
 7. In Firebase Authentication settings, add that exact hostname to Authorized
    domains. Never weaken Firestore rules to fix a login or permissions error.
@@ -34,12 +35,12 @@ the laptop is off. Set up and interact only while parked.
 ## Current boundaries
 
 - This initial export is online-only. There is no offline/service-worker cache.
-- Web maps currently display a schematic route, not native Apple Maps or a
-  validated turn-by-turn navigation system.
-- Web camera setup now requests permission on tap, previews the front camera,
-  and validates three frames in memory before saving completion metadata. It
-  discards the images and is a framing check, not a calibrated detection model.
-  Denied/interrupted camera access requires retry; backgrounding stops the stream.
+- Web maps use MapLibre/OpenFreeMap with routed directions, GPS-following and
+  hazard markers. This is an experimental prototype, not a validated navigation system.
+- Camera calibration uses a guided parked baseline, real head-turn detection,
+  audible alert and forward-facing recovery. See `calibration-guided-test.md`.
+  It discards images and saves measurements locally per account. Denied/interrupted
+  camera access requires retry; backgrounding calibration stops its stream.
 - iOS may suspend camera/GPS when backgrounded or locked. Do not rely on
   background monitoring, and do not treat this prototype as a safety device.
 - Demo family locations, insurance savings and notifications remain demos.
@@ -50,8 +51,8 @@ the laptop is off. Set up and interact only while parked.
   availability, usage policies and limits. Free frontend hosting does not remove
   those limits.
 
-Rollback: use an earlier successful Pages deployment. Do not merge web-specific
-changes into `main` unless explicitly requested.
+Rollback: use an earlier successful Pages deployment. Keep web-only code on
+`main` and native-only setup on `expo-version`.
 
 ## Safari font/icon deployment regression
 

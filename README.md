@@ -1,5 +1,14 @@
 # CUBO Synced App
 
+## Branches
+
+- `main`: standalone web app, deployed to [CUBO on Cloudflare Pages](https://cubo-app-cac.pages.dev/).
+- `expo-version`: native Expo / Expo Go app, preserved separately from the web deployment.
+- `standaloneapp`: retained pre-migration web branch; new web work goes to `main`.
+
+Use `npm start` on `expo-version`. Use `npm run build:web` on `main`.
+Shared fixes should be applied and tested in each platform branch; do not merge platform setup blindly.
+
 An **AI-powered driving safety app** that connects to the CUBO dash device to monitor distracted driving, track driver behavior, and give parents or users clear reports to improve safety.
 
 ## Features
