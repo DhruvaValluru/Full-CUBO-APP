@@ -39,7 +39,7 @@ export function NotificationsScreen({ navigation }: NativeStackScreenProps<RootS
       return <MotionPressable key={item.id} accessibilityLabel={item.title + (read ? ', read, demo' : ', unread, demo')} onPress={() => openDemo(item)} style={[s.card, !read && s.unread]}>
         <View style={s.row}><View style={[s.icon, item.action === 'camera' && { backgroundColor: c.amberSoft }]}><Ionicons name={item.icon} size={22} color={item.action === 'camera' ? c.amber : c.accent} /></View><View style={{ flex: 1, gap: 4 }}><Text style={s.meta}>{item.label} · Demo</Text><Text style={s.title}>{item.title}</Text></View>{!read && <View accessibilityLabel="Unread" style={s.dot} />}</View>
         <Text style={s.body}>{item.body}</Text>
-        <View style={s.row}><Text style={[s.link, { flex: 1 }]}>{item.action === 'location' ? 'View Taylor’s demo drive' : item.action === 'insurance' ? 'View savings preview' : 'Open camera calibration'}</Text><Ionicons name="chevron-forward" size={17} color={c.accent} /></View>
+        <View style={s.row}><Text style={[s.link, { flex: 1 }]}>{item.action === 'location' ? 'View Child 2’s demo drive' : item.action === 'insurance' ? 'View savings preview' : 'Open camera calibration'}</Text><Ionicons name="chevron-forward" size={17} color={c.accent} /></View>
       </MotionPressable>;
     })}
     {!!error && <Text accessibilityRole="alert" style={{ color: c.danger }}>{error}</Text>}
