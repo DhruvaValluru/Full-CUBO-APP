@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type View as RNView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DriverCameraPreview } from '../components/DriverCameraPreview';
+import { VoiceSetup } from '../components/VoiceSetup';
 import { MotionPressable } from '../components/MotionPressable';
 import { useWebFaceLandmarks } from '../hooks/useWebFaceLandmarks';
 import { readCalibration } from '../features/calibration/calibrationStatus';
@@ -17,6 +18,7 @@ export function LiveDriveScreen({ navigation }: NativeStackScreenProps<RootStack
   const s = makeThemeStyles(c);
 
   const [calibrated, setCalibrated] = useState(false);
+  const [voiceSetup, setVoiceSetup] = useState(false);
   useEffect(() => { let live = true; void readCalibration().then(value => { if (live) setCalibrated(Boolean(value)); }).catch(() => undefined); return () => { live = false; }; }, []);
   const camera = useWebFaceLandmarks();
   const { confirmCamera } = useDrives();
@@ -31,7 +33,8 @@ export function LiveDriveScreen({ navigation }: NativeStackScreenProps<RootStack
     <View style={s.header}><Pressable accessibilityLabel="Cancel camera check" style={s.back} onPress={home}><Ionicons name="chevron-back" size={22} color={c.text} /></Pressable><View><Text style={s.title}>Camera check</Text><Text style={s.sub}>Position your phone before you set off.</Text></View></View>
     <View style={s.camera}><DriverCameraPreview attachWebHost={attach} onReady={onReady} />{Platform.OS === 'web' && !ready ? <View style={{ position: 'absolute', left: 20, right: 20, top: '40%', alignItems: 'center' }}><MotionPressable onPress={() => camera.retry?.()} style={{ backgroundColor: c.accent, borderRadius: 16, paddingHorizontal: 24, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFFFFF', fontFamily: 'Manrope_700Bold' }}>Enable camera</Text></MotionPressable><Text style={{ color: '#CBD7D0', fontSize: 11, textAlign: 'center', lineHeight: 17, marginTop: 12 }}>Approve camera access in your browser. If blocked, check the site’s camera permission.</Text></View> : null}<View pointerEvents="none" style={s.tag}><View style={[s.dot, { backgroundColor: ready ? '#55B98B' : '#E5B455' }]} /><Text style={s.tagText}>{ready ? 'CAMERA READY' : 'WAITING FOR CAMERA'}</Text></View><View pointerEvents="none" style={s.cameraCaption}><Text style={s.caption}>Keep your face in view</Text><Text style={s.captionSub}>Use a stable mount with a clear view of the road.</Text></View></View>
     <View style={s.readiness}><View style={s.readinessRow}><Text style={s.readinessTitle}>Camera connection</Text><Text style={s.readinessStatus}>{ready ? 'Ready' : 'Waiting'}</Text></View><View style={s.track}><Animated.View style={[s.fill, { width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} /></View><Text style={s.note}>{Platform.OS === 'web' && camera.error ? camera.error : 'Experimental attention monitoring requires a calibrated camera and fresh GPS. Keep the app open; it cannot guarantee safety.'}</Text></View>
-    <View style={s.footer}>{!calibrated ? <MotionPressable style={s.continue} onPress={() => navigation.replace('CameraCalibration')}><Text style={s.continueText}>Calibrate camera first</Text></MotionPressable> : <MotionPressable style={[s.continue, !ready && { opacity: .45 }]} scaleTo={.96} disabled={!ready} onPress={() => { confirmCamera(); navigation.goBack(); }}><Text style={s.continueText}>{ready ? 'Confirm camera & start' : 'Allow camera to continue'}</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" /></MotionPressable>}</View>
+    <View style={s.footer}>{!calibrated ? <MotionPressable style={s.continue} onPress={() => navigation.replace('CameraCalibration')}><Text style={s.continueText}>Calibrate camera first</Text></MotionPressable> : <MotionPressable style={[s.continue, !ready && { opacity: .45 }]} scaleTo={.96} disabled={!ready} onPress={() => { if (Platform.OS === 'web') setVoiceSetup(true); else { confirmCamera(); navigation.goBack(); } }}><Text style={s.continueText}>{ready ? Platform.OS === 'web' ? 'Confirm camera & continue' : 'Confirm camera & start' : 'Allow camera to continue'}</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" /></MotionPressable>}</View>
+    {voiceSetup && <VoiceSetup onClose={() => setVoiceSetup(false)} onContinue={() => { setVoiceSetup(false); if (ready && calibrated) { confirmCamera(); navigation.goBack(); } }} />}
   </SafeAreaView>;
 }
 const makeThemeStyles = (c: AppColors) => StyleSheet.create({
