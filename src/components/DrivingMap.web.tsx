@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Map as LibreMap, Marker as LibreMarker, LngLatBounds, AttributionControl, type GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { nearestBearing } from '../features/navigation/courseHeading';
 
 type Coordinate = { latitude: number; longitude: number };
 export type Region = Coordinate & { latitudeDelta: number; longitudeDelta: number };
@@ -31,7 +32,7 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
   const pending = useRef<((map: LibreMap) => void) | null>(null);
   const run = (action: (map: LibreMap) => void) => { if (instance.current) action(instance.current); else pending.current = action; };
   useImperativeHandle(ref, () => ({
-    animateCamera: (camera, options) => run(m => m.easeTo({ center: coords(camera.center), bearing: camera.heading ?? 0, pitch: camera.pitch ?? 0, zoom: camera.zoom ?? 16, duration: options?.duration ?? 0 })),
+    animateCamera: (camera, options) => run(m => m.easeTo({ center: coords(camera.center), bearing: nearestBearing(m.getBearing(), camera.heading ?? 0), pitch: camera.pitch ?? 0, zoom: camera.zoom ?? 16, duration: options?.duration ?? 0 })),
     animateToRegion: (region, duration) => run(m => m.easeTo({ center: coords(region), bearing: 0, pitch: 0, zoom: 15, duration: duration ?? 0 })),
     fitToCoordinates: (points, options) => run(m => {
       const safe = points.filter(valid); if (!safe.length) return;
@@ -71,7 +72,7 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
   </View>;
 });
 
-export function Marker({ coordinate, children, title, description, pinColor = '#167655' }: { coordinate: Coordinate; children?: ReactNode; title?: string; description?: string; pinColor?: string; anchor?: { x: number; y: number }; flat?: boolean; rotation?: number }) {
+export function Marker({ coordinate, children, title, description, pinColor = '#167655', flat = false, rotation = 0 }: { coordinate: Coordinate; children?: ReactNode; title?: string; description?: string; pinColor?: string; anchor?: { x: number; y: number }; flat?: boolean; rotation?: number }) {
   const map = useContext(MapContext);
   const element = useRef<HTMLDivElement | null>(null);
   if (!element.current && typeof document !== 'undefined') element.current = document.createElement('div');
@@ -82,6 +83,7 @@ export function Marker({ coordinate, children, title, description, pinColor = '#
     return () => { marker.current?.remove(); marker.current = null; };
   }, [map]);
   useEffect(() => { if (valid(coordinate)) marker.current?.setLngLat(coords(coordinate)); }, [coordinate.latitude, coordinate.longitude, map]);
+  useEffect(() => { marker.current?.setRotationAlignment(flat ? 'map' : 'viewport').setRotation(rotation); }, [map, flat, rotation]);
   if (!element.current) return null;
   element.current.title = [title, description].filter(Boolean).join(' — ');
   return createPortal(children ?? <div aria-label={title || 'Destination'} style={{ width: 20, height: 20, borderRadius: 20, background: pinColor, border: '3px solid white' }} />, element.current);

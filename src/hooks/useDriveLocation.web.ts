@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { placeDistance } from '../features/places/searchPlaces';
 import { subscribeBrowserLocation } from '../features/navigation/browserLocation';
+import { createCourseTracker } from '../features/navigation/courseHeading';
 
 type Point = { latitude: number; longitude: number; accuracy: number | null; heading: number | null; timestamp: number };
 type Status = 'requesting' | 'active' | 'weak' | 'denied' | 'unavailable' | 'error';
@@ -22,13 +23,15 @@ export function useDriveLocation(enabled: boolean) {
       setStatus('unavailable'); setError('Location requires HTTPS and a browser with location support.'); return;
     }
     let active = true;
+    const trackCourse = createCourseTracker();
     previous.current = null;
     setStatus('requesting'); setError(null);
     const unsubscribe = subscribeBrowserLocation(navigator.geolocation, location => {
       if (!active) return;
       const { latitude, longitude, accuracy, heading, speed } = location.coords;
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-      const next: Point = { latitude, longitude, accuracy, heading: heading != null && Number.isFinite(heading) && heading >= 0 ? heading : null, timestamp: location.timestamp };
+      const fix = { latitude, longitude, accuracy, timestamp: location.timestamp };
+      const next: Point = { ...fix, heading: trackCourse(fix, heading, speed) };
       const last = previous.current;
       const weak = accuracy > 40;
       const elapsed = last ? (next.timestamp - last.timestamp) / 1000 : 0;
