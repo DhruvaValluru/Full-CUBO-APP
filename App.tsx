@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import { MapSourceProvider } from './src/features/maps/MapSourceContext';
 import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -151,12 +152,12 @@ function AppNavigation() {
 
 export default function App() {
   return (
-    <SafeAreaProvider><AppearanceProvider>
+    <SafeAreaProvider><AppearanceProvider><MapSourceProvider>
       <PhoneFrame>
         <Wrapper style={{ flex: 1 }}>
           <AuthProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><NavChromeProvider><AppNavigation /></NavChromeProvider></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AuthProvider>
         </Wrapper>
       </PhoneFrame>
-    </AppearanceProvider></SafeAreaProvider>
+    </MapSourceProvider></AppearanceProvider></SafeAreaProvider>
   );
 }
