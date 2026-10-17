@@ -13,6 +13,7 @@ export class CuboAIVoice {
   private recognition: Recognition | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private utterance: SpeechSynthesisUtterance | null = null;
   constructor(private allowed: () => boolean, private preferredVoice: () => string = () => '') {}
   supported() {
     if (typeof window === 'undefined') return { input: false, output: false };
@@ -29,20 +30,25 @@ export class CuboAIVoice {
     const recognition = new Constructor(); this.recognition = recognition;
     recognition.lang = 'en-US'; recognition.continuous = false; recognition.interimResults = false;
     recognition.onresult = event => {
-      if (!this.disposed && this.allowed()) transcript((event.results[0]?.[0]?.transcript ?? '').slice(0, 2000));
-      this.stop(); ended();
+      const text = (event.results[0]?.[0]?.transcript ?? '').slice(0, 2000);
+      this.stop();
+      if (!this.disposed && this.allowed()) transcript(text);
+      ended();
     };
     recognition.onerror = event => { if (!this.disposed && this.allowed()) error(`Voice input stopped (${event.error}). You can type instead.`); this.stop(); ended(); };
     recognition.onend = () => { this.stop(); ended(); };
     try { recognition.start(); } catch (cause) { this.stop(); throw cause; }
     this.timer = setTimeout(() => { this.stop(); ended(); }, 30000);
   }
-  speak(text: string) {
+  speak(text: string, completed?: () => void, failed?: () => void) {
     if (this.disposed || !this.allowed()) throw Error('Voice is unavailable for this session.');
     this.stop();
     if (!this.supported().output) throw Error('Read-aloud is not supported here.');
     // Call from an explicit Play reply tap so mobile browser audio policies can allow it.
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 8000));
+    this.utterance = utterance;
+    utterance.onend = () => { this.utterance = null; if (!this.disposed && this.allowed()) completed?.(); };
+    utterance.onerror = () => { this.utterance = null; if (!this.disposed && this.allowed()) failed?.(); };
     let preference = '';
     try { preference = this.preferredVoice(); } catch { /* Storage blocked: use browser default. */ }
     const voice = selectedVoice(window.speechSynthesis.getVoices(), preference);
@@ -50,6 +56,7 @@ export class CuboAIVoice {
     utterance.lang = voice?.lang || 'en-US'; window.speechSynthesis.speak(utterance);
   }
   stop() {
+    if (this.utterance) { this.utterance.onend = null; this.utterance.onerror = null; this.utterance = null; }
     if (this.timer) clearTimeout(this.timer); this.timer = null;
     const recognition = this.recognition; this.recognition = null;
     if (recognition) { recognition.onresult = null; recognition.onerror = null; recognition.onend = null; recognition.abort(); }

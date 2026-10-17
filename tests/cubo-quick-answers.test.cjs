@@ -29,7 +29,7 @@ const corpus = [
   ['how many trips do I have', /4 completed/], ['what is my mileage', /25.2/], ['delete my trip history', /not deleted/],
   ['how do I calibrate the camera', /While parked/], ['is my calibration done', /completed/], ['my camera is black', /permission/],
   ['what road do I turn onto next', /will not guess/], ['what is my eta', /no live route/], ['how do I switch map source', /Cloudflare/],
-  ['what is my speed in mph', /speedometer/], ['report debris here', /not submitted/], ['is my microphone on', /preview/],
+  ['what is my speed in mph', /speedometer/], ['report debris here', /not submitted/], ['is my microphone on', /not always listening/],
   ['why does the model crash', /can still crash Safari/], ['change dark mode', /Account/], ['can I connect bluetooth devices', /disabled/],
   ['what can you do', /Quick answers/], ['my car accident', /emergency/], ['what are my secret details', /not connected/],
 ];

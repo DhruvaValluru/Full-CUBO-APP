@@ -29,10 +29,12 @@ test('mic meter measures real samples, stops tracks and closes audio; late permi
   } finally { if (nav) Object.defineProperty(global, 'navigator', nav); else delete global.navigator; global.AudioContext = previousAudio; }
 });
 
-test('voice preview has no speech/model integration and setup remains optional', () => {
+test('drive voice has explicit consent, no model integration and setup remains optional', () => {
   const control = fs.readFileSync('src/components/DriveVoiceControl.web.tsx', 'utf8');
   assert.doesNotMatch(control, /getUserMedia|SpeechRecognition|createWorkerFactory/);
-  assert.match(control, /Microphone off/);
+  assert.match(control, /Agree & start listening/);
+  assert.match(control, /visibilitychange/);
+  assert.match(control, /cubo-attention-warning/);
   const setup = fs.readFileSync('src/components/VoiceSetup.web.tsx', 'utf8');
   assert.match(setup, /Skip & continue/); assert.match(setup, /15000/);
   assert.match(setup, /visibilitychange/); assert.match(setup, /showModal/);

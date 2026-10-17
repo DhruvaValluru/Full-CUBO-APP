@@ -34,6 +34,7 @@ export function DriveAttentionCamera({ speedMph, gpsValid }: { speedMph: number;
       addEvent({ type: result.event.kind, severity: 'warning', title: closed ? 'Prolonged eye closure' : 'Sustained head turn', detail: 'Experimental camera estimate; not a confirmed diagnosis or proof of distraction.', elapsedSeconds: session.durationSeconds, speedMph: speed, durationMs: result.event.duration });
       Vibration.vibrate([0, 250, 150, 250]);
       const message = closed ? 'Eyes closed. Pull over safely if tired.' : 'Keep your attention on the road.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') window.dispatchEvent(new Event('cubo-attention-warning'));
       AccessibilityInfo.announceForAccessibility(message);
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window && !window.speechSynthesis.speaking) window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
     }
