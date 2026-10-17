@@ -49,7 +49,7 @@ import { LoadingScreen } from './src/components/LoadingScreen';
 import { ReturningHomeScreen } from './src/screens/ReturningHomeScreen';
 import { SavedPlaceScreen } from './src/screens/SavedPlaceScreen';
 import { PlacesProvider } from './src/features/places/PlacesContext';
-import { NavChromeProvider } from './src/features/navigation/NavChromeContext';
+import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CruiseProvider } from './src/features/devices/CruiseContext';
 import { CameraCalibrationScreen } from './src/screens/CameraCalibrationScreen';
 
@@ -75,15 +75,17 @@ const navTheme: Theme = {
 };
 
 const MainTabs = () => {
-  const { colors, mode } = useAppearance();
+  const { colors } = useAppearance();
+  const reduced = useReducedMotion();
+  const animateTabs = Platform.OS !== 'web' && !reduced;
   return (
     <Tab.Navigator
       initialRouteName="Home"
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        animation: 'shift',
-        transitionSpec: { animation: 'timing', config: { duration: 240, easing: Easing.inOut(Easing.cubic) } },
+        animation: animateTabs ? 'shift' : 'none',
+        transitionSpec: animateTabs ? { animation: 'timing', config: { duration: 240, easing: Easing.inOut(Easing.cubic) } } : undefined,
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
@@ -100,14 +102,15 @@ const Wrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 function AppNavigation() {
   const { user, loading } = useAuth();
   const { colors, mode } = useAppearance();
-  const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
+  const fontsReady = fontsLoaded || !!fontError;
   const [boot, setBoot] = useState(0);
   const [readyUid, setReadyUid] = useState<string | null>(null);
   useEffect(() => { const timer = setTimeout(() => setBoot(1), 400); return () => clearTimeout(timer); }, []);
-  useEffect(() => { if (boot !== 1 || !fontsLoaded || loading) return; const timer = setTimeout(() => setBoot(2), 160); return () => clearTimeout(timer); }, [boot, fontsLoaded, loading]);
+  useEffect(() => { if (boot !== 1 || !fontsReady || loading) return; const timer = setTimeout(() => setBoot(2), 160); return () => clearTimeout(timer); }, [boot, fontsReady, loading]);
   useEffect(() => { setReadyUid(null); if (!user || loading) return; const timer = setTimeout(() => setReadyUid(user.uid), 180); return () => clearTimeout(timer); }, [user?.uid, loading]);
   if (boot === 0) return <LoadingScreen brand />;
-  if (boot !== 2 || !fontsLoaded || loading) return <LoadingScreen />;
+  if (boot !== 2 || !fontsReady || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
   if (!user) return <WelcomeFlow />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
@@ -152,7 +155,7 @@ export default function App() {
     <SafeAreaProvider><AppearanceProvider><MapSourceProvider>
       <PhoneFrame>
         <Wrapper style={{ flex: 1 }}>
-          <AuthProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><NavChromeProvider><AppNavigation /></NavChromeProvider></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AuthProvider>
+          <AuthProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><AppNavigation /></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AuthProvider>
         </Wrapper>
       </PhoneFrame>
     </MapSourceProvider></AppearanceProvider></SafeAreaProvider>

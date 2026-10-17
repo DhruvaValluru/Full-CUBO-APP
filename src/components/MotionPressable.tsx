@@ -33,6 +33,7 @@ export function MotionPressable({ children, style, onPress, onLongPress, onPress
       accessibilityHint={accessibilityHint}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
+      aria-selected={accessibilityState?.selected}
       disabled={disabled}
       onPress={onPress}
       onLongPress={onLongPress}

@@ -72,7 +72,7 @@ export function ProfileScreen() {
 
 type Shared = { colors: AppColors; styles: ReturnType<typeof makeStyles> };
 function SettingsRow({ icon, title, detail, onPress, colors, styles, last = false }: Shared & { icon: keyof typeof Ionicons.glyphMap; title: string; detail?: string; onPress?: () => void; last?: boolean }) {
-  return <Pressable style={[styles.row, last && styles.lastRow]} onPress={onPress}><Ionicons name={icon} size={20} color={colors.textSecondary} /><View style={styles.fill}><Text style={styles.rowTitle}>{title}</Text>{detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}</View><Ionicons name="chevron-forward" size={17} color={colors.textTertiary} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} style={[styles.row, last && styles.lastRow]} onPress={onPress}><Ionicons name={icon} size={20} color={colors.textSecondary} /><View style={styles.fill}><Text style={styles.rowTitle}>{title}</Text>{detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}</View><Ionicons name="chevron-forward" size={17} color={colors.textTertiary} /></Pressable>;
 }
 function ToggleRow({ icon, title, value, onChange, colors, styles }: Shared & { icon: keyof typeof Ionicons.glyphMap; title: string; value: boolean; onChange: () => void }) {
   return <View style={styles.row}><Ionicons name={icon} size={20} color={colors.textSecondary} /><Text style={[styles.rowTitle, styles.fill]}>{title}</Text><Switch value={value} onValueChange={onChange} trackColor={{ false: colors.surfaceMuted, true: colors.accent }} thumbColor="#FFFFFF" /></View>;

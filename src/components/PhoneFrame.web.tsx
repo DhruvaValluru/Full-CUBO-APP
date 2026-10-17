@@ -16,17 +16,20 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
   const { colors: colors } = useAppearance();
   const styles = makeThemeStyles(colors);
   const { width } = useWindowDimensions();
-  if (width < 600) return <View style={{ flex: 1, backgroundColor: colors.background }}>{children}</View>;
-
+  const fullScreen = width < 600;
+  // Keep the same child ancestry across breakpoints: replacing wrappers remounts
+  // auth, navigation and active-drive state when the browser changes width.
   return (
-    <View style={styles.page}>
-      <View style={styles.hintWrap}>
+    <View style={fullScreen ? { flex: 1, backgroundColor: colors.background } : styles.page}>
+      <View style={[styles.hintWrap, fullScreen && { display: 'none' }]}>
         <Text style={styles.hint}>CUBO preview — use the phone frame below. Allow camera for live detection.</Text>
       </View>
-      <View style={styles.deviceOuter}>
-        <View style={styles.bezel}>
-          <View style={styles.notch} />
-          <View style={styles.screenCutout}>{children}</View>
+      <View style={fullScreen ? { flex: 1, width: '100%' } : styles.deviceOuter}>
+        <View style={fullScreen ? { flex: 1 } : styles.bezel}>
+          <View style={[styles.notch, fullScreen && { display: 'none' }]} />
+          <View style={[styles.screenCutout, fullScreen && { borderRadius: 0 }]}>
+            {children}
+          </View>
         </View>
       </View>
     </View>
