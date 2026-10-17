@@ -1,4 +1,5 @@
-import { accountAnswer } from './accountAnswers';
+import { appAnswer, appQuestion, isVoiceOffRequest } from './appAnswers';
+export { hasWakePhrase } from './appAnswers';
 import { normalizeQuestion, type LocalAnswerDetails } from './quickAnswers';
 import type { RoadHazardKind } from '../drives/types';
 
@@ -13,13 +14,7 @@ const short = (text: string) => {
   for (const sentence of sentences) { if ((result + sentence).length > 240) break; result += sentence; }
   return result.trim() || 'That answer is too long for driving. Check it in chat when parked.';
 };
-const wake = /^(?:(?:hey|hi|okay|ok) )?(?:cubo|kubo|cube o)\b\s*/;
-export const hasWakePhrase = (text: string) => wake.test(normalizeQuestion(text));
-export function spokenQuestion(text: string) {
-  return normalizeQuestion(text).replace(wake, '').replace(/^(?:(?:can|could|would|will) you |please |tell me |i want (?:you )?to |id like (?:you )?to )+/, '').replace(/(?: please| for me| now)+$/, '')
-    .replace(/\bmy (first|oldest) child\b/g, 'child 1').replace(/\bmy second child\b/g, 'child 2')
-    .replace(/\b(automobile|ride)\b/g, 'vehicle');
-}
+export const spokenQuestion = appQuestion;
 /** One instance per voice session. No inference, persistence or external side effects. */
 export class DriveCommands {
   private pending: Pending | null = null;
@@ -72,8 +67,7 @@ export class DriveCommands {
     this.tripId = data.tripId;
     let q = spokenQuestion(input);
     const reply = (text: string, extra: Omit<DriveReply, 'text'> = {}) => { this.last = short(text); return { text: this.last, ...extra }; };
-    const off = /\b(?:turn|switch|shut)\b.*\boff\b|\b(?:disable|deactivate|mute)\b|^stop listening$|^goodbye$/.test(q) && !/\b(dont|do not|never|should|how|why)\b/.test(q) && !/\b(camera|map|music|navigation|engine)\b/.test(q);
-    if (off || q === 'stop') {
+    if (isVoiceOffRequest(q)) {
       this.routes = []; this.selectedRoute = null;
       this.pending = null; this.askingHazard = false; this.stopUntil = this.now() + 120000;
       return reply('Turn off voice assist? Say yes to confirm, or no to keep it on.');
@@ -161,7 +155,7 @@ export class DriveCommands {
       q = `${this.member} ${q.match(/(score|trips|miles)$/)![0]}`;
     }
     if (/\b(road|map|route|navigation|destination|turn)\b/.test(q)) return reply('I did not catch that route question. Ask for the next turn, destination, arrival time, or alternate routes.');
-    const answer = accountAnswer(q, data.account, data.details);
+    const answer = appAnswer(q, data.account, data.details);
     return reply(answer?.startsWith('That detail is not connected') ? 'That detail is not available. Try asking about your score, vehicle, or family.' : answer || 'I did not catch that. Please ask one short question.');
   }
 }

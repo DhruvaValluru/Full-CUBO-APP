@@ -10,7 +10,7 @@ export function weekStart(now: number) {
   return date.getTime();
 }
 export function accountKey(uid: string) {
-  if (!uid.trim()) throw Error('Sign in to use CuboAI.');
+  if (!uid.trim()) throw Error('Sign in to use Cubo Assistant.');
   return `cubo-ai:v1:${encodeURIComponent(uid)}`;
 }
 export function readState(store: LocalStore, uid: string, now = Date.now()): LocalAIState {
@@ -18,8 +18,8 @@ export function readState(store: LocalStore, uid: string, now = Date.now()): Loc
   const empty: LocalAIState = { version: 1, owner: uid, week: weekStart(now), used: 0, memory: '', messages: [] };
   if (!raw) return empty;
   let data: LocalAIState;
-  try { data = JSON.parse(raw); } catch { throw Error('CuboAI history could not be read. Open CuboAI settings to clear this account’s local history.'); }
-  if (data.version !== 1 || data.owner !== uid || !Number.isFinite(data.week) || !Number.isInteger(data.used) || data.used < 0 || typeof data.memory !== 'string' || data.memory.length > 2000 || !Array.isArray(data.messages) || data.messages.length > 200 || data.messages.some(m => !m || !['user', 'assistant'].includes(m.role) || !['text', 'voice'].includes(m.source) || typeof m.content !== 'string' || m.content.length > 8000 || !Number.isFinite(m.at))) throw Error('CuboAI local data is invalid. No history was loaded.');
+  try { data = JSON.parse(raw); } catch { throw Error('Cubo Assistant history could not be read. Open Cubo Assistant settings to clear this account’s local history.'); }
+  if (data.version !== 1 || data.owner !== uid || !Number.isFinite(data.week) || !Number.isInteger(data.used) || data.used < 0 || typeof data.memory !== 'string' || data.memory.length > 2000 || !Array.isArray(data.messages) || data.messages.length > 200 || data.messages.some(m => !m || !['user', 'assistant'].includes(m.role) || !['text', 'voice'].includes(m.source) || typeof m.content !== 'string' || m.content.length > 8000 || !Number.isFinite(m.at))) throw Error('Cubo Assistant local data is invalid. No history was loaded.');
   // Do not reset on clock rollback. A device-local allowance is still intentionally bypassable.
   return weekStart(now) > data.week ? { ...data, week: weekStart(now), used: 0 } : data;
 }

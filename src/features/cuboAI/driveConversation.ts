@@ -10,7 +10,7 @@ export class DriveConversation {
   start() {
     this.stop(); this.rapidEnds = 0;
     // Runs synchronously from the user's tap to establish speech playback on Safari.
-    this.say(this.revision, { text: 'Voice assist is on. Say Hey Cubo, then your question.' });
+    this.say(this.revision, { text: 'Cubo Voice Assist is on. Say Hey Cubo, then your question.' });
   }
   stop(message = 'Voice off') { this.revision++; if (this.timer) clearTimeout(this.timer); this.timer = undefined; this.speech.stop(); this.status(false, message); }
   private listen(version: number) {

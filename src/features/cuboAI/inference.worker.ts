@@ -6,7 +6,7 @@ let busy = false;
 const scope = self as unknown as { onmessage: ((event: MessageEvent) => void) | null; postMessage: (value: unknown) => void };
 scope.onmessage = async ({ data }: MessageEvent<{ id: number; kind: 'load' | 'reply'; model?: string; messages?: ModelMessage[] }>) => {
   const { id, kind } = data;
-  if (busy) { scope.postMessage({ id, error: 'CuboAI is busy.' }); return; }
+  if (busy) { scope.postMessage({ id, error: 'Cubo Assistant is busy.' }); return; }
   busy = true;
   try {
     if (kind === 'load') {
@@ -17,7 +17,7 @@ scope.onmessage = async ({ data }: MessageEvent<{ id: number; kind: 'load' | 're
       await engine.reload(data.model, { context_window_size: 2048 });
       scope.postMessage({ id, result: 'ready' });
     } else {
-      if (!engine) throw Error('Load CuboAI first.');
+      if (!engine) throw Error('Load Cubo Assistant first.');
       await engine.resetChat();
       const response = await engine.chat.completions.create({ messages: data.messages ?? [], stream: false, max_tokens: 128, temperature: .5 });
       scope.postMessage({ id, result: response.choices[0]?.message.content ?? '' });

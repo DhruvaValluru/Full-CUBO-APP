@@ -26,7 +26,7 @@ export function accountAnswer(question: string, context: string, details: LocalA
   let data: Record<string, unknown>;
   try { const parsed = JSON.parse(context); data = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; } catch { data = {}; }
   if (!vehicle || /\b(change|edit|remove|delete|add|color|colour|worth|safe|fuel|repair|maintenance)\b/.test(q)) {
-    return quickAnswer(q, data, details) ?? (/\b(my|our|this app)\b/.test(q) ? 'That detail is not connected to CuboAI. I can look up saved vehicles, focus averages, your name and saved places, or explain the demo family and insurance features. Please name the detail you need; I will not invent private or live data.' : null);
+    return quickAnswer(q, data, details) ?? (/\b(my|our|this app)\b/.test(q) ? 'That detail is not connected to Cubo Assistant. I can look up saved vehicles, focus averages, your name and saved places, or explain the demo family and insurance features. Please name the detail you need; I will not invent private or live data.' : null);
   }
   if (!data || typeof data !== 'object' || typeof data.selectedVehicle !== 'string' || data.selectedVehicle === 'loading/unavailable') {
     return 'Your garage is still loading or unavailable. Try again shortly, or check Home > Manage vehicles.';

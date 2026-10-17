@@ -61,7 +61,7 @@ function VoiceChoice({ uid }: { uid: string }) {
         <Ionicons name="volume-medium-outline" size={16} color={c.accent} />Hear Voice
       </button>
     </div>
-    <p id="cubo-voice-help" style={{ margin: '0 0 0 32px', fontSize: 12, lineHeight: '18px', color: c.textSecondary, fontFamily: 'Manrope_400Regular' }}>{!supported ? 'Read-aloud is not supported by this browser.' : missing ? 'The saved voice is unavailable here. Listen will use the default voice.' : voices.length ? 'Used by Listen in CuboAI. Saved for this account on this browser.' : 'Only the default voice is available right now. More voices may appear when the browser loads them.'}</p>
+    <p id="cubo-voice-help" style={{ margin: '0 0 0 32px', fontSize: 12, lineHeight: '18px', color: c.textSecondary, fontFamily: 'Manrope_400Regular' }}>{!supported ? 'Read-aloud is not supported by this browser.' : missing ? 'The saved voice is unavailable here. Listen will use the default voice.' : voices.length ? 'Used by Listen and Cubo Voice Assist. Saved for this account on this browser.' : 'Only the default voice is available right now. More voices may appear when the browser loads them.'}</p>
     {error && <p role="alert" style={{ color: c.text, fontSize: 12 }}>{error}</p>}
   </div>;
 }
