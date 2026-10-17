@@ -26,7 +26,7 @@ test('Listen chooses preferred voice each time and falls back if unavailable', (
   global.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
   try {
     const voice = new CuboAIVoice(() => true, () => preferred);
-    voice.speak('Hello'); assert.equal(spoken.voice, a); assert.equal(spoken.lang, 'en-GB');
+    voice.speak('This is Cubo.'); assert.equal(spoken.text, 'This is Cubo.'); assert.equal(spoken.voice, a); assert.equal(spoken.lang, 'en-GB');
     preferred = 'voice-b'; voice.speak('Hello'); assert.equal(spoken.voice, b);
     preferred = 'gone'; voice.speak('Hello'); assert.equal(spoken.voice, undefined); assert.equal(spoken.lang, 'en-US');
     voice.dispose(); assert.throws(() => voice.speak('Hello'), /unavailable/);
@@ -39,4 +39,9 @@ test('voice dropdown follows map source and listens for delayed browser voices',
   assert.match(component, /addEventListener\('voiceschanged', refresh\)/);
   assert.match(component, /removeEventListener\('voiceschanged', refresh\)/);
   assert.match(component, /key=\{user.uid\}/);
+  assert.match(component, /aria-label="Voice Preference"/);
+  assert.match(component, /Hear Voice/);
+  assert.match(component, /speak\('This is Cubo\.'\)/);
+  assert.match(component, /\[focused, activeSession\?\.id\]/);
+  assert.match(component, /preview.current\?\.dispose\(\)/);
 });
