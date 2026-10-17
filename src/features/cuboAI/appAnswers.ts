@@ -1,7 +1,7 @@
 import { accountAnswer } from './accountAnswers';
 import { normalizeQuestion, type LocalAnswerDetails } from './quickAnswers';
 
-const wake = /^(?:(?:hey|hi|okay|ok) )?(?:cubo|kubo|cube o)\b\s*/;
+const wake = /^(?:(?:hey|hi|okay|ok) )?(?:cubo|cuba|kubo|cube o)\b\s*/;
 export const hasWakePhrase = (text: string) => wake.test(normalizeQuestion(text));
 /** Shared by typed chat, dictation and drive voice. No live-drive values or actions here. */
 export function appQuestion(text: string) {

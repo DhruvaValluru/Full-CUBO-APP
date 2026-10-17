@@ -6,7 +6,7 @@ const { AssistantDestination } = load('src/features/cuboAI/assistantDestination.
 const place = { id: 'one', title: 'Library', subtitle: 'Example city', latitude: 1, longitude: 1 };
 test('single match and saved Home both ask before switching to Map', async () => {
   const resolver = new AssistantDestination(() => ({ home: place }), async () => [place]);
-  for (const prompt of ['set the destination to library', 'navigate home']) {
+  for (const prompt of ['set the destination to library', 'navigate home', 'Hey Cuba set my destination to Enloe high school']) {
     const answer = await resolver.answer(prompt);
     assert.equal(answer.destination, undefined); assert.equal(answer.confirmation.id, 'one');
     assert.match(answer.text, /Switch to Map/);

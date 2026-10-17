@@ -116,3 +116,31 @@ test('browser interruption ignores confirmation echo, stops once, and releases r
     assert.equal(interrupted, 1); assert.ok(aborted > 0); assert.equal(recognition.onresult, null);
   } finally { voice.dispose(); global.window = previous; global.SpeechSynthesisUtterance = previousUtterance; }
 });
+
+test('chat capture failure retries once, keeps pending state, then gives non-driving recovery', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let fail, done, count = 0, latest;
+  const speech = { stop() {}, speak(text, complete) { done = complete; }, listen(consent, result, error) { fail = error; count++; } };
+  const c = new DriveConversation(speech, () => true, () => ({ text: 'Reply' }), (active, text) => latest = { active, text }, Date.now, { mode: 'chat', acceptsFollowUp: () => true, readyForReply() {} });
+  c.start(); done(); t.mock.timers.tick(650);
+  fail('Microphone could not start (audio-capture). You can type instead.');
+  assert.equal(latest.active, true); assert.match(latest.text, /Reconnecting/);
+  t.mock.timers.tick(1500); assert.equal(count, 2);
+  fail('Microphone could not start (audio-capture). You can type instead.');
+  assert.equal(latest.active, false); assert.match(latest.text, /type your message/);
+  assert.doesNotMatch(latest.text, /parked/);
+  t.mock.timers.tick(10000); assert.equal(count, 2); c.stop();
+});
+
+test('iPhone playback does not launch a competing microphone recognizer', () => {
+  const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');
+  const oldWindow = global.window, oldUtterance = global.SpeechSynthesisUtterance;
+  const oldNavigator = Object.getOwnPropertyDescriptor(global, 'navigator');
+  let recognizers = 0;
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 } });
+  global.window = { SpeechRecognition: class { constructor() { recognizers++; } }, speechSynthesis: { cancel() {}, getVoices: () => [], speak() {} } };
+  global.SpeechSynthesisUtterance = class {};
+  const voice = new CuboAIVoice(() => true);
+  try { voice.speak('Hello'); voice.watchInterrupt('Hello', () => {}); assert.equal(recognizers, 0); }
+  finally { voice.dispose(); global.window = oldWindow; global.SpeechSynthesisUtterance = oldUtterance; if (oldNavigator) Object.defineProperty(global, 'navigator', oldNavigator); else delete global.navigator; }
+});

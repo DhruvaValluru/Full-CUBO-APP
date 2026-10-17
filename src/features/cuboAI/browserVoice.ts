@@ -46,7 +46,16 @@ export class CuboAIVoice {
       if (!this.disposed && this.allowed()) transcript(text);
       ended();
     };
-    recognition.onerror = event => { if (!this.disposed && this.allowed()) error(`Voice input stopped (${event.error}). You can type instead.`); this.stop(); ended(); };
+    recognition.onerror = event => {
+      // Release this recognizer BEFORE callbacks can schedule a replacement.
+      this.stop();
+      if (!this.disposed && this.allowed()) error(event.error === 'audio-capture'
+        ? 'Microphone could not start (audio-capture). Close other mic apps and check Account → Camera & microphone access. You can type instead.'
+        : event.error === 'not-allowed' || event.error === 'service-not-allowed'
+          ? 'Microphone or speech access is blocked. Allow it in your browser settings. You can type instead.'
+          : `Voice input stopped (${event.error}). You can type instead.`);
+      ended();
+    };
     recognition.onend = () => { this.stop(); ended(); };
     try { recognition.start(); } catch (cause) { this.stop(); throw cause; }
     this.timer = setTimeout(() => { this.stop(); ended(); }, 30000);
@@ -85,6 +94,10 @@ export class CuboAIVoice {
     const browser = window as SpeechWindow;
     const Constructor = browser.SpeechRecognition || browser.webkitSpeechRecognition;
     if (!Constructor) return;
+    // iOS WebKit shares an audio session between TTS and recognition. Starting
+    // a second recognizer over playback can leave the next real capture unusable.
+    // Keep the visible stop toggle available; use barge-in on other browsers.
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return;
     const expected = this.utterance;
     let restarts = 0;
     const start = () => {

@@ -7,7 +7,7 @@ export async function checkMediaAccess(kind: MediaKind): Promise<string> {
   const result = await (kind === 'camera' ? Camera.getCameraPermissionsAsync() : Camera.getMicrophonePermissionsAsync());
   return result.granted ? 'Allowed' : result.canAskAgain ? 'Not allowed yet' : 'Blocked · open device settings';
 }
-export async function requestMediaAccess(kind: MediaKind): Promise<string> {
+export async function requestMediaAccess(kind: MediaKind, _signal?: AbortSignal): Promise<string> {
   const result = await (kind === 'camera' ? Camera.requestCameraPermissionsAsync() : Camera.requestMicrophonePermissionsAsync());
   return result.granted ? 'Allowed · device not started' : result.canAskAgain ? 'Not allowed' : 'Blocked · open device settings';
 }

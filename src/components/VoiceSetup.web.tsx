@@ -22,6 +22,11 @@ export function VoiceSetup({ onContinue, onClose }: VoiceSetupProps) {
     return () => { alive.current = false; attempt.current++; meter.current?.stop(); document.removeEventListener('visibilitychange', hide); };
   }, []);
   useEffect(() => { if (state !== 'testing') return; const timer = setTimeout(stop, 15000); return () => clearTimeout(timer); }, [state]);
+  useEffect(() => {
+    if (state !== 'requesting') return;
+    const timer = setTimeout(() => { stop(); setError('No microphone response yet. Allow the browser prompt, or check Camera & microphone access in Account and retry.'); }, 20000);
+    return () => clearTimeout(timer);
+  }, [state]);
   async function test() {
     const version = ++attempt.current;
     setError(''); setHeard(false); setState('requesting');

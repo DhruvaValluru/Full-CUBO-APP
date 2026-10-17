@@ -195,7 +195,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
     conversation.current = new DriveConversation(voice.current, allowed, async text => {
       try { const reply = await commands.answer(text); return { ...reply, stop: reply.stop || !!pendingDestination.current || (session.current?.state().used ?? 0) >= WEEKLY_REPLIES }; }
       catch (cause) { report(cause); return { text: 'Cubo Voice Assist is paused. Check the message in chat.', stop: true }; }
-    }, (active, text) => { if (alive.current) { setVoiceOn(active); setVoiceStatus(active ? text : ''); if (!active && text !== 'Voice off') setError(text); if (!active && pendingDestination.current) openDestination(); } }, Date.now, { acceptsFollowUp: text => destinations.current!.acceptsFollowUp() || commands.acceptsFollowUp(text), readyForReply: () => commands.readyForReply() });
+    }, (active, text) => { if (alive.current) { setVoiceOn(active); setVoiceStatus(active ? text : ''); if (!active && text !== 'Voice off') setError(text); if (!active && pendingDestination.current) openDestination(); } }, Date.now, { mode: 'chat', acceptsFollowUp: text => destinations.current!.acceptsFollowUp() || commands.acceptsFollowUp(text), readyForReply: () => commands.readyForReply() });
     conversation.current.start();
   }
   function acknowledge() {
