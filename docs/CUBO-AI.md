@@ -18,7 +18,7 @@ License and attribution ship under public/licenses; the UI displays Built with L
 - Circle: above 80% green, 61–80% orange, 21–60% yellow, 0–20% red.
 - Zero disables input. This is a soft local allowance, not secure billing enforcement.
   Clock changes, clearing data, multiple tabs and other browsers can bypass it.
-- Latest 200 messages retained; latest eight bounded messages form model context.
+- Latest 200 messages retained; latest two bounded messages form model context.
   Explicit editable notes retain 2,000 characters; no automatic perfect memory.
 - Storage keys include authenticated UID. No Firebase chat writes or cross-device sync.
 - Only this account's completed-trip counts, distances and measured experimental
@@ -38,8 +38,17 @@ not continuous full-duplex voice. Same-origin microphone policy permits requests
 it does not grant microphone permission.
 
 Active drives disable CuboAI. Account change, exit, page hide and drive start
-stop voice and dispose the model; late replies cannot persist. The initial engine
-uses WebGPU on the page thread, not a dedicated Worker; loading can affect responsiveness.
+stop voice and terminate the dedicated inference worker, including unfinished loads.
+Late replies cannot persist. Model runtime is bundled separately by esbuild and
+loaded only on Start CuboAI. Memory-saving mode uses a 2,048-token context,
+128-token replies, bounded notes/history and 1,000-character user prompts.
+Worker separation reduces main-thread blocking but cannot guarantee against iOS
+terminating a page for memory pressure. No inference fallback runs on the UI thread.
+The existing model and default Cache API backend are preserved; cached weights
+are reused when present. Startup reports cache loading versus download progress.
+Safari may evict caches. The app cannot guarantee permanent device storage.
+An interrupted prompt is saved under this account's key before inference,
+restored on re-entry without auto-send, and removed on success or confirmed history clear.
 Physical iPhone Safari model and voice integration still needs device testing.
 
 ## Validation

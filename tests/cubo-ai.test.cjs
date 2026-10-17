@@ -13,6 +13,53 @@ const { readState, writeState, accountKey, weekStart } = load('src/features/cubo
 const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
+test('worker cancellation immediately terminates a pending model load', async () => {
+  const { createWorkerFactory } = load('src/features/cuboAI/workerClient.ts');
+  const originalWindow = global.window, originalWorker = global.Worker;
+  const originalNavigator = Object.getOwnPropertyDescriptor(global, 'navigator');
+  let instance;
+  global.window = { isSecureContext: true };
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { gpu: {} } });
+  global.Worker = class { constructor() { instance = this; this.terminated = false; } postMessage(data) { this.request = data; } terminate() { this.terminated = true; } };
+  try {
+    const runtime = createWorkerFactory('test-model');
+    const loading = runtime.load(() => {}); runtime.stop();
+    await assert.rejects(loading, /stopped/); assert.equal(instance.terminated, true);
+    await assert.rejects(runtime.load(() => {}), /closed/);
+  } finally {
+    global.window = originalWindow; global.Worker = originalWorker;
+    if (originalNavigator) Object.defineProperty(global, 'navigator', originalNavigator); else delete global.navigator;
+  }
+});
+
+test('worker sends bounded replies through message transport, never a page engine', async () => {
+  const { createWorkerFactory } = load('src/features/cuboAI/workerClient.ts');
+  const originalWindow = global.window, originalWorker = global.Worker;
+  const originalNavigator = Object.getOwnPropertyDescriptor(global, 'navigator');
+  global.window = { isSecureContext: true };
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { gpu: {} } });
+  global.Worker = class { postMessage(data) { queueMicrotask(() => this.onmessage({ data: { id: data.id, result: data.kind === 'load' ? 'ready' : 'A reply' } })); } terminate() {} };
+  try {
+    const runtime = createWorkerFactory('test-model'); const model = await runtime.load(() => {});
+    assert.equal(await model.reply([{ role: 'user', content: 'Hi' }]), 'A reply');
+    await model.dispose();
+    await assert.rejects(model.reply([]), /unavailable/);
+  } finally {
+    global.window = originalWindow; global.Worker = originalWorker;
+    if (originalNavigator) Object.defineProperty(global, 'navigator', originalNavigator); else delete global.navigator;
+  }
+});
+
+test('mobile runtime keeps the original cached model and bounds context allocations', () => {
+  const screen = fs.readFileSync('src/screens/CuboAIScreen.web.tsx', 'utf8');
+  const worker = fs.readFileSync('src/features/cuboAI/inference.worker.ts', 'utf8');
+  assert.doesNotMatch(screen, /import\('@mlc-ai\/web-llm'\)/);
+  assert.match(screen, /Llama-3.2-1B-Instruct-q4f32_1-MLC/);
+  assert.match(worker, /context_window_size: 2048/);
+  assert.match(worker, /max_tokens: 128/);
+  assert.match(worker, /hasModelInCache/);
+  assert.match(screen, /localStorage.setItem\(recoveryKey, text\)/);
+});
 test('confirmed corrupt history recovery isolates account and conservatively retains allowance', () => {
   const { clearAccountState } = load('src/features/cuboAI/localState.ts');
   const store = storage(); store.setItem(accountKey('alice'), '{broken');

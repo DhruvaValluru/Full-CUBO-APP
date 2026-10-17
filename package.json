@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build:web": "expo export --platform web && node scripts/prepare-web.cjs",
+    "build:web": "expo export --platform web && node scripts/build-ai-worker.cjs && node scripts/prepare-web.cjs",
     "preview:web": "node scripts/preview-web.cjs",
     "test:web-build": "node --test tests/web-build.test.cjs"
   },
@@ -49,6 +49,7 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "@types/react-dom": "~19.2.3",
+    "esbuild": "0.28.2",
     "typescript": "~6.0.3"
   },
   "private": true
