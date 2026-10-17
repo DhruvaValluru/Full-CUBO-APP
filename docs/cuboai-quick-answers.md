@@ -23,7 +23,7 @@ General AI failures, empty responses or a 12-second timeout stop the worker and 
 
 Saved addresses and insurer details are not added to the model snapshot. Prior local chat history is not automatically forwarded to the model, since it can contain address answers. General AI receives the current question, saved notes and the existing bounded account summary. Consequently, general-chat pronoun follow-ups no longer carry prior chat context automatically. Account switching, drive start, quota and history-clear guards still apply. The updated notice explains local address/history handling.
 
-The 100-attempt weekly counter is unchanged, including preset replies. No changes to voice selection: Listen still uses the browser's default English voice; available alternative voices depend on the device/browser.
+The 100-attempt weekly counter is unchanged, including preset replies. Account > Preferences > CuboAI voice (under Map source) selects a browser-provided voice for Listen. The URI is saved per account on this browser; voices load via getVoices/voiceschanged. A missing voice or blocked preference storage falls back to default English. No model or voice assets are bundled. Native Expo is unchanged.
 
 ## Verification
 

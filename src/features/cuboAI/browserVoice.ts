@@ -1,3 +1,4 @@
+import { selectedVoice } from './voicePreference';
 type Recognition = {
   lang: string; continuous: boolean; interimResults: boolean;
   onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
@@ -12,7 +13,7 @@ export class CuboAIVoice {
   private recognition: Recognition | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
-  constructor(private allowed: () => boolean) {}
+  constructor(private allowed: () => boolean, private preferredVoice: () => string = () => '') {}
   supported() {
     if (typeof window === 'undefined') return { input: false, output: false };
     const browser = window as SpeechWindow;
@@ -42,7 +43,11 @@ export class CuboAIVoice {
     if (!this.supported().output) throw Error('Read-aloud is not supported here.');
     // Call from an explicit Play reply tap so mobile browser audio policies can allow it.
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 8000));
-    utterance.lang = 'en-US'; window.speechSynthesis.speak(utterance);
+    let preference = '';
+    try { preference = this.preferredVoice(); } catch { /* Storage blocked: use browser default. */ }
+    const voice = selectedVoice(window.speechSynthesis.getVoices(), preference);
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang || 'en-US'; window.speechSynthesis.speak(utterance);
   }
   stop() {
     if (this.timer) clearTimeout(this.timer); this.timer = null;

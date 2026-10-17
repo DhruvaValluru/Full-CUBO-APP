@@ -14,6 +14,7 @@ import { accountContext, type AccountSnapshot } from '../features/cuboAI/appCont
 import { useVehicles } from '../features/vehicles/VehicleContext';
 import { readCalibration } from '../features/calibration/calibrationStatus';
 import { startupKeys, startupState } from '../features/cuboAI/startup';
+import { readVoicePreference } from '../features/cuboAI/voicePreference';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { LocalAnswerDetails } from '../features/cuboAI/quickAnswers';
 import { insuranceProviders } from '../features/insurance/InsuranceContext';
@@ -80,7 +81,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
       const interrupted = localStorage.getItem(recoveryKey);
       if (interrupted) { setDraft(interrupted.slice(0, 1000)); setError('Your previous reply was interrupted. Your question is restored; it has not been sent again.'); }
     } catch (cause) { report(cause); }
-    voice.current = new CuboAIVoice(allowed);
+    voice.current = new CuboAIVoice(allowed, () => readVoicePreference(localStorage, uid));
     const suspend = () => { if (!document.hidden) return; epoch.current++; voice.current?.stop(); setListening(false); void session.current?.dispose().catch(() => {}); session.current = null; try { localStorage.removeItem(modelKeys.loading); } catch {} setPhase('idle'); };
     const sync = () => { try { refresh(); } catch (cause) { report(cause); } };
     document.addEventListener('visibilitychange', suspend); window.addEventListener('storage', sync);
