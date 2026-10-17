@@ -32,7 +32,7 @@ fs.copyFileSync(path.join(root, 'assets', 'cubo-eye-mark.png'), path.join(dist, 
 const manifest = {
   id: '/', name: 'CUBO', short_name: 'CUBO',
   description: 'Stay Alert. Stay Alive.', start_url: '/', scope: '/',
-  display: 'standalone', background_color: '#FFFFFF', theme_color: '#166B50',
+  display: 'standalone', orientation: 'portrait', background_color: '#FFFFFF', theme_color: '#166B50',
   icons: [{ src: '/app-icon.png', sizes: '1254x1254', type: 'image/png', purpose: 'any' }],
 };
 fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2));

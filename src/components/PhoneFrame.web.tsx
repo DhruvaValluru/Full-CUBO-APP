@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useAppearance } from '../theme/AppearanceContext';
@@ -14,6 +14,20 @@ const PHONE_H = 780;
  */
 export function PhoneFrame({ children }: { children: ReactNode }) {
   const { colors, mode } = useAppearance();
+  const [phone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches && Math.min(window.screen.width, window.screen.height) < 600);
+  const [landscape, setLandscape] = useState(false);
+  useEffect(() => {
+    if (!phone) return;
+    const update = () => {
+      // Physical screen orientation, not a short viewport caused by the keyboard.
+      const angle = screen.orientation?.angle ?? (window as Window & { orientation?: number }).orientation;
+      setLandscape(angle != null ? Math.abs(angle) % 180 === 90 : screen.width > screen.height);
+    };
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
+    void orientation?.lock?.('portrait').catch(() => {});
+    update(); window.addEventListener('orientationchange', update); orientation?.addEventListener('change', update);
+    return () => { window.removeEventListener('orientationchange', update); orientation?.removeEventListener('change', update); };
+  }, [phone]);
   useEffect(() => {
     document.documentElement.style.backgroundColor = colors.background;
     document.body.style.backgroundColor = colors.background;
@@ -22,7 +36,13 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
   }, [colors.background, mode]);
   const styles = makeThemeStyles(colors);
   const { width } = useWindowDimensions();
-  if (width < 600) return <View style={{ flex: 1, backgroundColor: colors.background }}>{children}</View>;
+  if (phone || width < 600) return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, opacity: landscape ? 0 : 1 }} pointerEvents={landscape ? 'none' : 'auto'} accessibilityElementsHidden={landscape} importantForAccessibility={landscape ? 'no-hide-descendants' : 'auto'}>{children}</View>
+    {landscape ? <View accessibilityRole="alert" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
+      <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>Keep CUBO upright</Text>
+      <Text style={{ color: colors.textSecondary, fontSize: 15, textAlign: 'center', maxWidth: 360 }}>Rotate your phone back to portrait. Your drive stays open. Adjust your phone only when safely parked.</Text>
+    </View> : null}
+  </View>;
 
   return (
     <View style={styles.page}>

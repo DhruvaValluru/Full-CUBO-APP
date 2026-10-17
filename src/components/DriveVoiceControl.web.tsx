@@ -16,13 +16,14 @@ import { DriveConversation } from '../features/cuboAI/driveConversation';
 import { readVoicePreference } from '../features/cuboAI/voicePreference';
 import type { LocalAnswerDetails } from '../features/cuboAI/quickAnswers';
 import { driveConsent } from '../features/cuboAI/driveConsent';
+import type { VoiceRouteResult } from '../features/navigation/voiceRoutes';
 
-type Props = { live: Pick<DriveVoiceSnapshot, 'point' | 'gpsValid' | 'speed' | 'nextTurn' | 'destination' | 'routeSteps' | 'routeIndex' | 'routeId' | 'remainingSeconds' | 'remainingMiles'>; onStatus: (text: string) => void };
+type Props = { live: Pick<DriveVoiceSnapshot, 'point' | 'gpsValid' | 'speed' | 'nextTurn' | 'destination' | 'routeSteps' | 'routeIndex' | 'routeId' | 'remainingSeconds' | 'remainingMiles'>; onStatus: (text: string) => void; onReroute?: (choice: number | undefined, signal: AbortSignal) => Promise<VoiceRouteResult> };
 export function DriveVoiceControl(props: Props) {
   const { user } = useAuth(); const { activeSession } = useDrives();
   return user && activeSession ? <Control key={`${user.uid}:${activeSession.id}`} {...props} uid={user.uid} tripId={activeSession.id} /> : null;
 }
-function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId: string }) {
+function Control({ live, onStatus, onReroute, uid, tripId }: Props & { uid: string; tripId: string }) {
   const { colors: c } = useAppearance();
   const focused = useIsFocused(); const { user } = useAuth();
   const { activeSession, sessions, monitoringStatus, addEvent, voiceMemory, addVoiceTurn } = useDrives();
@@ -31,6 +32,8 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
   const [enabled, setEnabled] = useState(false); const [notice, setNotice] = useState(false);
   const [consent] = useState(() => { let store; try { store = window.sessionStorage; } catch {} return driveConsent(store, uid, tripId); });
   const conversation = useRef<DriveConversation | null>(null); const voice = useRef<CuboAIVoice | null>(null);
+  const routeRequest = useRef<AbortController | null>(null);
+  const reroute = useRef(onReroute); reroute.current = onReroute;
   const latest = useRef({ user, activeSession, focused, live, details, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus });
   latest.current = { user, activeSession, focused, live, details, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus };
   const alive = useRef(false);
@@ -59,11 +62,17 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
     if (!voice.current.supported().input || !voice.current.supported().output) { onStatus('Voice unavailable in this browser. Use the controls when parked.'); return; }
     if (!voiceMemory) return;
     conversation.current?.stop(); const commands = voiceMemory;
-    conversation.current = new DriveConversation(voice.current, allowed, text => {
+    conversation.current = new DriveConversation(voice.current, allowed, async text => {
       if (!allowed()) throw Error('Drive ended');
       const v = latest.current; const trip = v.activeSession!;
       const fresh = !!v.live.point && Date.now() - v.live.point.timestamp <= 15000;
-      const result = commands.answer(text, { ...v.live, history: trip.voiceTranscript, gpsValid: v.live.gpsValid && fresh, tripId, durationSeconds: trip.durationSeconds, distanceMiles: trip.distanceMiles, score: trip.attentionMeasured ? trip.focusScore : undefined, monitoring: v.monitoringStatus, details: v.details, account: accountContext({ name: v.user?.displayName, vehicles: v.vehicles, vehiclesReady: v.ready, sessions: v.sessions, calibration: 'unknown' }) });
+      let result = commands.answer(text, { ...v.live, history: trip.voiceTranscript, gpsValid: v.live.gpsValid && fresh, tripId, durationSeconds: trip.durationSeconds, distanceMiles: trip.distanceMiles, score: trip.attentionMeasured ? trip.focusScore : undefined, monitoring: v.monitoringStatus, details: v.details, account: accountContext({ name: v.user?.displayName, vehicles: v.vehicles, vehiclesReady: v.ready, sessions: v.sessions, calibration: 'unknown' }) });
+      if (result.reroute || result.routeChoice != null) {
+        routeRequest.current?.abort(); const controller = new AbortController(); routeRequest.current = controller;
+        const answer = await reroute.current?.(result.routeChoice, controller.signal);
+        if (!allowed() || controller.signal.aborted) throw Error('Request cancelled');
+        result = answer?.options ? commands.offerRoutes(answer.options) : commands.rememberReply(answer?.text || 'Rerouting is unavailable. Keeping your current route.');
+      }
       if (result.report) {
         if (!allowed() || result.report.tripId !== trip.id) throw Error('Drive changed');
         v.addEvent({ type: 'road_hazard', hazardKind: result.report.kind, severity: result.report.kind === 'crash' ? 'warning' : 'info', title: `${result.report.kind} reported by voice`, detail: 'Confirmed voice report. Saved to this trip only; not published to other drivers.', elapsedSeconds: trip.durationSeconds, speedMph: v.live.speed ?? 0, ...result.report.point });
@@ -71,7 +80,7 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
       addVoiceTurn(tripId, 'user', text);
       addVoiceTurn(tripId, 'assistant', result.text);
       return result;
-    }, (active, text) => { if (alive.current) { setEnabled(active); latest.current.onStatus(text); } }, Date.now, commands);
+    }, (active, text) => { if (!active) routeRequest.current?.abort(); if (alive.current) { setEnabled(active); latest.current.onStatus(text); } }, Date.now, commands);
     conversation.current.start();
   }
   return <><Pressable accessibilityRole="switch" accessibilityLabel="Drive voice commands" accessibilityState={{ checked: enabled }} onPress={() => enabled ? conversation.current?.stop() : consent.accepted() ? start() : setNotice(true)} style={{ flex: .54, minWidth: 44, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: enabled ? c.accent : c.surfaceMuted, borderWidth: 1, borderColor: enabled ? c.accent : c.borderStrong }}>
@@ -79,7 +88,7 @@ function Control({ live, onStatus, uid, tripId }: Props & { uid: string; tripId:
   </Pressable><Modal visible={notice} transparent animationType="fade" onRequestClose={() => setNotice(false)}>
     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.55)', justifyContent: 'center', padding: 24 }}><View accessibilityViewIsModal style={{ backgroundColor: c.card, padding: 24, borderRadius: 24, gap: 16, maxWidth: 420, width: '100%', alignSelf: 'center' }}>
       <Text style={{ color: c.text, fontSize: 22, fontWeight: '700' }}>Voice assist for this drive</Text>
-      <Text style={{ color: c.textSecondary, fontSize: 15, lineHeight: 22 }}>Set this up while parked. Tap AI to turn voice on or off. While on, say “Hey Cubo” and your question. After a reply, you can ask a follow-up. Say “Hey Cubo, turn off voice assist” and confirm to turn it off hands-free.</Text>
+      <Text style={{ color: c.textSecondary, fontSize: 15, lineHeight: 22 }}>Set this up while parked. Tap AI to turn voice on or off. Say “Hey Cubo” and your question, then ask follow-ups. Say “Stop talking” to interrupt where supported; tap AI to stop immediately if your browser cannot interrupt. To switch off hands-free, ask to turn off voice assist and confirm after the reply.</Text>
       <Text style={{ color: c.textSecondary, fontSize: 14, lineHeight: 21 }}>While enabled, your browser may process audio online, including surrounding speech. CUBO saves accepted questions and replies as a text transcript with this trip on this device, under your account—not audio or Firebase chat storage. It may include personal details. Delete it in the trip summary. Keep the app visible; browser interruptions or attention warnings turn voice off.</Text>
       <Pressable onPress={start} style={{ backgroundColor: c.accent, padding: 15, borderRadius: 14, alignItems: 'center' }}><Text style={{ color: c.onAccent, fontWeight: '700' }}>Agree & start listening</Text></Pressable>
       <Pressable onPress={() => setNotice(false)} style={{ padding: 12, alignItems: 'center' }}><Text style={{ color: c.textSecondary }}>Not now</Text></Pressable>

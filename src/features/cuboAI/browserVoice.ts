@@ -1,4 +1,13 @@
 import { selectedVoice } from './voicePreference';
+import { normalizeQuestion } from './quickAnswers';
+
+export function isVoiceInterruption(text: string, spoken: string) {
+  const q = normalizeQuestion(text);
+  // Never execute commands or confirmations from recognition running alongside TTS.
+  // Only a deliberate stop phrase can interrupt; ignore a phrase present in our own audio.
+  return /^(?:(?:hey|okay|ok) (?:cubo|kubo|cube o) )?(?:stop talking|stop speaking|be quiet|quiet|hold on|wait|listen to me)$/.test(q)
+    && !normalizeQuestion(spoken).includes(q);
+}
 type Recognition = {
   lang: string; continuous: boolean; interimResults: boolean;
   onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
@@ -14,6 +23,8 @@ export class CuboAIVoice {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
   private utterance: SpeechSynthesisUtterance | null = null;
+  private interruptRecognition: Recognition | null = null;
+  private interruptTimer: ReturnType<typeof setTimeout> | null = null;
   constructor(private allowed: () => boolean, private preferredVoice: () => string = () => '') {}
   supported() {
     if (typeof window === 'undefined') return { input: false, output: false };
@@ -68,7 +79,35 @@ export class CuboAIVoice {
     utterance.lang = voice?.lang || 'en-US'; utterance.volume = 1; utterance.rate = 1;
     window.speechSynthesis.resume?.(); window.speechSynthesis.speak(utterance);
   }
+  /** Best-effort foreground barge-in. Some Safari versions disallow simultaneous TTS/recognition. */
+  watchInterrupt(spoken: string, interrupted: () => void) {
+    if (!this.utterance || this.disposed || !this.allowed()) return;
+    const browser = window as SpeechWindow;
+    const Constructor = browser.SpeechRecognition || browser.webkitSpeechRecognition;
+    if (!Constructor) return;
+    const expected = this.utterance;
+    let restarts = 0;
+    const start = () => {
+      if (this.utterance !== expected || this.disposed || !this.allowed()) return;
+      const recognition = new Constructor(); this.interruptRecognition = recognition;
+      recognition.lang = 'en-US'; recognition.continuous = false; recognition.interimResults = true;
+      let accepted = false;
+      const cleanup = () => { recognition.onresult = null; recognition.onend = null; recognition.onerror = null; try { recognition.abort(); } catch {} if (this.interruptRecognition === recognition) this.interruptRecognition = null; };
+      recognition.onresult = event => {
+        const text = event.results[event.results.length - 1]?.[0]?.transcript ?? '';
+        if (!accepted && this.utterance === expected && isVoiceInterruption(text, spoken)) { accepted = true; cleanup(); interrupted(); }
+      };
+      recognition.onerror = () => cleanup(); // No restart loop if simultaneous capture is unsupported.
+      recognition.onend = () => { cleanup(); if (!accepted && this.utterance === expected && restarts++ < 2) this.interruptTimer = setTimeout(start, 800); };
+      try { recognition.start(); } catch { cleanup(); }
+    };
+    // Avoid Safari's just-aborted recognition instance racing the next start.
+    this.interruptTimer = setTimeout(start, 350);
+  }
   stop() {
+    if (this.interruptTimer) clearTimeout(this.interruptTimer); this.interruptTimer = null;
+    const interrupt = this.interruptRecognition; this.interruptRecognition = null;
+    if (interrupt) { interrupt.onresult = null; interrupt.onerror = null; interrupt.onend = null; try { interrupt.abort(); } catch {} }
     if (this.utterance) { this.utterance.onstart = null; this.utterance.onend = null; this.utterance.onerror = null; this.utterance = null; }
     if (this.timer) clearTimeout(this.timer); this.timer = null;
     const recognition = this.recognition; this.recognition = null;
