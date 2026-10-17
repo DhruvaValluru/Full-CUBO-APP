@@ -35,7 +35,7 @@ export function AttentionCamera({ onSample, onStatus }: AttentionCameraProps) {
             if (!document.hidden && video.readyState >= 2 && video.currentTime !== lastTime && stream?.getVideoTracks()[0]?.readyState === 'live') {
               lastTime = video.currentTime;
               const result = detector!.detectForVideo(video, performance.now());
-              callbacks.current.onSample({ ...faceMetrics(result.faceLandmarks[0]), at: Date.now() });
+              callbacks.current.onSample({ ...faceMetrics(result.faceLandmarks[0], video.videoWidth / video.videoHeight), at: Date.now() });
             } else if (document.hidden) callbacks.current.onStatus('Monitoring paused · app is in the background');
             timer = setTimeout(tick, 200);
           } catch { fail(); }

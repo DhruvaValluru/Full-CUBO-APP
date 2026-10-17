@@ -16,7 +16,7 @@ test('native bridge and web use identical landmark measurements without Function
   const nativeMetrics = new Function(`return (${body})`)();
   for (let n = 0; n < 12; n++) {
     const points = Array.from({ length: 478 }, (_, i) => ({ x: ((i * 13 + n) % 100) / 100, y: ((i * 23 + n) % 100) / 100 }));
-    assert.deepEqual(nativeMetrics(points), faceMetrics(points));
+    for (const aspect of [.5625, .75, 1, 1.333, 1.777]) assert.deepEqual(nativeMetrics(points, aspect), faceMetrics(points, aspect));
   }
 });
 test('calibration needs fresh stable eyes-open samples over real elapsed time', () => {

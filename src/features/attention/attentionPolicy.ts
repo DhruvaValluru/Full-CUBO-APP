@@ -5,15 +5,15 @@ export type AttentionState = { lastAt: number; since: number; kind: AttentionKin
 export const emptyAttention = (): AttentionState => ({ lastAt: 0, since: 0, kind: null, emitted: false, measuredMs: 0, attentiveMs: 0 });
 
 // Pure, dependency-free: also serialized into the native, on-device WebView.
-export function faceMetrics(points: { x: number; y: number }[] | undefined): Omit<FaceSample, 'at'> {
+export function faceMetrics(points: { x: number; y: number }[] | undefined, aspect = 1): Omit<FaceSample, 'at'> {
   const missing = { face: false, yaw: 0, pitch: 0, eyes: 0, width: 0, x: 0, y: 0 };
   if (!points || points.length < 455) return missing;
-  const distance = (a: number, b: number) => Math.hypot(points[a].x - points[b].x, points[a].y - points[b].y);
+  const distance = (a: number, b: number) => Math.hypot((points[a].x - points[b].x) * aspect, points[a].y - points[b].y);
   const left = points[234], right = points[454], nose = points[1];
-  const width = distance(234, 454);
+  const width = Math.abs(right.x - left.x);
   if (width < .08) return missing;
   const eyes = ((distance(159, 145) / Math.max(.001, distance(33, 133))) + (distance(386, 374) / Math.max(.001, distance(362, 263)))) / 2;
-  const result = { face: true, yaw: (nose.x - (left.x + right.x) / 2) / width, pitch: (nose.y - (left.y + right.y) / 2) / width, eyes, width, x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 };
+  const result = { face: true, yaw: (nose.x - (left.x + right.x) / 2) / width, pitch: (nose.y - (left.y + right.y) / 2) / (width * aspect), eyes, width, x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 };
   return Object.values(result).every(v => typeof v !== 'number' || Number.isFinite(v)) ? result : missing;
 }
 
