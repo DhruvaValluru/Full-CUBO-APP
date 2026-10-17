@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { DriveSession, SafetyEvent } from './types';
 import { elapsedSeconds } from './formatDuration';
+import { eventWithLocation } from '../maps/tripMapData';
 import { useVehicles } from '../vehicles/VehicleContext';
 import { useAuth } from '../auth/AuthContext';
 import { useFamily } from '../family/FamilyContext';
@@ -78,7 +79,7 @@ export function DriveProvider({ children }: { children: ReactNode }) {
 
   const addEvent = useCallback((event: Omit<SafetyEvent, 'id' | 'occurredAt'>) => setActiveSession((current) => current ? ({
       ...current,
-      events: [...current.events, { ...event, id: `event-${Date.now()}-${current.events.length}`, occurredAt: new Date().toISOString() }],
+      events: [...current.events, { ...eventWithLocation(event, current.route, Date.now()), id: `event-${Date.now()}-${current.events.length}`, occurredAt: new Date().toISOString() }],
     }) : current), []);
 
   const updateDrive = useCallback((values: Pick<DriveSession, 'durationSeconds' | 'focusScore' | 'distanceMiles'>) => {
