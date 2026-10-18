@@ -3,6 +3,64 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'); const ts = require('typescript');
 function load(file) { const m = { exports: {} }; new Function('module', 'exports', ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(m, m.exports); return m.exports; }
 const access = load('src/features/permissions/mediaAccess.web.ts');
+
+test('location checks use geolocation permission and release the watch on every exit', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const original = Object.getOwnPropertyDescriptor(global, 'navigator'), secure = global.isSecureContext;
+  let success, failure, options, query, starts = 0;
+  const cleared = [];
+  Object.defineProperty(global, 'navigator', { configurable: true, value: {
+    permissions: { query: async value => { query = value; return { state: 'granted' }; } },
+    geolocation: {
+      watchPosition: (ok, fail, config) => { starts++; success = ok; failure = fail; options = config; return starts; },
+      clearWatch: id => cleared.push(id),
+    },
+  } });
+  global.isSecureContext = true;
+  try {
+    assert.equal(await access.checkMediaAccess('location'), 'Allowed');
+    assert.deepEqual(query, { name: 'geolocation' }); assert.equal(starts, 0);
+    const allowed = access.requestMediaAccess('location');
+    success({ coords: { latitude: 1, longitude: 2 } });
+    assert.match(await allowed, /Allowed just now/);
+    assert.deepEqual(cleared, [1]);
+    assert.deepEqual(options, { enableHighAccuracy: false, maximumAge: 0, timeout: 15000 });
+    for (const [code, message] of [[1, /not allowed/], [2, /unavailable/], [3, /timed out/]]) {
+      const request = access.requestMediaAccess('location');
+      const rejection = assert.rejects(request, message);
+      failure({ code }); await rejection;
+      assert.equal(cleared.at(-1), starts);
+    }
+    const controller = new AbortController();
+    const cancelled = access.requestMediaAccess('location', controller.signal);
+    const rejected = assert.rejects(cancelled, /cancelled/);
+    controller.abort(); await rejected;
+    const count = cleared.length;
+    success({ coords: { latitude: 5, longitude: 6 } });
+    assert.equal(cleared.length, count);
+    const timeout = access.requestMediaAccess('location');
+    const timedOut = assert.rejects(timeout, /timed out/);
+    t.mock.timers.tick(20000); await timedOut;
+    assert.equal(cleared.at(-1), starts);
+    const before = starts;
+    await assert.rejects(access.requestMediaAccess('location', controller.signal), /cancelled/);
+    assert.equal(starts, before);
+    global.isSecureContext = false;
+    await assert.rejects(access.requestMediaAccess('location'), /HTTPS/);
+    assert.equal(starts, before);
+  } finally { if (original) Object.defineProperty(global, 'navigator', original); else delete global.navigator; global.isSecureContext = secure; }
+});
+
+test('location appears alongside existing access controls and is checked without starting tracking', () => {
+  const view = fs.readFileSync('src/components/MediaAccessPreference.tsx', 'utf8');
+  assert.match(view, /Camera, microphone & location/);
+  assert.match(view, /\['camera', 'microphone', 'location'\]/);
+  assert.match(view, /checkMediaAccess\('location'\)/);
+  assert.match(view, /pending.current\?\.abort\(\)/);
+  const native = fs.readFileSync('src/features/permissions/mediaAccess.ts', 'utf8');
+  assert.match(native, /requestForegroundPermissionsAsync/);
+  assert.doesNotMatch(native, /requestBackgroundPermissionsAsync|watchPositionAsync/);
+});
 test('permission query never starts hardware; grant checks request only selected device and stop all tracks', async () => {
   const original = Object.getOwnPropertyDescriptor(global, 'navigator'); const secure = global.isSecureContext;
   let requested = [], stopped = 0;
