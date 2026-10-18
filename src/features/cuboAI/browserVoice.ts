@@ -1,11 +1,12 @@
 import { selectedVoice } from './voicePreference';
 import { normalizeQuestion } from './quickAnswers';
+import { isSilenceRequest } from './appAnswers';
 
 export function isVoiceInterruption(text: string, spoken: string) {
   const q = normalizeQuestion(text);
   // Never execute commands or confirmations from recognition running alongside TTS.
   // Only a deliberate stop phrase can interrupt; ignore a phrase present in our own audio.
-  return /^(?:(?:hey|okay|ok) (?:cubo|kubo|cube o) )?(?:stop talking|stop speaking|be quiet|quiet|hold on|wait|listen to me)$/.test(q)
+  return isSilenceRequest(q)
     && !normalizeQuestion(spoken).includes(q);
 }
 type Recognition = {
@@ -25,6 +26,7 @@ export class CuboAIVoice {
   private utterance: SpeechSynthesisUtterance | null = null;
   private interruptRecognition: Recognition | null = null;
   private interruptTimer: ReturnType<typeof setTimeout> | null = null;
+  private interruptionUnavailable = false;
   constructor(private allowed: () => boolean, private preferredVoice: () => string = () => '') {}
   supported() {
     if (typeof window === 'undefined') return { input: false, output: false };
@@ -72,6 +74,7 @@ export class CuboAIVoice {
       if (this.timer) clearTimeout(this.timer); this.timer = null;
       this.utterance = null;
       utterance.onstart = null; utterance.onend = null; utterance.onerror = null;
+      this.stopInterrupt();
       if (!this.disposed && this.allowed()) callback?.();
     };
     const timeout = () => { this.stop(); if (!this.disposed && this.allowed()) failed?.(); };
@@ -90,14 +93,13 @@ export class CuboAIVoice {
   }
   /** Best-effort foreground barge-in. Some Safari versions disallow simultaneous TTS/recognition. */
   watchInterrupt(spoken: string, interrupted: () => void) {
-    if (!this.utterance || this.disposed || !this.allowed()) return;
+    if (!this.utterance || this.disposed || !this.allowed() || this.interruptionUnavailable) return;
     const browser = window as SpeechWindow;
     const Constructor = browser.SpeechRecognition || browser.webkitSpeechRecognition;
     if (!Constructor) return;
-    // iOS WebKit shares an audio session between TTS and recognition. Starting
-    // a second recognizer over playback can leave the next real capture unusable.
-    // Keep the visible stop toggle available; use barge-in on other browsers.
-    if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return;
+    // Try once on every browser, including iOS. If capture conflicts with playback,
+    // disable barge-in for this voice instance rather than repeatedly grabbing audio.
+    this.stopInterrupt();
     const expected = this.utterance;
     let restarts = 0;
     const start = () => {
@@ -110,17 +112,20 @@ export class CuboAIVoice {
         const text = event.results[event.results.length - 1]?.[0]?.transcript ?? '';
         if (!accepted && this.utterance === expected && isVoiceInterruption(text, spoken)) { accepted = true; cleanup(); interrupted(); }
       };
-      recognition.onerror = () => cleanup(); // No restart loop if simultaneous capture is unsupported.
+      recognition.onerror = () => { this.interruptionUnavailable = true; cleanup(); };
       recognition.onend = () => { cleanup(); if (!accepted && this.utterance === expected && restarts++ < 2) this.interruptTimer = setTimeout(start, 800); };
-      try { recognition.start(); } catch { cleanup(); }
+      try { recognition.start(); } catch { this.interruptionUnavailable = true; cleanup(); }
     };
     // Avoid Safari's just-aborted recognition instance racing the next start.
     this.interruptTimer = setTimeout(start, 350);
   }
-  stop() {
+  private stopInterrupt() {
     if (this.interruptTimer) clearTimeout(this.interruptTimer); this.interruptTimer = null;
     const interrupt = this.interruptRecognition; this.interruptRecognition = null;
     if (interrupt) { interrupt.onresult = null; interrupt.onerror = null; interrupt.onend = null; try { interrupt.abort(); } catch {} }
+  }
+  stop() {
+    this.stopInterrupt();
     if (this.utterance) { this.utterance.onstart = null; this.utterance.onend = null; this.utterance.onerror = null; this.utterance = null; }
     if (this.timer) clearTimeout(this.timer); this.timer = null;
     const recognition = this.recognition; this.recognition = null;

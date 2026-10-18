@@ -18,7 +18,7 @@ export function accountAnswer(question: string, context: string, details: LocalA
     return 'I can show demo family names or sample scores. Ask “Who are my kids?” or “What is Child 1’s score?” For real members or location sharing, open Account > Family safety. No live family data is available to this chat.';
   }
   const vehicle = /^(?:what|which) (?:is|are) my (?:selected |saved |current )?(?:vehicle|car)s?$/.test(q)
-    || /^(?:what|which) (?:vehicle|car)s? (?:do i have|do i own|have i saved|is selected|am i using)$/.test(q)
+    || /^(?:what|which) (?:vehicle|car)s? (?:do i have|do i own|have i saved|is selected|am i using|am i driving)(?: today| right now)?$/.test(q)
     || /^(?:tell me|show me|list) (?:about )?my (?:saved )?(?:vehicle|car)s$/.test(q)
     || /^(?:tell me|show me) (?:about )?my (?:vehicle|car)$/.test(q)
     || /\b(?:car|vehicle)\b.*\bselected\b|\bselected\b.*\b(?:car|vehicle)\b/.test(q)

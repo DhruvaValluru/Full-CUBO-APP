@@ -67,12 +67,16 @@ export class DriveCommands {
     this.tripId = data.tripId;
     let q = spokenQuestion(input);
     const reply = (text: string, extra: Omit<DriveReply, 'text'> = {}) => { this.last = short(text); return { text: this.last, ...extra }; };
-    if (isVoiceOffRequest(q)) {
+    if (isVoiceOffRequest(q) && !(this.stopUntil && q === 'turn it off')) {
       this.routes = []; this.selectedRoute = null;
       this.pending = null; this.askingHazard = false; this.stopUntil = this.now() + 120000;
       return reply('Turn off voice assist? Say yes to confirm, or no to keep it on.');
     }
     if (/^(repeat( that)?|say that again|respond|are you there|what am i confirming)$/.test(q)) return { text: this.pendingPrompt() || this.last || 'I am listening. What would you like to know?' };
+    if (/\b(dont|do not|never)\b.*\b(report|mark|flag|reroute|re route|recalculate)\b/.test(q)) {
+      this.pending = null; this.askingHazard = false; this.routes = []; this.selectedRoute = null;
+      return reply('Okay. No report saved or route changed.');
+    }
     if (/\b(reroute|re route|recalculate|another route|different route|alternative routes?|alternate routes?|other way|another way|missed.*turn)\b/.test(q)) {
       this.pending = null; this.stopUntil = 0; this.routes = []; this.selectedRoute = null;
       return reply('Checking routes from your current location.', { reroute: true });
@@ -108,10 +112,10 @@ export class DriveCommands {
     }
     if (this.askingHazard && /^(an? )?(object|debris|police|crash|collision)$/.test(q)) q = `report ${q}`;
     this.askingHazard = false;
-    if (/\b(report|mark|flag)\b/.test(q) && /\b(hazard|debris|object|police|crash|collision)\b/.test(q)) {
+    if (/\b(report|mark|flag)\b/.test(q) && /\b(hazard|debris|object|obstacle|police|crash|collision|accident)\b/.test(q)) {
       this.routes = []; this.selectedRoute = null;
       this.pending = null; this.stopUntil = 0; // A replacement request cannot confirm an older action.
-      const kind: RoadHazardKind | null = /\b(police)\b/.test(q) ? 'police' : /\b(crash|collision)\b/.test(q) ? 'crash' : /\b(debris|object)\b/.test(q) ? 'object' : null;
+      const kind: RoadHazardKind | null = /\b(police)\b/.test(q) ? 'police' : /\b(crash|collision|accident)\b/.test(q) ? 'crash' : /\b(debris|object|obstacle)\b/.test(q) ? 'object' : null;
       if (!kind) { this.askingHazard = true; return reply('Which hazard: object, police, or crash?'); }
       const p = data.point;
       if (!data.gpsValid || !p || !Number.isFinite(p.timestamp) || this.now() - p.timestamp > 15000 || p.timestamp > this.now() + 1000 || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude) || Math.abs(p.latitude) > 90 || Math.abs(p.longitude) > 180) return reply('A fresh GPS location is unavailable. No report was saved.');
@@ -119,9 +123,9 @@ export class DriveCommands {
       this.pending = { kind, point: { latitude: p.latitude, longitude: p.longitude }, tripId: data.tripId, expires: this.now() + 120000 };
       return reply(`Save ${kind} to this trip at this location? Say confirm or cancel. This voice report is local, not shared with other drivers.`);
     }
-    if (/\b(final destination|my destination|where am i (going|headed)|where are we (going|headed)|where does.*route.*end)\b/.test(q)) return reply(data.destination ? `Your selected destination is ${data.destination}.` : 'No destination is connected to this drive. I will not guess.');
+    if (/\b(final destination|my destination|the destination|where am i (going|headed|heading)|where are we (going|headed|heading)|where (?:does.*route.*end|are you taking me))\b/.test(q)) return reply(data.destination ? `Your selected destination is ${data.destination}.` : 'No destination is connected to this drive. I will not guess.');
     const later = /\b(after (that|this|this road|this turn)|what then|and then|what comes after)\b/.test(q);
-    if (later || /\b(next turn|next road|turn next|which road|directions|(?:where|what road).*next)\b/.test(q)) {
+    if (later || /\b(next turn|next road|next instruction|turn next|which (?:road|way)|directions|(?:where|when|what road).*turn|(?:where|what road|what do i do).*next)\b/.test(q)) {
       if (!data.gpsValid) return reply('Your next turn is unavailable without fresh GPS. I will not guess a direction.');
       if (this.routeId !== (data.routeId ?? '')) { this.routeCursor = -1; this.routeId = data.routeId ?? ''; }
       const base = data.routeIndex ?? 0;
@@ -129,7 +133,7 @@ export class DriveCommands {
       const instruction = data.routeSteps?.[this.routeCursor - base] ?? (this.routeCursor === base ? data.nextTurn : undefined);
       return reply(instruction ? `${later ? 'After that' : 'The next instruction'}: ${instruction}. Follow road signs and conditions.` : 'There are no further connected route instructions. Check the map when safe.');
     }
-    if (/\b(eta|arrive|arrival|how far.*(?:left|destination)|remaining|when.*get there|how long.*(?:there|destination))\b/.test(q)) {
+    if (/\b(eta|arrive|arrival|how far.*(?:left|destination|to go)|remaining|when.*get there|how long.*(?:there|destination|left|to go)|are we (?:there|nearly there|almost there))\b/.test(q)) {
       if (!data.gpsValid || !Number.isFinite(data.remainingSeconds)) return reply('A remaining-route estimate is unavailable; GPS may be stale or you may be off the planned route. I will not guess.');
       const minutes = Math.ceil(data.remainingSeconds! / 60);
       const arrival = new Date(this.now() + data.remainingSeconds! * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });

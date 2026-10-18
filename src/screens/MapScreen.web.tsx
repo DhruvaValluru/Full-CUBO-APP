@@ -92,7 +92,7 @@ export function MapScreen() {
   const [hazardPrompt, setHazardPrompt] = useState<RoadReport | null>(null);
   const [promptDismissed, setPromptDismissed] = useState<Set<string>>(new Set());
   const closestReports = useRef(new Map<string, number>());
-  const { activeSession, sessions, startDrive, addEvent, addRoutePoint, updateDrive, endDrive, cameraConfirmation } = useDrives();
+  const { activeSession, sessions, startDrive, addEvent, addRoutePoint, updateDrive, endDrive } = useDrives();
   const { colors, mode } = useAppearance();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const mapRef = useRef<MapHandle>(null);
@@ -120,7 +120,6 @@ export function MapScreen() {
   const [pipHidden, setPipHidden] = useState(false);
   const [pipAtBottomRight, setPipAtBottomRight] = useState(false);
   const [finishedId, setFinishedId] = useState<string | null>(null);
-  const awaitingCamera = useRef<number | null>(null);
   const [topCardBottom, setTopCardBottom] = useState(insets.top + 94);
   const pipCorner = useRef({ right: true, bottom: false });
   const [bottomCardHeight, setBottomCardHeight] = useState(164);
@@ -228,18 +227,13 @@ export function MapScreen() {
   }, [gps.hasFix, searchResult]);
 
   const startNavigation = () => {
+    if (activeSession) return;
     if (!gps.hasFix) { setSearchMessage('Enable location before starting your drive.'); gps.retry(); return; }
     if (!navigationRoute) return;
-    awaitingCamera.current = cameraConfirmation;
     dismissSearchKeyboard();
-    navigation.navigate('LiveDrive');
-  };
-  useEffect(() => {
-    if (!focused || !gps.hasFix || awaitingCamera.current == null || cameraConfirmation <= awaitingCamera.current) return;
-    awaitingCamera.current = null;
     distanceBaseline.current = gps.distanceMiles;
     startDrive(); setNavigating(true); setFollowing(true); setStepIndex(0);
-  }, [cameraConfirmation, focused, startDrive, gps.hasFix]);
+  };
   const loadedDestination = useRef<string | null>(null);
   useEffect(() => {
     if (!destinationParam || !gps.point || loadedDestination.current === destinationParam.id || activeSession) return;

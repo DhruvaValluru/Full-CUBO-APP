@@ -1,13 +1,21 @@
 import { accountAnswer } from './accountAnswers';
 import { normalizeQuestion, type LocalAnswerDetails } from './quickAnswers';
 
-const wake = /^(?:(?:hey|hi|okay|ok) )?(?:cubo|cuba|kubo|cube o)\b\s*/;
+const wake = /^(?:(?:hey|hi|hello|okay|ok|yo) )?(?:cubo|cuba|kubo|c u b o|cube o|qubo)\b\s*/;
 export const hasWakePhrase = (text: string) => wake.test(normalizeQuestion(text));
 /** Shared by typed chat, dictation and drive voice. No live-drive values or actions here. */
 export function appQuestion(text: string) {
   return normalizeQuestion(text).replace(wake, '').replace(/^(?:(?:can|could|would|will) you |please |tell me |i want (?:you )?to |id like (?:you )?to )+/, '').replace(/(?: please| for me| now)+$/, '')
     .replace(/\bmy (first|oldest) child\b/g, 'child 1').replace(/\bmy second child\b/g, 'child 2')
-    .replace(/\b(automobile|ride)\b/g, 'vehicle');
+    .replace(/\b(automobile|ride)\b/g, 'vehicle')
+    .replace(/\b(?:whats|what s)\b/g, 'what is').replace(/\bwheres\b/g, 'where is')
+    .replace(/\b(?:kid|child) number (one|two|1|2)\b/g, 'child $1')
+    .replace(/^(?:go ahead(?: and)?|yes go ahead|go for it|affirmative|yup|sure do it)$/, 'confirm')
+    .replace(/^(?:nevermind|forget it|scratch that|no cancel|no dont)$/, 'cancel');
+}
+/** Silence is not permission to change a route, report, or disable voice. */
+export function isSilenceRequest(text: string) {
+  return /^(?:stop|stop talking|stop speaking|stop reading|stop reading aloud|shut up|be quiet|quiet|silence|hold on|wait|listen to me|thats enough|enough|pause|pause speaking)$/.test(appQuestion(text));
 }
 export function isVoiceOffRequest(q: string) {
   return q === 'stop' || (/\b(?:turn|switch|shut)\b.*\boff\b|\b(?:disable|deactivate|mute)\b|^stop listening$|^goodbye$/.test(q) && !/\b(dont|do not|never|should|how|why)\b/.test(q) && !/\b(camera|map|music|navigation|engine)\b/.test(q));

@@ -1,4 +1,5 @@
 import { hasWakePhrase, type DriveReply } from './driveCommands';
+import { isSilenceRequest } from './appAnswers';
 export type SpeechPort = { listen(consent: boolean, result: (text: string) => void, error: (message: string) => void, ended: () => void): void; speak(text: string, done: () => void, failed: () => void): void; stop(): void; watchInterrupt?: (spoken: string, interrupted: () => void) => void };
 /** Foreground-only toggle. Recognition is suspended during speech; idle ends restart with backoff. */
 export class DriveConversation {
@@ -38,6 +39,11 @@ export class DriveConversation {
         if (version !== this.revision || !this.allowed()) return;
         this.speech.stop();
         this.rapidEnds = 0; this.captureRetries = 0;
+        if (isSilenceRequest(text)) {
+          this.followUpUntil = this.now() + 20000;
+          this.status(true, 'Speech stopped · voice assist is still listening');
+          this.schedule(version); return;
+        }
         if (!hasWakePhrase(text) && this.now() > this.followUpUntil && !this.context.acceptsFollowUp(text)) { this.schedule(version); return; }
         try {
           const response = this.answer(text.slice(0, 1000));

@@ -68,10 +68,12 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const [progress, setProgress] = useState(0); const [error, setError] = useState('');
   const [loadStatus, setLoadStatus] = useState('');
   const modelKeys = startupKeys(uid, MODEL);
-  const [listening, setListening] = useState(false); const [voiceConsent, setVoiceConsent] = useState<'dictation' | 'assistant' | null>(null);
+  const [listening, setListening] = useState(false); const [voiceConsent, setVoiceConsent] = useState<'dictation' | 'assistant' | 'read' | null>(null);
+  const [reading, setReading] = useState<number | null>(null);
+  const pendingRead = useRef<{ index: number; text: string } | null>(null);
   const [voiceOn, setVoiceOn] = useState(false); const [voiceStatus, setVoiceStatus] = useState('');
   const conversation = useRef<DriveConversation | null>(null);
-  const voiceApproved = useRef({ dictation: false, assistant: false });
+  const voiceApproved = useRef({ dictation: false, assistant: false, read: false });
   const [license, setLicense] = useState(false); const [licenseText, setLicenseText] = useState(''); const [licenseError, setLicenseError] = useState('');
   const [settings, setSettings] = useState(false); const [notes, setNotes] = useState(''); const [clear, setClear] = useState(false);
   const noticeKey = accountKey(uid) + ':notice-v3';
@@ -98,7 +100,24 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
     pendingDestination.current = result.destination ?? null;
     return result.text;
   }
-  function stopVoice() { conversation.current?.stop(); voice.current?.stop(); setListening(false); }
+  function stopVoice() { conversation.current?.stop(); voice.current?.stop(); setListening(false); setReading(null); }
+  function readReply(index: number, text: string) {
+    if (reading === index) { stopVoice(); return; }
+    stopVoice(); pendingRead.current = { index, text };
+    if (!voiceApproved.current.read && !voiceApproved.current.assistant) { setVoiceConsent('read'); return; }
+    startRead(true);
+  }
+  function startRead(interruptible: boolean) {
+    setVoiceConsent(null);
+    const reply = pendingRead.current; pendingRead.current = null;
+    if (!reply || !allowed() || !voice.current) return;
+    if (interruptible) voiceApproved.current.read = true;
+    setReading(reply.index);
+    try {
+      voice.current.speak(reply.text, () => setReading(null), () => { setReading(null); setError('Read-aloud stopped. You can retry Listen.'); });
+      if (interruptible) voice.current.watchInterrupt(reply.text, stopVoice);
+    } catch (cause) { setReading(null); report(cause); }
+  }
   useEffect(() => {
     if (!license || licenseText) return;
     const controller = new AbortController(); setLicenseError('');
@@ -117,6 +136,8 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const report = (cause: unknown) => { if (alive.current) setError(cause instanceof Error ? cause.message : 'Cubo Assistant could not finish. Please try again.'); };
   useEffect(() => {
     alive.current = true;
+    voiceApproved.current = { dictation: false, assistant: false, read: false };
+    pendingRead.current = null;
     try {
       const startup = startupState(localStorage, uid, MODEL);
       if (startup.interruptedLoad) {
@@ -210,7 +231,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
     <header className="ai-header"><button aria-label="Back to Home" className="ai-icon" onClick={() => navigation.goBack()}>{icon('arrow-back', c.featureText)}</button><div className="ai-heading"><h1>Cubo Assistant</h1><p>Your drive, understood.</p></div><div className="ai-allowance" title="Local weekly allowance · resets Monday 00:00 UTC"><span className="ai-percent" style={{ background: badge.background, color: badge.foreground }} aria-label={`${badge.percent}% weekly allowance remaining`}>{badge.percent}%</span><small>remaining</small></div><button aria-label="Cubo Assistant settings" className="ai-icon" onClick={() => { setNotes(data?.memory ?? ''); setSettings(true); }}>{icon('ellipsis-horizontal', c.featureText)}</button></header>
     <main className="ai-thread" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Conversation">
       {!data?.messages.length && <div className="ai-welcome"><Ionicons name="chatbubble-ellipses-outline" size={40} color={c.accent} /><h2>A little clarity<br />for your next drive.</h2><p>Ask about your recorded focus score, explore CUBO, or bring another question.</p><div className="ai-prompts">{['Explain my focus score', 'How does camera calibration work?', 'How can I build better driving habits?'].map(text => <button key={text} disabled={blocked} onClick={() => { setDraft(text); setSource('text'); }}>{text}{icon('arrow-up-outline', c.accent)}</button>)}</div></div>}
-      {data?.messages.map((message, index) => <article key={`${message.at}-${index}`} className={`ai-message ai-${message.role}`}><small>{message.role === 'user' ? message.source === 'voice' ? 'You · voice' : 'You' : 'Cubo Assistant'}</small><p>{message.content}</p>{message.role === 'assistant' && <button className="ai-read" aria-label="Read reply aloud" onClick={() => { stopVoice(); try { voice.current?.speak(message.content); } catch (cause) { report(cause); } }}>{icon('volume-medium-outline', c.accent)}<span>Listen</span></button>}</article>)}
+      {data?.messages.map((message, index) => <article key={`${message.at}-${index}`} className={`ai-message ai-${message.role}`}><small>{message.role === 'user' ? message.source === 'voice' ? 'You · voice' : 'You' : 'Cubo Assistant'}</small><p>{message.content}</p>{message.role === 'assistant' && <button className="ai-read" style={{ minHeight: 44 }} aria-label={reading === index ? 'Stop reading reply' : 'Read reply aloud'} onClick={() => readReply(index, message.content)}>{icon(reading === index ? 'stop-circle-outline' : 'volume-medium-outline', c.accent)}<span>{reading === index ? 'Stop' : 'Listen'}</span></button>}</article>)}
       {phase === 'thinking' && <p role="status" className="ai-status">Cubo Assistant is thinking…</p>}
       <div ref={end} />
     </main>
@@ -229,7 +250,7 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
       <button className="ai-credit" onClick={() => { stopVoice(); setLicense(true); }}>Built with Llama · License</button>
     </footer>
     {notice && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-notice-title"><h2 id="ai-notice-title">Before you chat</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>Cubo Assistant is experimental and can make mistakes. It cannot certify safe driving, provide emergency help, or guarantee insurance savings. Only use it while parked.</p><p>Quick answers use saved app data without loading AI. Saved addresses and insurer preferences are read locally for preset answers; replies become part of this account’s local chat history. Optional general AI receives only a limited account summary, saved notes and your current question—not saved addresses or prior chat history automatically. Address requests send the place you ask for and an approximate saved Home location bias to the public Photon search service. Choose a match to preview a route; this never starts a drive. Camera frames, plates and precise routes are excluded. Clearing browser data can erase history.</p><p>100 attempts per week. Failed attempts count. Voice input may use your browser provider’s servers and asks separately.</p><label className="ai-check"><input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} />Don’t show me this again on this browser</label><button autoFocus className="ai-primary" onClick={acknowledge}>Continue to Cubo Assistant</button><button className="ai-secondary" onClick={() => navigation.goBack()}>Go back</button></section></div>}
-    {voiceConsent && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-voice-title"><h2 id="ai-voice-title">{voiceConsent === 'assistant' ? 'Cubo Voice Assist' : 'Dictate a message'}</h2><p>Your browser may send audio to its speech-recognition provider. CUBO does not save raw audio.</p><p>{voiceConsent === 'assistant' ? 'While on, say Hey Cubo and your question. Questions are sent automatically and replies are spoken aloud using your Voice Preference. This uses saved app answers, not live-drive data or the optional AI model. Exchanges use your weekly allowance and stay in this account’s local chat history. Tap the waveform to stop. Use only while parked.' : 'Your words are added to the text box. Review or edit them, then press Send. Dictation never sends automatically.'}</p><button autoFocus className="ai-primary" onClick={voiceConsent === 'assistant' ? startAssistant : startListening}>{voiceConsent === 'assistant' ? 'Start Cubo Voice Assist' : 'Start dictation'}</button><button className="ai-secondary" onClick={() => setVoiceConsent(null)}>Keep typing</button></section></div>}
+    {voiceConsent && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-voice-title"><h2 id="ai-voice-title">{voiceConsent === 'read' ? 'Interrupt read-aloud' : voiceConsent === 'assistant' ? 'Cubo Voice Assist' : 'Dictate a message'}</h2><p>Your browser may send audio to its speech-recognition provider. CUBO does not save raw audio.</p><p>{voiceConsent === 'read' ? 'Allow listening during playback so you can say “stop” or “stop talking”. No other commands are accepted during read-aloud. If your browser cannot listen and speak together, tap Stop. Listening ends when the reply ends.' : voiceConsent === 'assistant' ? 'While on, say Hey Cubo and your question. Questions are sent automatically and replies are spoken aloud using your Voice Preference. This uses saved app answers, not live-drive data or the optional AI model. Exchanges use your weekly allowance and stay in this account’s local chat history. Tap the waveform to stop. Use only while parked.' : 'Your words are added to the text box. Review or edit them, then press Send. Dictation never sends automatically.'}</p><button autoFocus className="ai-primary" onClick={voiceConsent === 'read' ? () => startRead(true) : voiceConsent === 'assistant' ? startAssistant : startListening}>{voiceConsent === 'read' ? 'Allow & listen' : voiceConsent === 'assistant' ? 'Start Cubo Voice Assist' : 'Start dictation'}</button>{voiceConsent === 'read' && <button className="ai-secondary" onClick={() => startRead(false)}>Listen without microphone</button>}<button className="ai-secondary" onClick={() => { pendingRead.current = null; setVoiceConsent(null); }}>Keep typing</button></section></div>}
     {license && <div className="ai-scrim"><section className="ai-dialog ai-license-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-license-title"><button autoFocus className="ai-secondary ai-license-back" onClick={() => setLicense(false)}>← Back to Cubo Assistant</button><h2 id="ai-license-title">Llama license</h2><p>Built with Llama. The optional general AI model uses Llama 3.2; saved-app quick answers do not run the model.</p>{licenseError ? <p role="alert">{licenseError}</p> : licenseText ? <pre className="ai-license-text">{licenseText}</pre> : <p role="status">Loading license…</p>}</section></div>}
     {settings && <div className="ai-scrim"><section className="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title"><h2 id="ai-settings-title">Your Cubo Assistant</h2>{error && <p role="alert" className="ai-error">{error}</p>}<p>Local history: latest 200 messages. No cross-device sync. The weekly allowance resets Monday at 00:00 UTC; history and notes stay.</p><label>Notes you want Cubo Assistant to remember<textarea aria-label="Saved memory notes" rows={3} maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} /></label><button className="ai-primary" onClick={() => { try { session.current ??= makeSession(); session.current.remember(notes); refresh(); setSettings(false); } catch (cause) { report(cause); } }}>Save notes</button><button className="ai-secondary" onClick={() => { setSettings(false); setNotice(true); }}>Show safety notice</button><button className="ai-secondary" onClick={() => setClear(true)}>Clear history and notes</button>{clear && <><p>This deletes this account’s local chats and notes. Your weekly allowance will not reset. If it cannot be recovered from corrupt data, chat stays unavailable until next Monday.</p><button className="ai-secondary" onClick={() => { try { session.current ??= makeSession(); session.current.clearHistory(); localStorage.removeItem(recoveryKey); setDraft(''); setError(''); refresh(); setClear(false); setSettings(false); } catch (cause) { report(cause); } }}>Yes, clear them</button></>}<button autoFocus className="ai-secondary" onClick={() => { setSettings(false); setClear(false); }}>Close</button></section></div>}
     {(notice || voiceConsent || settings || license) && <ModalKeys returnTo={license ? '.ai-credit' : settings ? '[aria-label="Cubo Assistant settings"]' : voiceConsent === 'assistant' ? '.ai-voice-toggle' : voiceConsent ? '[aria-label="Dictate message"]' : '.ai-load button'} close={() => { if (notice) navigation.goBack(); else { setSettings(false); setVoiceConsent(null); setLicense(false); } }} />}

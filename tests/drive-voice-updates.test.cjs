@@ -132,15 +132,94 @@ test('chat capture failure retries once, keeps pending state, then gives non-dri
   t.mock.timers.tick(10000); assert.equal(count, 2); c.stop();
 });
 
-test('iPhone playback does not launch a competing microphone recognizer', () => {
+test('iPhone attempts interruption once, then disables it for the session on capture failure', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');
   const oldWindow = global.window, oldUtterance = global.SpeechSynthesisUtterance;
   const oldNavigator = Object.getOwnPropertyDescriptor(global, 'navigator');
-  let recognizers = 0;
+  let recognizers = 0, recognition;
   Object.defineProperty(global, 'navigator', { configurable: true, value: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 } });
-  global.window = { SpeechRecognition: class { constructor() { recognizers++; } }, speechSynthesis: { cancel() {}, getVoices: () => [], speak() {} } };
+  global.window = { SpeechRecognition: class { constructor() { recognizers++; recognition = this; } start() {} abort() {} }, speechSynthesis: { cancel() {}, getVoices: () => [], speak() {} } };
   global.SpeechSynthesisUtterance = class {};
   const voice = new CuboAIVoice(() => true);
-  try { voice.speak('Hello'); voice.watchInterrupt('Hello', () => {}); assert.equal(recognizers, 0); }
+  try {
+    voice.speak('Hello'); voice.watchInterrupt('Hello', () => {});
+    t.mock.timers.tick(350); assert.equal(recognizers, 1);
+    recognition.onerror({ error: 'audio-capture' }); assert.equal(recognition.onresult, null);
+    voice.speak('Next reply'); voice.watchInterrupt('Next reply', () => {});
+    t.mock.timers.tick(1000); assert.equal(recognizers, 1);
+    voice.listen(true, () => {}, () => {}); assert.equal(recognizers, 2, 'regular input remains available');
+  }
   finally { voice.dispose(); global.window = oldWindow; global.SpeechSynthesisUtterance = oldUtterance; if (oldNavigator) Object.defineProperty(global, 'navigator', oldNavigator); else delete global.navigator; }
+});
+
+test('silence phrases are flexible but never accept negation, confirmation or incidental speech', () => {
+  const { isVoiceInterruption } = load('src/features/cuboAI/browserVoice.ts');
+  for (const phrase of ['stop', 'shut up', 'Hey Cuba, please stop talking', 'could you be quiet please', 'okay Kubo stop reading', 'that’s enough']) {
+    assert.equal(isVoiceInterruption(phrase, 'Your destination is Raleigh.'), true, phrase);
+  }
+  for (const phrase of ['do not stop', 'dont shut up', 'stop at the next street', 'yes confirm', 'the sign says stop', 'please report an accident']) {
+    assert.equal(isVoiceInterruption(phrase, 'Your destination is Raleigh.'), false, phrase);
+  }
+});
+
+test('bare stop outside the follow-up window stays silent and never invokes a command', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let now = 1000, input, done, answers = 0, latest;
+  const c = new DriveConversation({ stop() {}, listen(consent, result) { input = result; }, speak(text, complete) { done = complete; } }, () => true, () => { answers++; return { text: 'Unexpected' }; }, (active, text) => latest = { active, text }, () => now);
+  c.start(); done(); t.mock.timers.tick(650); now += 60000;
+  input('shut up'); assert.equal(answers, 0); assert.equal(latest.active, true); assert.match(latest.text, /Speech stopped/);
+  c.stop();
+});
+
+test('natural navigation, vehicle, family, hazard and confirmation variants use connected facts', () => {
+  const d = { ...data, nextTurn: 'Turn right onto Main Street', destination: 'Enloe High School', remainingSeconds: 600, remainingMiles: 4, account: JSON.stringify({ selectedVehicle: 'Toyota Prius', vehicleCount: 1 }) };
+  const c = new DriveCommands(() => 1000);
+  for (const [question, expected] of [
+    ['Hey Qu bo what is my destination', /Enloe/],
+    ['Hello Kubo which way should I go', /Main Street/],
+    ['Hey Cuba what do I do next', /Main Street/],
+    ['when do I turn', /Main Street/],
+    ['where are we heading', /Enloe/],
+    ['where are you taking me', /Enloe/],
+    ['are we almost there', /10 minutes/],
+    ['how much time remaining', /10 minutes/],
+    ['how long to go', /10 minutes/],
+    ['which car am I driving today', /Toyota Prius/],
+    ['what is my oldest child score', /89/],
+    ['what is child number two score', /92/],
+  ]) assert.match(c.answer(question, d).text, expected, question);
+  assert.match(c.answer('please report an accident', d).text, /Save crash/);
+  assert.equal(c.answer('go ahead', d).report.kind, 'crash');
+  c.answer('report an obstacle', d); c.answer('scratch that', d);
+  assert.equal(c.answer('confirm', d).report, undefined);
+  for (const question of ['do not report a crash', 'dont reroute']) {
+    const reply = c.answer(question, d); assert.equal(reply.report, undefined); assert.equal(reply.reroute, undefined);
+    assert.equal(c.answer('confirm', d).report, undefined);
+  }
+});
+
+test('ending read-aloud releases the interruption microphone and delayed restart', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');
+  const oldWindow = global.window, oldUtterance = global.SpeechSynthesisUtterance;
+  let recognition, utterance, created = 0, aborted = 0;
+  global.window = { SpeechRecognition: class { constructor() { recognition = this; created++; } start() {} abort() { aborted++; } }, speechSynthesis: { cancel() {}, getVoices: () => [], speak(u) { utterance = u; } } };
+  global.SpeechSynthesisUtterance = class {};
+  const voice = new CuboAIVoice(() => true);
+  try {
+    voice.speak('A reply'); voice.watchInterrupt('A reply', () => {}); t.mock.timers.tick(350);
+    recognition.onend(); utterance.onend(); t.mock.timers.tick(1000);
+    assert.equal(created, 1); assert.ok(aborted > 0); assert.equal(recognition.onresult, null);
+  } finally { voice.dispose(); global.window = oldWindow; global.SpeechSynthesisUtterance = oldUtterance; }
+});
+
+test('web start drive no longer routes through camera setup; saved calibration and demo map remain', () => {
+  const map = fs.readFileSync('src/screens/MapScreen.web.tsx', 'utf8');
+  assert.doesNotMatch(map, /navigate\('LiveDrive'\)|awaitingCamera|cameraConfirmation/);
+  assert.match(map, /startDrive\(\); setNavigating\(true\)/);
+  assert.match(map, /<DriveAttentionCamera/);
+  assert.match(fs.readFileSync('src/components/DriveAttentionCamera.tsx', 'utf8'), /readCalibration\(\)/);
+  const demo = fs.readFileSync('src/components/DemoLiveMap.web.tsx', 'utf8');
+  assert.match(demo, /DrivingMap.web/); assert.match(demo, /fictional Raleigh/); assert.doesNotMatch(demo, /getCurrentPosition|watchPosition/);
 });

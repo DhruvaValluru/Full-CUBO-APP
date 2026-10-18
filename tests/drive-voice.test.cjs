@@ -131,12 +131,12 @@ test('conversation alternates listen and speak, stops on errors and ignores stal
   let input, done, failed, ended, error, listens = 0, allowed = true, answers = 0;
   const states = [];
   const speech = { stop() {}, listen(consent, result, onerror, onend) { assert.equal(consent, true); listens++; input = result; error = onerror; ended = onend; }, speak(text, complete, failure) { done = complete; failed = failure; } };
-  const c = new DriveConversation(speech, () => allowed, text => { answers++; return { text: 'Reply', stop: text === 'stop' }; }, (on, text) => states.push([on, text]));
+  const c = new DriveConversation(speech, () => allowed, text => { answers++; return { text: 'Reply', stop: text === 'turn off voice' }; }, (on, text) => states.push([on, text]));
   try {
     c.start(); assert.equal(listens, 0); done(); t.mock.timers.tick(650); assert.equal(listens, 1);
     input('hello'); ended(); assert.equal(listens, 1); // no microphone during speech
     done(); t.mock.timers.tick(650); assert.equal(listens, 2);
-    input('stop'); done(); assert.equal(states.at(-1)[0], false);
+    input('turn off voice'); done(); assert.equal(states.at(-1)[0], false);
     const old = input; old('late callback'); assert.equal(answers, 2);
     c.start(); done(); t.mock.timers.tick(650); error('permission denied'); assert.equal(states.at(-1)[0], false);
     c.start(); done(); t.mock.timers.tick(650); input('hello'); failed(); assert.match(states.at(-1)[1], /audio unavailable/);
