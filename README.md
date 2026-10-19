@@ -41,6 +41,7 @@ To invite another person, open **Account → Support → Invite someone**. Previ
 - Vehicle selection, vehicle-detail views, and a separate vehicle-color control.
 - Light, dark, and system appearance, plus profile and account settings.
 - Camera/microphone access controls, map-source preference, and a voice preference with a **Hear Voice** sample.
+- Blocked Apps preferences, including parent-managed **Child Lock** controls; real phone-level enforcement still requires native operating-system integration.
 - Firebase email/password authentication and account-detail persistence.
 
 ### Maps and driving
