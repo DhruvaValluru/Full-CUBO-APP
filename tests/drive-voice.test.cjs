@@ -10,7 +10,7 @@ function load(file) {
 }
 const { DriveCommands } = load('src/features/cuboAI/driveCommands.ts');
 const { DriveConversation } = load('src/features/cuboAI/driveConversation.ts');
-const data = { tripId: 'trip-a', point: { latitude: 35, longitude: -78, timestamp: 1000 }, gpsValid: true, speed: 24.2, nextTurn: 'Turn right onto Main Street', durationSeconds: 240, distanceMiles: 2.3, score: 88, monitoring: 'Monitoring active', account: JSON.stringify({ name: 'Alice', selectedVehicle: '2021 Toyota Prius', vehicleCount: 1, completedTrips: 2, averageFocusOutOf100: 83 }), details: { ready: true, home: 'Saved home', insurer: 'Example Insurance' } };
+const data = { tripId: 'trip-a', point: { latitude: 35, longitude: -78, timestamp: 1000 }, gpsValid: true, speed: 24.2, nextTurn: 'Turn right onto Main Street', durationSeconds: 240, distanceMiles: 2.3, score: 88, monitoring: 'Monitoring active', account: JSON.stringify({ name: 'Alice', selectedVehicle: '2021 Toyota Prius', vehicleCount: 1, completedTrips: 2, averageFocusOutOf100: 83 }), details: { ready: true, home: 'Saved home', insurer: 'Example Insurance', blockedAppsReady: true, blockedAppsEnabled: true, blockedAppNames: ['Instagram', 'Telegram'], childLock: false } };
 test('spoken variants reuse account answers and live facts without inference', () => {
   const c = new DriveCommands(() => 1000);
   for (const [q, expected] of [
@@ -21,6 +21,7 @@ test('spoken variants reuse account answers and live facts without inference', (
     ['what road do I drive on next', /Main Street/], ['what road do I turn onto next', /Main Street/],
     ['how fast am I going', /24 miles/], ['how am I doing this drive', /88 out of 100/],
     ['how long have I driven', /4 minutes and 2.3/], ['are you listening', /Voice is on/],
+    ['what apps are blocked', /Blocked Apps|Facebook and Telegram/], ['what is child lock', /family organizer/],
     ['what is my eta', /unavailable/], ['report a pothole', /Which hazard|not submitted/],
   ]) assert.match(c.answer(q, data).text, expected, q);
   const last = c.answer('my vehicle', data).text;

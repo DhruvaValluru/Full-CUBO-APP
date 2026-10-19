@@ -24,6 +24,8 @@ import { usePlaces } from '../features/places/PlacesContext';
 import { AssistantDestination } from '../features/cuboAI/assistantDestination';
 import type { PlaceResult } from '../features/places/searchPlaces';
 import { AssistantVoice } from '../features/cuboAI/assistantVoice';
+import { useAppBlocking } from '../features/appBlocking/AppBlockingContext';
+import { BLOCK_APPS } from '../data/blockApps';
 
 const MODEL = 'Llama-3.2-1B-Instruct-q4f32_1-MLC';
 type Props = NativeStackScreenProps<RootStackParamList, 'CuboAI'>;
@@ -44,6 +46,9 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const pendingDestination = useRef<PlaceResult | null>(null);
   const addressRequest = useRef<AbortController | null>(null);
   const { vehicles, ready: vehiclesReady } = useVehicles();
+  const { hydrated: blockedAppsReady, policyFor: blockedAppsPolicyFor } = useAppBlocking();
+  const blockedAppsPolicy = blockedAppsPolicyFor(uid, user?.displayName ?? 'You');
+  const blockedAppNames = BLOCK_APPS.filter(app => blockedAppsPolicy.selectedIds.includes(app.id)).map(app => app.name);
   const [localDetails, setLocalDetails] = useState<LocalAnswerDetails>({});
   useEffect(() => {
     let active = true;
@@ -58,7 +63,8 @@ function Chat({ navigation, uid }: Props & { uid: string }) {
   const [calibration, setCalibration] = useState<AccountSnapshot['calibration']>('unknown');
   useEffect(() => { let active = true; void readCalibration().then(record => { if (active) setCalibration(record ? 'completed' : 'not completed'); }).catch(() => {}); return () => { active = false; }; }, [uid]);
   const snapshot = { name: user?.displayName, vehicles, vehiclesReady, sessions, calibration };
-  const latest = useRef({ uid: user?.uid, driving: !!activeSession, snapshot, localDetails, focused }); latest.current = { uid: user?.uid, driving: !!activeSession, snapshot, localDetails, focused };
+  const assistantDetails: LocalAnswerDetails = { ...localDetails, blockedAppsReady, blockedAppsEnabled: blockedAppsPolicy.enabled, blockedAppNames, childLock: blockedAppsPolicy.lockedByParent };
+  const latest = useRef({ uid: user?.uid, driving: !!activeSession, snapshot, localDetails: assistantDetails, focused }); latest.current = { uid: user?.uid, driving: !!activeSession, snapshot, localDetails: assistantDetails, focused };
   const session = useRef<CuboAISession | null>(null); const voice = useRef<CuboAIVoice | null>(null);
   const alive = useRef(true); const epoch = useRef(0); const end = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<LocalAIState | null>(null);

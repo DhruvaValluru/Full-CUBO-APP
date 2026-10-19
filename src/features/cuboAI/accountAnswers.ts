@@ -5,6 +5,7 @@ import { normalizeQuestion, quickAnswer, type LocalAnswerDetails } from './quick
 export function accountAnswer(question: string, context: string, details: LocalAnswerDetails = {}): string | null {
   const q = normalizeQuestion(question).replace(/^(?:hey |hi )?cubo\s*/, '').replace(/^please\s+/, '');
   if (/\b(emergency|collision|accident|injured|injury|car crash)\b/.test(q)) return quickAnswer(q, {});
+  if (/\b(blocked apps?|block apps?|apps? (?:are )?blocked|app blocking|app limits?|child lock|facebook|telegram|social apps?)\b/.test(q)) return quickAnswer(q, {}, details);
   if (/\b(kids?|children|child|family|parent|guardian|partner|son|daughter)\b/.test(q)) {
     const member = /\bchild (?:1|one)\b/.test(q) ? demoFamily[1] : /\bchild (?:2|two)\b/.test(q) ? demoFamily[2] : /\b(parent|partner|guardian)\b/.test(q) ? demoFamily[0] : null;
     if (/\b(invite|add|request|sharing|permission|manage)\b/.test(q)) return 'Use the + under Your family to invite by email or phone, or Manage for family profiles and sharing requests. Only the organizer manages membership and roles. I have not sent an invitation or a sharing request. Displayed sample profiles and locations are demos.';

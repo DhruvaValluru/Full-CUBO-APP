@@ -12,7 +12,7 @@ function load(file) {
 const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const { accountAnswer } = load('src/features/cuboAI/accountAnswers.ts');
 const facts = { name: 'Alice Example', selectedVehicle: '2021 Toyota Prius', vehicleCount: 1, averageFocusOutOf100: 83, completedTrips: 4, savedMiles: '25.2', calibration: 'completed' };
-const details = { ready: true, home: 'PRIVATE HOME', work: 'PRIVATE WORK', insurer: 'Example Insurer', mode: 'manual', cadence: 'monthly' };
+const details = { ready: true, home: 'PRIVATE HOME', work: 'PRIVATE WORK', insurer: 'Example Insurer', mode: 'manual', cadence: 'monthly', blockedAppsReady: true, blockedAppsEnabled: true, blockedAppNames: ['Instagram', 'Facebook', 'Telegram'], childLock: false };
 const corpus = [
   ['what is my score', /83\/100/], ['explain my focus score', /83\/100/], ['how good is my attention rating', /83\/100/],
   ['how can I improve my score', /Set your route/], ['why is my focus unavailable', /measurements/],
@@ -28,12 +28,16 @@ const corpus = [
   ['what is my name', /Alice Example/], ['who am I', /Alice Example/], ['change my password', /not changed/], ['what is my phone number', /does not have/],
   ['how many trips do I have', /4 completed/], ['what is my mileage', /25.2/], ['delete my trip history', /not deleted/],
   ['how do I calibrate the camera', /While parked/], ['is my calibration done', /completed/], ['my camera is black', /permission/],
+  ['how does the camera distraction test work', /audible attention alert/], ['allow camera microphone and location access', /Account > Preferences/],
+  ['what apps are blocked', /Instagram, Facebook, Telegram/], ['what is Child Lock', /family organizer/],
+  ['can I block Facebook and Telegram', /Facebook and Telegram are available/], ['turn off blocked apps', /returns automatically/],
+  ['does blocked apps actually block my phone apps', /not active yet/], ['how do I invite someone to CUBO', /Account > Support > Invite someone/],
   ['what road do I turn onto next', /will not guess/], ['what is my eta', /no live route/], ['how do I switch map source', /Cloudflare/],
   ['what is my speed in mph', /speedometer/], ['report debris here', /not submitted/], ['is my microphone on', /not always listening/],
   ['why does the model crash', /can still crash Safari/], ['change dark mode', /Account/], ['can I connect bluetooth devices', /disabled/],
   ['what can you do', /Quick answers/], ['my car accident', /emergency/], ['what are my secret details', /not connected/],
 ];
-test('52 phrasing examples produce relevant presets with fresh supplied facts', () => {
+test('common and newly added feature phrasings produce relevant presets with fresh supplied facts', () => {
   for (const [q, expected] of corpus) assert.match(accountAnswer(q, JSON.stringify(facts), details), expected, q);
 });
 test('all presets work without model load or GPU, including unknown questions', async () => {

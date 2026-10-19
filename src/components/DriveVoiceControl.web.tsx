@@ -17,6 +17,8 @@ import { readVoicePreference } from '../features/cuboAI/voicePreference';
 import type { LocalAnswerDetails } from '../features/cuboAI/quickAnswers';
 import { driveConsent } from '../features/cuboAI/driveConsent';
 import type { VoiceRouteResult } from '../features/navigation/voiceRoutes';
+import { useAppBlocking } from '../features/appBlocking/AppBlockingContext';
+import { BLOCK_APPS } from '../data/blockApps';
 
 type Props = { live: Pick<DriveVoiceSnapshot, 'point' | 'gpsValid' | 'speed' | 'nextTurn' | 'destination' | 'routeSteps' | 'routeIndex' | 'routeId' | 'remainingSeconds' | 'remainingMiles'>; onStatus: (text: string) => void; onReroute?: (choice: number | undefined, signal: AbortSignal) => Promise<VoiceRouteResult> };
 export function DriveVoiceControl(props: Props) {
@@ -28,14 +30,18 @@ function Control({ live, onStatus, onReroute, uid, tripId }: Props & { uid: stri
   const focused = useIsFocused(); const { user } = useAuth();
   const { activeSession, sessions, monitoringStatus, addEvent, voiceMemory, addVoiceTurn } = useDrives();
   const { vehicles, ready } = useVehicles();
+  const { hydrated: blockedAppsReady, policyFor: blockedAppsPolicyFor } = useAppBlocking();
+  const blockedAppsPolicy = blockedAppsPolicyFor(uid, user?.displayName ?? 'You');
+  const blockedAppNames = BLOCK_APPS.filter(app => blockedAppsPolicy.selectedIds.includes(app.id)).map(app => app.name);
   const [details, setDetails] = useState<LocalAnswerDetails>({});
   const [enabled, setEnabled] = useState(false); const [notice, setNotice] = useState(false);
   const [consent] = useState(() => { let store; try { store = window.sessionStorage; } catch {} return driveConsent(store, uid, tripId); });
   const conversation = useRef<DriveConversation | null>(null); const voice = useRef<CuboAIVoice | null>(null);
   const routeRequest = useRef<AbortController | null>(null);
   const reroute = useRef(onReroute); reroute.current = onReroute;
-  const latest = useRef({ user, activeSession, focused, live, details, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus });
-  latest.current = { user, activeSession, focused, live, details, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus };
+  const assistantDetails: LocalAnswerDetails = { ...details, blockedAppsReady, blockedAppsEnabled: blockedAppsPolicy.enabled, blockedAppNames, childLock: blockedAppsPolicy.lockedByParent };
+  const latest = useRef({ user, activeSession, focused, live, details: assistantDetails, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus });
+  latest.current = { user, activeSession, focused, live, details: assistantDetails, vehicles, ready, sessions, monitoringStatus, addEvent, onStatus };
   const alive = useRef(false);
   const allowed = () => alive.current && latest.current.user?.uid === uid && latest.current.activeSession?.id === tripId && latest.current.focused && !document.hidden;
   useEffect(() => {
