@@ -55,6 +55,7 @@ import { PlacesProvider } from './src/features/places/PlacesContext';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CruiseProvider } from './src/features/devices/CruiseContext';
 import { CameraCalibrationScreen } from './src/screens/CameraCalibrationScreen';
+import { AppBlockingProvider } from './src/features/appBlocking/AppBlockingContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -161,7 +162,7 @@ export default function App() {
     <SafeAreaProvider><AppearanceProvider><MapSourceProvider>
       <PhoneFrame>
         <Wrapper style={{ flex: 1 }}>
-          <AuthProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><AppNavigation /></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AuthProvider>
+          <AuthProvider><AppBlockingProvider><ProfileProvider><VehicleProvider><CruiseProvider><DeviceProvider><FamilyProvider><InsuranceProvider><PlacesProvider><AppNavigation /></PlacesProvider></InsuranceProvider></FamilyProvider></DeviceProvider></CruiseProvider></VehicleProvider></ProfileProvider></AppBlockingProvider></AuthProvider>
         </Wrapper>
       </PhoneFrame>
     </MapSourceProvider></AppearanceProvider></SafeAreaProvider>
