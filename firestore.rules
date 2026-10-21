@@ -64,8 +64,20 @@ service cloud.firestore {
     }
     function userDoc(userId) { return get(/databases/$(database)/documents/users/$(userId)).data; }
     function familyMembership(userId) { return get(/databases/$(database)/documents/familyMemberships/$(userId)).data; }
-    function connectionPairId(kind, firstUid, secondUid) {
-      return kind + '_' + (firstUid < secondUid ? firstUid + '_' + secondUid : secondUid + '_' + firstUid);
+    // Firestore Rules cannot safely use JavaScript-style lexical ordering for
+    // Auth UID strings. Accept either of the two bounded pair orders instead;
+    // the app still emits one stable order and the reverse document is denied.
+    function orderedConnectionId(kind, firstUid, secondUid) {
+      return kind + '_' + firstUid + '_' + secondUid;
+    }
+    function isConnectionPairId(documentId, kind, firstUid, secondUid) {
+      return documentId == orderedConnectionId(kind, firstUid, secondUid)
+        || documentId == orderedConnectionId(kind, secondUid, firstUid);
+    }
+    function reverseConnectionId(documentId, kind, firstUid, secondUid) {
+      return documentId == orderedConnectionId(kind, firstUid, secondUid)
+        ? orderedConnectionId(kind, secondUid, firstUid)
+        : orderedConnectionId(kind, firstUid, secondUid);
     }
     function validConnectionCode(codeId, data) {
       return data.keys().hasAll(['code', 'kind', 'ownerUid', 'ownerName', 'status', 'createdAt', 'expiresAt'])
@@ -208,7 +220,10 @@ service cloud.firestore {
     match /connectionRequests/{requestId} {
       allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.requesterUid == request.auth.uid);
       allow create: if isAuthenticated() && validConnectionRequest(request.resource.data)
-        && requestId == connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)
+        && isConnectionPairId(requestId, request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)
+        && !exists(/databases/$(database)/documents/connectionRequests/$(reverseConnectionId(requestId, request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)))
+        && !exists(/databases/$(database)/documents/connections/$(requestId))
+        && !exists(/databases/$(database)/documents/connections/$(reverseConnectionId(requestId, request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)))
         && request.resource.data.requesterUid == request.auth.uid
         && request.resource.data.requesterName == userDoc(request.auth.uid).name
         && request.resource.data.requesterAccountType == userDoc(request.auth.uid).accountDetails.accountType
@@ -220,12 +235,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerUid == request.resource.data.ownerUid
         && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerName == request.resource.data.ownerName;
       allow update: if isAuthenticated() && validConnectionRequest(request.resource.data)
-        && requestId == connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)
+        && isConnectionPairId(requestId, request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)
         && request.resource.data.updatedAt == request.time
         && ((resource.data.ownerUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
             && resource.data.status == 'pending' && request.resource.data.status == 'approved'
-            && getAfter(/databases/$(database)/documents/connections/$(connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid))).data.ownerUid == request.auth.uid)
+            && getAfter(/databases/$(database)/documents/connections/$(requestId)).data.ownerUid == request.auth.uid)
           || (request.resource.data.requesterUid == request.auth.uid
             && resource.data.status == 'declined' && request.resource.data.status == 'pending'
             && request.resource.data.createdAt == request.time
@@ -242,7 +257,7 @@ service cloud.firestore {
         && ((resource.data.ownerUid == request.auth.uid && resource.data.status == 'pending')
           || (resource.data.status == 'approved'
             && (resource.data.ownerUid == request.auth.uid || resource.data.requesterUid == request.auth.uid)
-            && !existsAfter(/databases/$(database)/documents/connections/$(connectionPairId(resource.data.kind, resource.data.ownerUid, resource.data.requesterUid)))));
+            && !existsAfter(/databases/$(database)/documents/connections/$(requestId))));
     }
 
     match /familyMemberships/{minorId} {
@@ -297,7 +312,9 @@ service cloud.firestore {
     match /connections/{connectionId} {
       allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
       allow create: if isAuthenticated() && validConnection(request.resource.data)
-        && connectionId == connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.memberUid)
+        && connectionId == request.resource.data.requestId
+        && isConnectionPairId(connectionId, request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.memberUid)
+        && !exists(/databases/$(database)/documents/connections/$(reverseConnectionId(connectionId, request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.memberUid)))
         && request.resource.data.requestId is string
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerName == userDoc(request.auth.uid).name
