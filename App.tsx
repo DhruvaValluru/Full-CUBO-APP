@@ -47,6 +47,7 @@ import { InsuranceConnectionScreen } from './src/screens/InsuranceConnectionScre
 import { MapScreen } from './src/screens/MapScreen';
 import { AuthProvider, useAuth } from './src/features/auth/AuthContext';
 import { WelcomeFlow } from './src/screens/WelcomeFlow';
+import { GoogleAccountSetupScreen } from './src/screens/GoogleAccountSetupScreen';
 
 import { LoadingScreen } from './src/components/LoadingScreen';
 import { ReturningHomeScreen } from './src/screens/ReturningHomeScreen';
@@ -104,7 +105,7 @@ const MainTabs = () => {
 const Wrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
 function AppNavigation() {
-  const { user, loading } = useAuth();
+  const { user, loading, needsAccountSetup } = useAuth();
   const { colors, mode } = useAppearance();
   const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, ...Ionicons.font });
   const fontsReady = fontsLoaded || !!fontError;
@@ -118,6 +119,7 @@ function AppNavigation() {
   if (boot !== 2 || !fontsReady || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
   if (!user) return <WelcomeFlow />;
+  if (needsAccountSetup) return <GoogleAccountSetupScreen />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
   return (
         <DriveProvider>

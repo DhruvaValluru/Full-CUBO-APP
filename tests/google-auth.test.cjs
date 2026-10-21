@@ -13,13 +13,26 @@ test('Google authentication uses a phone-safe redirect and desktop popup', () =>
   assert.match(source, /display-mode: standalone/);
 });
 
-test('new Google users receive a private Firestore profile before entering CUBO', () => {
+test('new Google users must finish their private profile before entering CUBO', () => {
   const source = read('src/features/auth/AuthContext.tsx');
   assert.match(source, /provider\.providerId === GoogleAuthProvider\.PROVIDER_ID/);
-  assert.match(source, /if \(\(await getDoc\(reference\)\)\.exists\(\)\) return/);
-  assert.match(source, /await provisionGoogleUser\(nextUser\)/);
+  assert.match(source, /return !hasCompleteAccountDetails\(existing\.data\(\)\.accountDetails\)/);
+  assert.match(source, /setNeedsAccountSetup\(requiresSetup\)/);
+  assert.match(source, /completeGoogleAccountSetup/);
+  assert.match(source, /accountDetails: validated/);
   assert.match(source, /createdAt: serverTimestamp\(\)/);
   assert.match(source, /await firebaseSignOut\(auth\)/);
+});
+
+test('Google account completion screen collects only name, phone, and birth date', () => {
+  const source = read('src/screens/GoogleAccountSetupScreen.tsx');
+  const app = read('App.tsx');
+  assert.match(source, /Continue account creation/);
+  assert.match(source, /accessibilityLabel="Name"/);
+  assert.match(source, /accessibilityLabel="Phone number"/);
+  assert.match(source, /accessibilityLabel="Date of birth, month day year"/);
+  assert.doesNotMatch(source, /accessibilityLabel="Password"/);
+  assert.match(app, /if \(needsAccountSetup\) return <GoogleAccountSetupScreen/);
 });
 
 test('authentication screen exposes one compact accessible Google action', () => {

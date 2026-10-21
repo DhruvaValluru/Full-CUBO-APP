@@ -13,7 +13,9 @@ import { finishGoogleRedirectSignIn, startGoogleSignIn } from './googleSignIn';
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
+  needsAccountSetup: boolean;
   accountDetails: AccountDetails | null;
+  completeGoogleAccountSetup: (name: string, details: AccountDetails) => Promise<void>;
   saveAccountDetails: (details: AccountDetails) => Promise<void>;
   changeEmail: (email: string, currentPassword: string) => Promise<void>;
   changePassword: (password: string, currentPassword: string) => Promise<void>;
@@ -28,12 +30,19 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function hasCompleteAccountDetails(value: unknown): value is AccountDetails {
+  if (!value || typeof value !== 'object') return false;
+  const details = value as Partial<AccountDetails>;
+  return typeof details.birthDate === 'string' && typeof details.phoneNumber === 'string';
+}
+
 async function provisionGoogleUser(user: User) {
-  if (!user.providerData.some(provider => provider.providerId === GoogleAuthProvider.PROVIDER_ID)) return;
+  if (!user.providerData.some(provider => provider.providerId === GoogleAuthProvider.PROVIDER_ID)) return false;
   const email = user.email?.trim().toLowerCase();
   if (!email) throw Error('Your Google account did not provide an email address.');
   const reference = doc(db, 'users', user.uid);
-  if ((await getDoc(reference)).exists()) return;
+  const existing = await getDoc(reference);
+  if (existing.exists()) return !hasCompleteAccountDetails(existing.data().accountDetails);
   const fallbackName = email.split('@')[0] || 'CUBO driver';
   const name = (user.displayName?.trim() || fallbackName).slice(0, 80);
   await setDoc(reference, {
@@ -44,11 +53,13 @@ async function provisionGoogleUser(user: User) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  return true;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accountDetails, setAccountDetails] = useState<AccountDetails | null>(null);
+  const [needsAccountSetup, setNeedsAccountSetup] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authNotice, setAuthNotice] = useState('');
@@ -58,10 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async nextUser => {
       setLoading(true);
       try {
-        if (nextUser) await provisionGoogleUser(nextUser);
+        const requiresSetup = nextUser ? await provisionGoogleUser(nextUser) : false;
+        setNeedsAccountSetup(requiresSetup);
         setUser(nextUser);
       } catch (cause) {
         setUser(null);
+        setNeedsAccountSetup(false);
         setAuthNotice(cause instanceof Error ? cause.message : 'CUBO could not finish setting up your Google account.');
         await firebaseSignOut(auth).catch(() => undefined);
       } finally {
@@ -87,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active || auth.currentUser?.uid !== user.uid || snapshot.metadata.hasPendingWrites) return;
       cloudSeen = true;
       const details = parse(snapshot.data()?.accountDetails);
-      if (details) { setAccountDetails(details); void AsyncStorage.setItem(key, JSON.stringify(details)).catch(() => undefined); }
+      if (details) { setAccountDetails(details); setNeedsAccountSetup(false); void AsyncStorage.setItem(key, JSON.stringify(details)).catch(() => undefined); }
     }, () => undefined);
     return () => { active = false; unsubscribe(); };
   }, [user?.uid]);
@@ -120,10 +133,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setProvisioning(false); }
   }, []);
 
+  const completeGoogleAccountSetup = useCallback(async (name: string, details: AccountDetails) => {
+    const current = auth.currentUser;
+    if (!current || !current.providerData.some(provider => provider.providerId === GoogleAuthProvider.PROVIDER_ID)) throw Error('Sign in with Google before completing your account.');
+    const cleanName = name.trim();
+    if (!cleanName) throw Error('Enter your name.');
+    if (cleanName.length > 80) throw Error('Keep your name under 80 characters.');
+    const [year, month, day] = details.birthDate.split('-');
+    const validated = makeAccountDetails(`${month}/${day}/${year}`, details.phoneNumber);
+    await Promise.all([
+      updateProfile(current, { displayName: cleanName }),
+      updateDoc(doc(db, 'users', current.uid), { name: cleanName, accountDetails: validated, updatedAt: serverTimestamp() }),
+    ]);
+    await AsyncStorage.setItem(`cubo-account-details:${current.uid}`, JSON.stringify(validated)).catch(() => undefined);
+    if (auth.currentUser?.uid === current.uid) {
+      setAccountDetails(validated);
+      setNeedsAccountSetup(false);
+    }
+  }, []);
+
   const resetPassword = useCallback(async (email: string) => {
     await sendPasswordResetEmail(auth, email.trim().toLowerCase());
   }, []);
-  const signOut = useCallback(() => firebaseSignOut(auth), []);
+  const signOut = useCallback(async () => {
+    await firebaseSignOut(auth);
+    setNeedsAccountSetup(false);
+  }, []);
   const saveAccountDetails = useCallback(async (details: AccountDetails) => {
     const current = auth.currentUser;
     if (!current) throw Error('Sign in before changing account details.');
@@ -155,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await updatePassword(current, password);
   }, []);
   const clearAuthNotice = useCallback(() => setAuthNotice(''), []);
-  const value = useMemo(() => ({ user, loading: loading || provisioning, accountDetails, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, signUp, resetPassword, signOut, authNotice, clearAuthNotice }), [loading, provisioning, accountDetails, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, signOut, signUp, user, authNotice, clearAuthNotice]);
+  const value = useMemo(() => ({ user, loading: loading || provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, signUp, resetPassword, signOut, authNotice, clearAuthNotice }), [loading, provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, signOut, signUp, user, authNotice, clearAuthNotice]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
