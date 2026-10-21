@@ -1,4 +1,5 @@
-// Browser-only persistence; no Firebase, network calls, raw audio, or device-wide migration.
+// Browser persistence is the offline source. Bounded text state is mirrored to the signed-in
+// account by CuboAIScreen; models, raw audio and transient recovery drafts stay device-local.
 export const WEEKLY_REPLIES = 100;
 export type ChatMessage = { role: 'user' | 'assistant'; content: string; at: number; source: 'text' | 'voice' };
 export type LocalAIState = { version: 1; owner: string; week: number; used: number; memory: string; messages: ChatMessage[] };

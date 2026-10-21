@@ -23,6 +23,6 @@ Never trust a client-side adult label to grant access. Never enable family locat
 
 ## Places and artwork
 
-Saved addresses, recent destinations and vehicle selections persist on this device per account.
+Saved addresses, recent destinations and vehicle selections keep a per-account offline copy and sync through the signed-in Firebase account. Camera calibration, permissions, profile photos and CUBO Cruise bindings remain device-specific.
 Photon provides GPS-biased suggestions and OSRM provides prototype routes; public endpoints have no availability guarantee and are not a production navigation SLA.
 The vehicle artwork is a generic generated compact-car illustration bundled into the app, not a paid runtime AI request or an exact manufacturer model.

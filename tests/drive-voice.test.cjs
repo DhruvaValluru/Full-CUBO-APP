@@ -82,7 +82,7 @@ test('remaining route estimate uses projected geometry and refuses off-route pos
   assert.equal(remainingRoute(route, { latitude: 1, longitude: .01 }), undefined);
   assert.equal(remainingRoute(null, null), undefined);
 });
-test('transcript is bounded, local, recovered with trip and never added to family payload', () => {
+test('transcript is bounded, locally recovered, account-synced and never added to family payload', () => {
   const { appendVoiceTurn, MAX_TRANSCRIPT_CHARS } = load('src/features/drives/voiceTranscript.ts');
   const { recoverCheckpoint } = load('src/features/drives/driveCheckpoint.ts');
   let trip = { id: 'test', durationSeconds: 12, voiceTranscript: [] };
@@ -93,6 +93,7 @@ test('transcript is bounded, local, recovered with trip and never added to famil
   const source = fs.readFileSync('src/features/drives/DriveContext.tsx', 'utf8');
   const payload = source.match(/const drives = sessions[\s\S]*?familyRequest\('\/family\/drives', \{ drives \}\)/)[0];
   assert.doesNotMatch(payload, /voiceTranscript/);
+  assert.match(source, /domain: 'drives'/);
   assert.match(source, /activeSession\?\.id, owner, user\?\.uid/);
 });
 test('hazards require confirmation, fresh coordinates and same trip; save original location once', () => {

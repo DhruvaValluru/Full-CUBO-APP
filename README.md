@@ -103,17 +103,20 @@ Voice recognition is browser-dependent and may process speech through the browse
 | Data | Current handling |
 | --- | --- |
 | Sign-in and account details | Firebase Authentication and Firestore, with local account-detail caching. |
-| Vehicles, saved places, and trip history | Device/browser storage scoped to the signed-in account. Not automatic cross-device backup. |
+| Vehicles, saved places, insurance, Blocked Apps, and completed trip history | Bounded owner-only Firestore account sync with a device/browser offline copy. Completed routes are sampled before upload; active-drive GPS is not continuously uploaded. |
 | Calibration | Numeric measurements saved locally per account; calibration photos are not retained. |
 | Camera monitoring | Local frame analysis; camera frames are not uploaded as trip history. Model/runtime loading needs network access. |
-| Assistant chats, notes, allowance, and voice preferences | Account-scoped browser storage; no Firebase chat sync. |
-| Drive voice transcripts | Text in local trip checkpoints, not raw audio or Firebase chat storage. |
+| Assistant chats, notes, and allowance | Latest bounded text state syncs through the signed-in Firestore account and remains cached locally. The optional model and interrupted drafts stay device-local. |
+| Voice preference | Account-scoped browser storage because installed system voices differ by device. |
+| Drive voice transcripts | Bounded text is retained with completed trips and included in owner-only account sync; raw audio is never stored by CUBO. |
 | Community road reports | Firestore-backed features depend on deployed rules and indexes. Voice hazard reports are local trip events, not automatic community posts. |
 | Maps, address search, and routing | External providers receive requests needed for the viewed area, search, or route. |
 
 Clearing browser/site data can remove local history and preferences. Account-scoped local storage is not encrypted cloud backup or protection against someone with access to the browser profile.
 
 Firebase's frontend configuration is public by design; it is not an administrator credential. Access control depends on Authentication, deployed security rules, and appropriate restrictions. Never commit private tokens, passwords, service-account files, or local agent/session data.
+
+See [`docs/account-sync.md`](docs/account-sync.md) for migration behavior, free-tier limits, synced domains, and intentionally device-local data.
 
 ## Run the web app locally
 

@@ -223,8 +223,10 @@ test('clear during generation discards the answer and storage errors stop infere
   x.store.setItem = () => { throw Error('Quota exceeded'); };
   await assert.rejects(x.session.send('Hi'), /Quota exceeded/);
 });
-test('chat persistence never imports Firebase and screen is registered', () => {
+test('local AI state stays transport-agnostic while the screen owns bounded account sync', () => {
   for (const name of ['localState', 'session', 'browserVoice', 'webllmAdapter']) assert.doesNotMatch(fs.readFileSync(`src/features/cuboAI/${name}.ts`, 'utf8'), /from ['"]firebase|fetch\(/);
+  const screen = fs.readFileSync('src/screens/CuboAIScreen.web.tsx', 'utf8');
+  assert.match(screen, /useAccountSyncBridge/);
   assert.match(fs.readFileSync('App.tsx', 'utf8'), /name="CuboAI"/);
 });
 
