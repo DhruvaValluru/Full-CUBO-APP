@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useDrives } from '../drives/DriveContext';
 import type { AccountDetails } from '../auth/accountDetails';
 import { connectionPairId, dedupeConnections } from './connectionIdentity';
+import { defaultAvatarId, isAvatarId, type AvatarId } from '../profile/avatars';
 
 export type ConnectionKind = 'family' | 'friend';
 export type ConnectionRequest = {
@@ -15,8 +16,10 @@ export type ConnectionRequest = {
   kind: ConnectionKind;
   ownerUid: string;
   ownerName: string;
+  ownerAvatarId?: AvatarId;
   requesterUid: string;
   requesterName: string;
+  requesterAvatarId?: AvatarId;
   requesterAccountType: 'minor' | 'adult';
   status: 'pending' | 'approved' | 'declined';
   createdAt?: Timestamp;
@@ -28,8 +31,10 @@ export type CuboConnection = {
   kind: ConnectionKind;
   ownerUid: string;
   ownerName: string;
+  ownerAvatarId?: AvatarId;
   memberUid: string;
   memberName: string;
+  memberAvatarId?: AvatarId;
   memberAccountType: 'minor' | 'adult';
   ownerShareScore: boolean;
   ownerShareLocation: boolean;
@@ -216,7 +221,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const snapshot = await getDoc(doc(db, 'users', user.uid));
     const data = snapshot.data();
     if (!snapshot.exists() || typeof data?.name !== 'string' || !data.accountDetails) throw Error('Finish setting up your CUBO profile before continuing.');
-    return { name: data.name as string, details: data.accountDetails as AccountDetails };
+    return { name: data.name as string, avatarId: isAvatarId(data.avatarId) ? data.avatarId : defaultAvatarId(user.uid), details: data.accountDetails as AccountDetails };
   }, [user?.uid]);
   const createCode = useCallback(async (kind: ConnectionKind) => {
     if (!user) throw Error('Sign in before creating a code.');
@@ -230,7 +235,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         const reference = doc(db, 'connectionCodes', code);
         if ((await getDoc(reference)).exists()) continue;
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-        await setDoc(reference, { code, kind, ownerUid: user.uid, ownerName: identity.name, status: 'active', createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(expiresAt) });
+        await setDoc(reference, { code, kind, ownerUid: user.uid, ownerName: identity.name, ownerAvatarId: identity.avatarId, status: 'active', createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(expiresAt) });
         return { code, expiresAt, kind };
       }
       throw Error('Could not reserve a code. Try again.');
@@ -255,7 +260,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       const previous = [...rawIncoming, ...rawOutgoing].find(item => item.id === requestId);
       if (previous?.status === 'pending') throw Error('A request between these accounts is already waiting for approval.');
       if (previous?.status === 'approved') throw Error(`This person is already in your ${data.kind === 'family' ? 'family' : 'friends'}.`);
-      const request: Omit<ConnectionRequest, 'id'> = { code, kind: data.kind, ownerUid: data.ownerUid, ownerName: data.ownerName, requesterUid: user.uid, requesterName: identity.name, requesterAccountType: identity.details.accountType, status: 'pending' };
+      const request: Omit<ConnectionRequest, 'id'> = { code, kind: data.kind, ownerUid: data.ownerUid, ownerName: data.ownerName, ownerAvatarId: isAvatarId(data.ownerAvatarId) ? data.ownerAvatarId : defaultAvatarId(data.ownerUid), requesterUid: user.uid, requesterName: identity.name, requesterAvatarId: identity.avatarId, requesterAccountType: identity.details.accountType, status: 'pending' };
       // Do not getDoc() this deterministic path first. A missing request has no
       // participant fields for Firestore to authorize, so probing it is denied.
       // The participant-scoped realtime queries above are the authoritative
@@ -276,7 +281,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       batch.update(doc(db, 'connectionRequests', request.id), { status: 'approved', updatedAt: serverTimestamp() });
       batch.set(doc(db, 'connections', connectionId), {
         requestId: request.id,
-        kind: request.kind, ownerUid: request.ownerUid, ownerName: request.ownerName, memberUid: request.requesterUid, memberName: request.requesterName,
+        kind: request.kind, ownerUid: request.ownerUid, ownerName: request.ownerName, ownerAvatarId: request.ownerAvatarId ?? defaultAvatarId(request.ownerUid), memberUid: request.requesterUid, memberName: request.requesterName, memberAvatarId: request.requesterAvatarId ?? defaultAvatarId(request.requesterUid),
         memberAccountType: request.requesterAccountType, ownerShareScore: false, ownerShareLocation: false, memberShareScore: request.kind === 'family' && request.requesterAccountType === 'minor', memberShareLocation: false,
         ownerScore: null, memberScore: request.kind === 'family' && request.requesterAccountType === 'minor' ? 100 : null, ownerScoreMeasured: false, memberScoreMeasured: false, ownerLatitude: null, ownerLongitude: null, ownerLocationAt: null, memberLatitude: null, memberLongitude: null, memberLocationAt: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
@@ -367,7 +372,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     if (!user || !accountDetails) throw Error('Sign in before changing your birth date.');
     const familyConnection = connections.find(item => item.kind === 'family' && item.memberUid === user.uid && item.memberAccountType === 'minor');
     if (!familyConnection) throw Error('No parent or organizer is linked to approve this change.');
-    if (birthDateRequests.some(item => item.minorUid === user.uid && item.status === 'pending')) throw Error('A birth-date change is already waiting for your family organizer.');
+    const pending = birthDateRequests.find(item => item.minorUid === user.uid && item.status === 'pending');
+    if (pending) {
+      await updateDoc(doc(db, 'birthDateChangeRequests', user.uid), { requestedBirthDate: details.birthDate, requestedAccountType: details.accountType, updatedAt: serverTimestamp() });
+      return;
+    }
     await setDoc(doc(db, 'birthDateChangeRequests', user.uid), {
       connectionId: familyConnection.id,
       organizerUid: familyConnection.ownerUid,

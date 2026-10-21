@@ -30,6 +30,8 @@ test('real connection questions and app clarifications never call model inferenc
   assert.match((await session.send('Explain my insurance')).content, /simulated/);
   assert.match((await session.send('How does camera calibration work?')).content, /While parked/);
   assert.match((await session.send('report a hazard')).content, /not submitted/);
+  assert.match((await session.send('How do I change my avatar?')).content, /twelve CUBO cartoon styles/);
+  assert.match((await session.send('Can my child change their date of birth?')).content, /pending request/);
   await session.dispose();
 });
 

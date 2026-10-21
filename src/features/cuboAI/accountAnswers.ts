@@ -5,6 +5,7 @@ export function accountAnswer(question: string, context: string, details: LocalA
   const q = normalizeQuestion(question).replace(/^(?:hey |hi )?cubo\s*/, '').replace(/^please\s+/, '');
   if (/\b(emergency|collision|accident|injured|injury|car crash)\b/.test(q)) return quickAnswer(q, {});
   if (/\b(blocked apps?|block apps?|apps? (?:are )?blocked|app blocking|app limits?|child lock|facebook|telegram|social apps?)\b/.test(q)) return quickAnswer(q, {}, details);
+  if (/\b(birthday|date of birth|dob)\b/.test(q)) return quickAnswer(q, {}, details);
   if (/\b(kids?|children|child|family|parent|guardian|partner|son|daughter)\b/.test(q)) {
     if (/\b(invite|add|request|sharing|permission|manage|code|connect)\b/.test(q)) return 'On Home, open Family / Friends and choose Enter Code or Create Code. Family codes are created by an adult organizer; minors enter a code and wait for approval. Friend codes can be created or entered by anyone, and safety-score or location sharing stays off until each person enables it. I have not sent or created a code or request for you.';
     if (/\b(where|location|driving|live|route)\b/.test(q)) return 'Open Family / Friends and select the person. You can see a real foreground location snapshot only when they enabled location sharing. CUBO does not perform hidden background tracking.';

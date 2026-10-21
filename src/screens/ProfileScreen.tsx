@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScreenShell } from '../components/ScreenShell';
 import { AppInviteSheet } from '../components/AppInviteSheet';
 import { MapSourcePreference } from '../components/MapSourcePreference';
 import { MediaAccessPreference } from '../components/MediaAccessPreference';
 import { VoicePreference } from '../components/VoicePreference';
+import { ProfileAvatar } from '../components/ProfileAvatar';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
@@ -31,7 +32,7 @@ export function ProfileScreen() {
     <View style={styles.header}><View><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Profile and preferences</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })} style={styles.homeButton}><Ionicons name="home-outline" size={20} color={colors.accent} /></Pressable></View>
 
     <View style={styles.identity}>
-      <View style={styles.avatar}>{profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{profile.initials}</Text>}</View>
+      <ProfileAvatar avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} size={52} />
       <View style={styles.fill}><Text style={styles.name}>{profile.name}</Text></View>
       <Pressable onPress={() => navigation.navigate('SettingsDetail', { kind: 'edit' })}><Text style={styles.action}>Edit</Text></Pressable>
     </View>

@@ -9,6 +9,7 @@ import { DrivingAppLimitsCard } from '../components/DrivingAppLimitsCard';
 import { MotionPressable } from '../components/MotionPressable';
 import { ScreenShell } from '../components/ScreenShell';
 import { SharedLocationMap } from '../components/SharedLocationMap';
+import { ProfileAvatar } from '../components/ProfileAvatar';
 import { useAuth } from '../features/auth/AuthContext';
 import { useConnections } from '../features/connections/ConnectionContext';
 import type { RootStackParamList } from '../navigation/types';
@@ -23,6 +24,8 @@ export function ConnectionProfileScreen({ navigation, route }: NativeStackScreen
   if (!item || !user) return <ScreenShell><AppHeader title="Connection" onBack={() => navigation.goBack()} /><View style={styles.empty}><Ionicons name="person-remove-outline" size={28} color={colors.accent} /><Text style={styles.title}>This connection is no longer available.</Text></View></ScreenShell>;
   const owner = item.ownerUid === user.uid;
   const name = owner ? item.memberName : item.ownerName;
+  const avatarId = owner ? item.memberAvatarId : item.ownerAvatarId;
+  const otherUid = owner ? item.memberUid : item.ownerUid;
   const otherIsMinor = owner && item.memberAccountType === 'minor';
   const selfIsLinkedMinor = item.kind === 'family' && !owner && item.memberAccountType === 'minor';
   const theirScoreRequired = item.kind === 'family' && otherIsMinor;
@@ -43,7 +46,7 @@ export function ConnectionProfileScreen({ navigation, route }: NativeStackScreen
   const answerLocation = async (approved: boolean) => { if (!locationRequest) return; setBusy('location-request'); setMessage(''); try { await connection.respondLocationShare(locationRequest, approved); setMessage(approved ? 'Your current location snapshot is now shared.' : 'Your location remains private.'); } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Could not answer the location request.'); } finally { setBusy(''); } };
   return <ScreenShell>
     <AppHeader title={name} onBack={() => navigation.goBack()} />
-    <View style={styles.identity}><View style={styles.avatar}><Text style={styles.initial}>{name.slice(0, 1).toUpperCase()}</Text></View><View style={styles.fill}><Text style={styles.name}>{name}</Text><Text style={styles.body}>{item.kind === 'friend' ? 'Friend · Private connection' : otherIsMinor ? 'Family · Minor' : 'Family · Parent/Guardian'}</Text></View><View style={styles.badge}><Ionicons name={item.kind === 'friend' ? 'people-outline' : 'shield-checkmark-outline'} size={20} color={colors.accent} /></View></View>
+    <View style={styles.identity}><ProfileAvatar avatarId={avatarId} uid={otherUid} size={68} rounded={item.kind === 'friend'} /><View style={styles.fill}><Text style={styles.name}>{name}</Text><Text style={styles.body}>{item.kind === 'friend' ? 'Friend · Private connection' : otherIsMinor ? 'Family · Minor' : 'Family · Parent/Guardian'}</Text></View><View style={styles.badge}><Ionicons name={item.kind === 'friend' ? 'people-outline' : 'shield-checkmark-outline'} size={20} color={colors.accent} /></View></View>
     <View style={styles.scoreCard}><View><Text style={styles.score}>{theirScoreEnabled ? theirScore ?? 100 : '—'}</Text><Text style={styles.scoreLabel}>{theirScoreEnabled ? theirScoreMeasured ? 'SHARED SAFETY SCORE' : 'STARTER SAFETY SCORE' : 'SCORE PRIVATE'}</Text></View><View style={styles.scoreDivider} /><Text style={[styles.body, styles.fill]}>{theirScoreEnabled ? theirScoreMeasured ? 'Calculated from their completed measured drives.' : 'New accounts begin at 100. Completed measured drives update this score.' : `${name} has not shared a score with you.`}</Text></View>
     <Text style={styles.section}>Shared Location</Text>
     {theirLocationEnabled && theirLatitude != null && theirLongitude != null ? <><SharedLocationMap latitude={theirLatitude} longitude={theirLongitude} name={name} /><Text style={styles.body}>Current-location snapshot · Updated {theirLocationAt?.toDate().toLocaleString() ?? 'recently'}. This is not background tracking.</Text></> : <View style={styles.empty}><Ionicons name="location-outline" size={28} color={colors.accent} /><Text style={styles.title}>Location is private</Text><Text style={styles.body}>{name} controls whether a current-location snapshot is visible.</Text>{item.kind === 'family' && otherIsMinor ? <MotionPressable disabled={busy !== '' || locationRequest?.status === 'pending'} style={[styles.requestLocation, (busy !== '' || locationRequest?.status === 'pending') && styles.disabled]} onPress={() => void askForLocation()}><Ionicons name={locationRequest?.status === 'pending' ? 'time-outline' : 'navigate-outline'} size={18} color={colors.accent} /><Text style={styles.requestLocationText}>{locationRequest?.status === 'pending' ? 'Request Sent' : 'Request Location'}</Text></MotionPressable> : null}</View>}

@@ -37,8 +37,10 @@ test('minor family accounts require organizer review and friend removal asks fir
   assert.match(provider, /birthDateChangeRequests/);
   assert.match(provider, /requestBirthDateChange/);
   assert.match(provider, /reviewBirthDateChange/);
-  assert.match(account, /family organizer[\s\S]*unless they approve/);
-  assert.match(account, /Request Parent Approval/);
+  assert.match(account, /Editable request/);
+  assert.match(account, /saved birth date stays the same until your family organizer approves/);
+  assert.match(account, /Update Pending Request/);
+  assert.match(account, /Send Change Request/);
   assert.match(profile, /Birth-Date Change/);
   assert.match(profile, /Always shared with your family organizer/);
   assert.match(profile, /Request Location/);
@@ -50,6 +52,22 @@ test('minor family accounts require organizer review and friend removal asks fir
   assert.match(provider, /respondLocationShare/);
   assert.match(screen, /<ConfirmSheet visible=\{confirmRemove\}/);
   assert.match(screen, /owner \? item\.memberAccountType[\s\S]*: 'Family · Parent\/Guardian'/);
+});
+
+test('cartoon avatars replace initials and identity changes sync only to connected records', () => {
+  const profile = fs.readFileSync('src/features/profile/ProfileContext.tsx', 'utf8');
+  const picker = fs.readFileSync('src/components/AvatarPickerSheet.tsx', 'utf8');
+  const home = fs.readFileSync('src/screens/HomeScreen.tsx', 'utf8');
+  const family = fs.readFileSync('src/screens/FamilyScreen.tsx', 'utf8');
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  assert.equal(fs.readdirSync('assets/avatars').filter(name => name.endsWith('.png')).length, 12);
+  assert.match(picker, /AVATAR_IDS\.map/);
+  assert.match(profile, /ownerName: name, ownerAvatarId: avatarId/);
+  assert.match(profile, /memberName: name, memberAvatarId: avatarId/);
+  assert.match(home, /<ProfileAvatar avatarId=\{profile\.avatarId\}/);
+  assert.match(family, /<ProfileAvatar avatarId=\{avatarId\}/);
+  assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['ownerName', 'ownerAvatarId', 'updatedAt'\]\)/);
+  assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['memberName', 'memberAvatarId', 'updatedAt'\]\)/);
 });
 
 test('email accounts can link Google without replacing their CUBO identity', () => {
