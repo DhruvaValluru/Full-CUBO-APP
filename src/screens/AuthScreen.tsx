@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { FirebaseError } from 'firebase/app';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -36,6 +36,11 @@ function authMessage(cause: unknown) {
     'auth/too-many-requests': 'Too many attempts. Wait a moment and try again.',
     'auth/weak-password': 'Use a password with at least 6 characters.',
     'auth/network-request-failed': 'Check your internet connection and try again.',
+    'auth/popup-closed-by-user': 'Google sign-in was closed before it finished.',
+    'auth/cancelled-popup-request': 'Google sign-in was cancelled. Please try again.',
+    'auth/unauthorized-domain': 'Google sign-in is not enabled for this CUBO address yet.',
+    'auth/operation-not-allowed': 'Google sign-in is not enabled yet.',
+    'auth/account-exists-with-different-credential': 'This email already uses a different sign-in method. Sign in with your password first.',
   };
   return messages[cause.code] ?? 'Could not complete that request. Please try again.';
 }
@@ -46,7 +51,7 @@ export function AuthScreen({ onBack }: Props) {
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const focusProps = (field: string) => ({ onFocus: () => setFocusedField(field), onBlur: () => setFocusedField(null), selectionColor: palette.accent, keyboardAppearance: appearance });
-  const { signIn, signUp, resetPassword } = useAuth();
+  const { signIn, signInWithGoogle, signUp, resetPassword, authNotice, clearAuthNotice } = useAuth();
   const compact = useWindowDimensions().height < 720;
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -61,6 +66,12 @@ export function AuthScreen({ onBack }: Props) {
   const [hidden, setHidden] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (!authNotice) return;
+    setMessage(authNotice);
+    clearAuthNotice();
+  }, [authNotice, clearAuthNotice]);
 
   const submit = async () => {
     if (!email.trim() || password.length < 6 || (mode === 'signup' && !name.trim())) {
@@ -89,6 +100,18 @@ export function AuthScreen({ onBack }: Props) {
     try {
       await resetPassword(email);
       setMessage('Password reset email sent.');
+    } catch (cause) {
+      setMessage(authMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const google = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      await signInWithGoogle();
     } catch (cause) {
       setMessage(authMessage(cause));
     } finally {
@@ -244,6 +267,24 @@ export function AuthScreen({ onBack }: Props) {
                 )}
               </Pressable>
 
+              {Platform.OS === 'web' ? <>
+                <View style={styles.dividerRow} accessibilityElementsHidden>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or continue with</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Continue with Google"
+                  disabled={busy}
+                  onPress={() => void google()}
+                  style={({ pressed }) => [styles.googleButton, pressed && styles.googlePressed, busy && styles.disabled]}
+                >
+                  <Ionicons name="logo-google" size={19} color={palette.text} />
+                  <Text style={styles.googleText}>Continue with Google</Text>
+                </Pressable>
+              </> : null}
+
               <View style={styles.switchRow}>
                 <Text style={styles.switchPrompt}>
                   {mode === 'login' ? 'New to CUBO?' : 'Already have an account?'}
@@ -375,6 +416,23 @@ const makeStyles = (c: ReturnType<typeof authTheme>) => StyleSheet.create({
     fontFamily: 'Manrope_700Bold',
     fontSize: 14,
   },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.borderStrong },
+  dividerText: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 11 },
+  googleButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.borderStrong,
+    backgroundColor: c.card,
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  googlePressed: { backgroundColor: c.surfaceMuted },
+  googleText: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 14 },
   disabled: { opacity: 0.55 },
   switchRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16 },
   switchPrompt: { color: c.textSecondary, fontFamily: 'Manrope_500Medium', fontSize: 13 },

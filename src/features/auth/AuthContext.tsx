@@ -1,5 +1,5 @@
-import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, updateProfile, EmailAuthProvider, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, type User } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, updateProfile, EmailAuthProvider, GoogleAuthProvider, reauthenticateWithCredential, verifyBeforeUpdateEmail, updatePassword, type User } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,6 +8,7 @@ import { commitAccountDetails } from './commitAccountDetails';
 import { db } from '../../lib/firebase';
 import { auth } from '../../lib/firebaseAuth';
 import { syncIdentity } from './syncIdentity';
+import { finishGoogleRedirectSignIn, startGoogleSignIn } from './googleSignIn';
 
 type AuthContextValue = {
   user: User | null;
@@ -17,20 +18,57 @@ type AuthContextValue = {
   changeEmail: (email: string, currentPassword: string) => Promise<void>;
   changePassword: (password: string, currentPassword: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signUp: (name: string, email: string, password: string, details: AccountDetails) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  authNotice: string;
+  clearAuthNotice: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+async function provisionGoogleUser(user: User) {
+  if (!user.providerData.some(provider => provider.providerId === GoogleAuthProvider.PROVIDER_ID)) return;
+  const email = user.email?.trim().toLowerCase();
+  if (!email) throw Error('Your Google account did not provide an email address.');
+  const reference = doc(db, 'users', user.uid);
+  if ((await getDoc(reference)).exists()) return;
+  const fallbackName = email.split('@')[0] || 'CUBO driver';
+  const name = (user.displayName?.trim() || fallbackName).slice(0, 80);
+  await setDoc(reference, {
+    uid: user.uid,
+    name,
+    email,
+    theme: 'light',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accountDetails, setAccountDetails] = useState<AccountDetails | null>(null);
   const [provisioning, setProvisioning] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [authNotice, setAuthNotice] = useState('');
 
-  useEffect(() => onAuthStateChanged(auth, (nextUser) => { setUser(nextUser); setLoading(false); }), []);
+  useEffect(() => {
+    void finishGoogleRedirectSignIn().catch(() => setAuthNotice('Google sign-in could not be completed. Please try again.'));
+    return onAuthStateChanged(auth, async nextUser => {
+      setLoading(true);
+      try {
+        if (nextUser) await provisionGoogleUser(nextUser);
+        setUser(nextUser);
+      } catch (cause) {
+        setUser(null);
+        setAuthNotice(cause instanceof Error ? cause.message : 'CUBO could not finish setting up your Google account.');
+        await firebaseSignOut(auth).catch(() => undefined);
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     let active = true; let cloudSeen = false; setAccountDetails(null);
@@ -55,6 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.uid]);
   const signIn = useCallback(async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+  }, []);
+  const signInWithGoogle = useCallback(async () => {
+    setAuthNotice('');
+    await startGoogleSignIn();
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string, details: AccountDetails) => {
@@ -112,7 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = await reauthenticate(currentPassword);
     await updatePassword(current, password);
   }, []);
-  const value = useMemo(() => ({ user, loading: loading || provisioning, accountDetails, saveAccountDetails, changeEmail, changePassword, signIn, signUp, resetPassword, signOut }), [loading, provisioning, accountDetails, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signOut, signUp, user]);
+  const clearAuthNotice = useCallback(() => setAuthNotice(''), []);
+  const value = useMemo(() => ({ user, loading: loading || provisioning, accountDetails, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, signUp, resetPassword, signOut, authNotice, clearAuthNotice }), [loading, provisioning, accountDetails, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, signOut, signUp, user, authNotice, clearAuthNotice]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
