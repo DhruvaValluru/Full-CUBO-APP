@@ -29,8 +29,9 @@ service cloud.firestore {
         && data.keys().hasOnly(['birthDate', 'phoneNumber', 'accountType', 'ageVerification', 'phoneVerification', 'guardianStatus'])
         && data.birthDate is string && data.birthDate.size() == 10
         && data.birthDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
-        && data.phoneNumber is string && data.phoneNumber.size() >= 9 && data.phoneNumber.size() <= 16
-        && data.phoneNumber.matches('^[+][1-9][0-9]{7,14}$')
+        && data.phoneNumber is string
+        && (data.phoneNumber.size() == 0 || (data.phoneNumber.size() >= 9 && data.phoneNumber.size() <= 16
+          && data.phoneNumber.matches('^[+][1-9][0-9]{7,14}$')))
         && data.accountType in ['minor', 'adult']
         && data.ageVerification == 'self-declared'
         && data.phoneVerification == 'unverified'

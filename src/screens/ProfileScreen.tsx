@@ -36,7 +36,7 @@ export function ProfileScreen() {
       <Pressable onPress={() => navigation.navigate('SettingsDetail', { kind: 'edit' })}><Text style={styles.action}>Edit</Text></Pressable>
     </View>
 
-    {!accountDetails?.birthDate || !accountDetails?.phoneNumber || !user?.email || !profile.name.trim() ? <View style={styles.group}><Text style={[styles.rowTitle, { paddingTop: 16 }]}>Account details not set</Text><Text style={[styles.rowDetail, { paddingBottom: 16 }]}>Add your missing birth date, phone number, or name in Edit profile.</Text></View> : null}
+    {!accountDetails?.birthDate || !user?.email || !profile.name.trim() ? <View style={styles.group}><Text style={[styles.rowTitle, { paddingTop: 16 }]}>Account details not set</Text><Text style={[styles.rowDetail, { paddingBottom: 16 }]}>Add your missing birth date or name in Edit profile.</Text></View> : null}
     <Text style={styles.section}>Saved places</Text><View style={styles.group}><SettingsRow icon="home-outline" title="Home address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'home' })} colors={colors} styles={styles} /><SettingsRow icon="briefcase-outline" title="Work address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'work' })} colors={colors} styles={styles} last /></View>
     <Text style={styles.section}>Connections</Text>
     <View style={styles.group}>

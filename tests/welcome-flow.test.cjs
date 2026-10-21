@@ -25,11 +25,12 @@ test('carousel bundles six distinct compact JPEG photographs', () => {
 test('shared welcome flow replaces instant screen swap and supports reduced motion/back', () => {
   const flow = read('src/screens/WelcomeFlow.tsx');
   const app = read('App.tsx');
-  assert.match(app, /if \(!user\) return <WelcomeFlow \/>/);
+  assert.match(app, /if \(!user\) return <WelcomeFlow initialMode=/);
   assert.doesNotMatch(app, /hasStarted/);
   assert.match(flow, /duration: reduced \? 140 : login \? 440 : 340/);
   assert.match(flow, /hardwareBackPress/);
   assert.match(flow, /if \(locked.current/);
   assert.match(flow, /return \(\) => animation.stop\(\)/);
   assert.match(flow, /if \(!login\) setMounted\(false\)/);
+  assert.match(flow, /const startInAuth = !!initialMode/);
 });

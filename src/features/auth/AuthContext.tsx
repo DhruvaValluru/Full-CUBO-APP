@@ -25,6 +25,9 @@ type AuthContextValue = {
   signUp: (name: string, email: string, password: string, details: AccountDetails) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  useDifferentAccount: () => Promise<void>;
+  signedOutDestination: 'welcome' | 'signup';
+  showWelcome: () => void;
   authNotice: string;
   clearAuthNotice: () => void;
 };
@@ -59,12 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authNotice, setAuthNotice] = useState('');
+  const [signedOutDestination, setSignedOutDestination] = useState<'welcome' | 'signup'>('welcome');
 
   useEffect(() => {
     return onAuthStateChanged(auth, async nextUser => {
       setLoading(true);
       try {
         const requiresSetup = nextUser ? await provisionGoogleUser(nextUser) : false;
+        if (nextUser) setSignedOutDestination('welcome');
         setNeedsAccountSetup(requiresSetup);
         setUser(nextUser);
       } catch (cause) {
@@ -85,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const parse = (raw: unknown) => {
       try {
         const value = raw as AccountDetails;
-        if (!value?.birthDate || !value.phoneNumber) return null;
+        if (!value?.birthDate || typeof value.phoneNumber !== 'string') return null;
         const [year, month, day] = value.birthDate.split('-');
         return makeAccountDetails(`${month}/${day}/${year}`, value.phoneNumber);
       } catch { return null; }
@@ -151,9 +156,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth, email.trim().toLowerCase());
   }, []);
   const signOut = useCallback(async () => {
+    setSignedOutDestination('welcome');
     await firebaseSignOut(auth);
     setNeedsAccountSetup(false);
   }, []);
+  const useDifferentAccount = useCallback(async () => {
+    setSignedOutDestination('signup');
+    await firebaseSignOut(auth);
+    setNeedsAccountSetup(false);
+  }, []);
+  const showWelcome = useCallback(() => setSignedOutDestination('welcome'), []);
   const saveAccountDetails = useCallback(async (details: AccountDetails) => {
     const current = auth.currentUser;
     if (!current) throw Error('Sign in before changing account details.');
@@ -185,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await updatePassword(current, password);
   }, []);
   const clearAuthNotice = useCallback(() => setAuthNotice(''), []);
-  const value = useMemo(() => ({ user, loading: loading || provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, signUp, resetPassword, signOut, authNotice, clearAuthNotice }), [loading, provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, signOut, signUp, user, authNotice, clearAuthNotice]);
+  const value = useMemo(() => ({ user, loading: loading || provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, signUp, resetPassword, signOut, useDifferentAccount, signedOutDestination, showWelcome, authNotice, clearAuthNotice }), [loading, provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, signOut, useDifferentAccount, signedOutDestination, showWelcome, signUp, user, authNotice, clearAuthNotice]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

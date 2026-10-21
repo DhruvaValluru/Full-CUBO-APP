@@ -28,6 +28,7 @@ test('only incomplete Google accounts enter continued account creation', () => {
   assert.equal(googleAccountNeedsSetup(['password'], details), false);
   assert.equal(googleAccountNeedsSetup(['google.com'], undefined), true);
   assert.equal(googleAccountNeedsSetup(['google.com'], details), false);
+  assert.equal(googleAccountNeedsSetup(['google.com'], { ...details, phoneNumber: '' }), false);
 });
 
 test('new Google users must finish their private profile before entering CUBO', () => {
@@ -41,15 +42,36 @@ test('new Google users must finish their private profile before entering CUBO', 
   assert.match(source, /await firebaseSignOut\(auth\)/);
 });
 
-test('Google account completion screen collects only name, phone, and birth date', () => {
+test('Google account completion screen keeps phone optional and removes redundant success decoration', () => {
   const source = read('src/screens/GoogleAccountSetupScreen.tsx');
   const app = read('App.tsx');
   assert.match(source, /Continue account creation/);
   assert.match(source, /accessibilityLabel="Name"/);
-  assert.match(source, /accessibilityLabel="Phone number"/);
+  assert.match(source, /accessibilityLabel="Phone number \(optional\)"/);
   assert.match(source, /accessibilityLabel="Date of birth, month day year"/);
   assert.doesNotMatch(source, /accessibilityLabel="Password"/);
+  assert.doesNotMatch(source, /GOOGLE SIGN-UP|shield-checkmark|checkmark-circle/);
+  assert.match(source, /await account\.useDifferentAccount\(\)/);
   assert.match(app, /if \(needsAccountSetup\) return <GoogleAccountSetupScreen/);
+});
+
+test('switching accounts during Google setup returns directly to regular signup', () => {
+  const auth = read('src/features/auth/AuthContext.tsx');
+  const flow = read('src/screens/WelcomeFlow.tsx');
+  const app = read('App.tsx');
+  assert.match(auth, /setSignedOutDestination\('signup'\)/);
+  assert.match(auth, /useDifferentAccount/);
+  assert.match(app, /signedOutDestination === 'signup' \? 'signup'/);
+  assert.match(flow, /<AuthScreen initialMode=\{initialMode\}/);
+});
+
+test('optional phone numbers remain valid through client, cloud rules, and profile editing', () => {
+  const rules = read('firestore.rules');
+  const editor = read('src/components/AccountEditor.tsx');
+  const profile = read('src/screens/ProfileScreen.tsx');
+  assert.match(rules, /data\.phoneNumber\.size\(\) == 0/);
+  assert.match(editor, /Phone number \(optional\)/);
+  assert.doesNotMatch(profile, /!accountDetails\?\.phoneNumber/);
 });
 
 test('authentication screen keeps one compact Google action without changing email flows', () => {
@@ -60,4 +82,5 @@ test('authentication screen keeps one compact Google action without changing ema
   assert.match(source, /auth\/account-exists-with-different-credential/);
   assert.match(source, /if \(mode === 'signup'\) await signUp\(name, email, password/);
   assert.match(source, /else await signIn\(email, password\)/);
+  assert.match(source, /accessibilityLabel="Phone number \(optional\)"/);
 });

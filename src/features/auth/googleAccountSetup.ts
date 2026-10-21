@@ -4,7 +4,7 @@ function hasCompleteAccountDetails(value: unknown): value is AccountDetails {
   if (!value || typeof value !== 'object') return false;
   const details = value as Partial<AccountDetails>;
   return typeof details.birthDate === 'string' && details.birthDate.length === 10
-    && typeof details.phoneNumber === 'string' && details.phoneNumber.startsWith('+');
+    && typeof details.phoneNumber === 'string';
 }
 
 /** Email/password accounts keep their existing flow; only incomplete Google accounts are gated. */

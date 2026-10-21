@@ -18,7 +18,7 @@ export function parseBirthDate(input: string, now = new Date()): { birthDate: st
 }
 export function makeAccountDetails(birthInput: string, phoneInput: string): AccountDetails {
   const birth = parseBirthDate(birthInput);
-  const phoneNumber = phoneInput.replace(/[\s()-]/g, '');
-  if (!/^\+[1-9]\d{7,14}$/.test(phoneNumber)) throw Error('Use a phone number with country code, such as +1 919 555 0123.');
+  const phoneNumber = phoneInput.trim() ? phoneInput.replace(/[\s()-]/g, '') : '';
+  if (phoneNumber && !/^\+[1-9]\d{7,14}$/.test(phoneNumber)) throw Error('Use a phone number with country code, such as +1 919 555 0123.');
   return { birthDate: birth.birthDate, phoneNumber, accountType: birth.accountType, ageVerification: 'self-declared', phoneVerification: 'unverified', guardianStatus: 'not-linked' };
 }

@@ -29,6 +29,7 @@ export function formatPhoneInput(digits: string, code: string): string {
   return digits.match(/.{1,3}/g)?.join(' ') ?? '';
 }
 export function internationalPhone(digits: string, code: string): string {
+  if (!digits) return '';
   if ((code === '1' || code === '91') && digits.length !== 10) throw Error('Enter a complete 10-digit phone number.');
   if (!/^[1-9]\d{0,2}$/.test(code)) throw Error('Select a valid country calling code.');
   if (!/^\d+$/.test(digits) || code.length + digits.length < 8 || code.length + digits.length > 15) throw Error('Enter a complete phone number.');

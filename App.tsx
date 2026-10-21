@@ -105,7 +105,7 @@ const MainTabs = () => {
 const Wrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
 function AppNavigation() {
-  const { user, loading, needsAccountSetup } = useAuth();
+  const { user, loading, needsAccountSetup, signedOutDestination, showWelcome } = useAuth();
   const { colors, mode } = useAppearance();
   const [fontsLoaded, fontError] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, ...Ionicons.font });
   const fontsReady = fontsLoaded || !!fontError;
@@ -118,7 +118,7 @@ function AppNavigation() {
   if (fontError && Platform.OS === 'web') return <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 16, backgroundColor: colors.background }}><Text accessibilityRole="alert" style={{ color: colors.text, fontSize: 18 }}>CUBO couldn’t load its fonts. Check your connection and try again.</Text><Pressable accessibilityRole="button" onPress={() => window.location.reload()} style={{ minHeight: 48, backgroundColor: colors.accent, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: colors.onAccent }}>Reload CUBO</Text></Pressable></View>;
   if (boot !== 2 || !fontsReady || loading) return <LoadingScreen />;
   if (user && readyUid !== user.uid) return <LoadingScreen />;
-  if (!user) return <WelcomeFlow />;
+  if (!user) return <WelcomeFlow initialMode={signedOutDestination === 'signup' ? 'signup' : undefined} onReturnToWelcome={showWelcome} />;
   if (needsAccountSetup) return <GoogleAccountSetupScreen />;
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
   return (

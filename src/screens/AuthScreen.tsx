@@ -25,7 +25,7 @@ import { useAppearance } from '../theme/AppearanceContext';
 import { authTheme } from '../theme/authTheme';
 
 type Mode = 'login' | 'signup';
-type Props = { onBack?: () => void };
+type Props = { onBack?: () => void; initialMode?: Mode };
 
 function authMessage(cause: unknown) {
   if (!(cause instanceof FirebaseError)) return 'Something went wrong. Please try again.';
@@ -47,7 +47,7 @@ function authMessage(cause: unknown) {
   return messages[cause.code] ?? 'Could not complete that request. Please try again.';
 }
 
-export function AuthScreen({ onBack }: Props) {
+export function AuthScreen({ onBack, initialMode }: Props) {
   const { colors, mode: appearance } = useAppearance();
   const palette = useMemo(() => authTheme(colors, appearance), [colors, appearance]);
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -55,7 +55,7 @@ export function AuthScreen({ onBack }: Props) {
   const focusProps = (field: string) => ({ onFocus: () => setFocusedField(field), onBlur: () => setFocusedField(null), selectionColor: palette.accent, keyboardAppearance: appearance });
   const { signIn, signInWithGoogle, signUp, resetPassword, authNotice, clearAuthNotice } = useAuth();
   const compact = useWindowDimensions().height < 720;
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>(initialMode ?? 'login');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [country, setCountry] = useState<{ name: string; region: string; code: string }>(phoneCountries[0]);
@@ -77,7 +77,7 @@ export function AuthScreen({ onBack }: Props) {
 
   const submit = async () => {
     if (!email.trim() || password.length < 6 || (mode === 'signup' && !name.trim())) {
-      setMessage('Complete every field and use at least 6 password characters.');
+      setMessage('Enter your name and email, then use at least 6 password characters.');
       return;
     }
     setBusy(true);
@@ -207,9 +207,9 @@ export function AuthScreen({ onBack }: Props) {
                 </View>
 
                 {mode === 'signup' ? <>
-                  <View style={styles.field}><Text style={styles.label}>Phone number</Text><View style={styles.phoneRow}>
+                  <View style={styles.field}><Text style={styles.label}>Phone number <Text style={styles.optional}>(optional)</Text></Text><View style={styles.phoneRow}>
                     <Pressable accessibilityRole="button" accessibilityLabel={`Country calling code: ${country.name}, +${country.code}`} onPress={() => setCountryPicker(true)} style={styles.countryButton}><Text style={styles.countryText}>{country.region} +{country.code}</Text><Ionicons name="chevron-down" size={14} color={palette.textSecondary} /></Pressable>
-                    <TextInput {...focusProps('phone')} accessibilityLabel="Phone number" autoComplete="tel-national" keyboardType="phone-pad" value={formatPhoneInput(phone, country.code)} onChangeText={value => setPhone(phoneDigits(value, country.code))} placeholder={country.code === '1' ? '(919) 555-0123' : 'Phone number'} placeholderTextColor={palette.textSecondary} style={[styles.input, styles.phoneInput, focusedField === 'phone' && styles.inputFocused]} />
+                    <TextInput {...focusProps('phone')} accessibilityLabel="Phone number (optional)" autoComplete="tel-national" keyboardType="phone-pad" value={formatPhoneInput(phone, country.code)} onChangeText={value => setPhone(phoneDigits(value, country.code))} placeholder={country.code === '1' ? '(919) 555-0123' : 'Phone number'} placeholderTextColor={palette.textSecondary} style={[styles.input, styles.phoneInput, focusedField === 'phone' && styles.inputFocused]} />
                   </View></View>
                   <View style={styles.field}><Text style={styles.label}>Date of birth</Text><TextInput {...focusProps('birth')} accessibilityLabel="Date of birth, month day year" keyboardType="number-pad" value={birthDate} onChangeText={value => { setBirthDate(previous => formatBirthInput(value, previous)); setBirthError(''); }} onBlur={() => { setFocusedField(null); if (!birthDate) return; try { parseBirthDate(birthDate); setBirthError(''); } catch (error) { setBirthError(error instanceof Error ? error.message : 'Enter a valid birth date.'); } }} placeholder="MM/DD/YYYY" maxLength={10} placeholderTextColor={palette.textSecondary} style={[styles.input, focusedField === 'birth' && styles.inputFocused]} />{birthError ? <Text accessibilityRole="alert" style={styles.fieldError}>{birthError}</Text> : null}<Text style={{ color: palette.textSecondary, fontSize: 11, lineHeight: 17 }}>Type month, day, then year—we add the slashes. Under 18 accounts are marked as minor accounts. Age is self-declared; phone verification and guardian linking are coming later.</Text></View>
                 </> : null}
@@ -360,6 +360,7 @@ const makeStyles = (c: ReturnType<typeof authTheme>) => StyleSheet.create({
     fontFamily: 'Manrope_600SemiBold',
     fontSize: 13,
   },
+  optional: { color: c.textSecondary, fontFamily: 'Manrope_500Medium' },
   input: {
     minHeight: 52,
     borderWidth: 1,

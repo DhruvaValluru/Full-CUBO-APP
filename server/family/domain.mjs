@@ -80,7 +80,7 @@ export function ageOf(birthDate, now = new Date()) {
 }
 export function isMinor(birthDate) { try { return ageOf(birthDate) < 18; } catch { return false; } }
 export function updateAccount(state, who, input) {
-  if (!input || typeof input.phoneNumber !== 'string' || !/^\+[1-9]\d{7,14}$/.test(input.phoneNumber)) throw Error('Enter a valid phone number with country code.');
+  if (!input || typeof input.phoneNumber !== 'string' || (input.phoneNumber && !/^\+[1-9]\d{7,14}$/.test(input.phoneNumber))) throw Error('Enter a valid phone number with country code, or leave it blank.');
   const age = ageOf(input.birthDate);
   if (age < 18 && (state.guardians[who.uid] || Object.values(state.memberships).includes(who.uid))) throw Error('An Organizer or Parent/Guardian must keep an adult account. Resolve family permissions before changing to a minor birth date.');
   const previous = state.profiles[who.uid].account;
@@ -98,9 +98,9 @@ export function requestAgeChange(state, who, birthDate, phoneNumber) {
   const previous = state.profiles[who.uid].account;
   if (previous && !isMinor(previous.birthDate)) throw Error('Adult accounts can edit their own birth date.');
   if (state.ageRequests.some(item => item.uid === who.uid && item.status === 'pending')) throw Error('A birth-date change is already waiting for approval.');
-  if (!previous && (typeof phoneNumber !== 'string' || !/^\+[1-9]\d{7,14}$/.test(phoneNumber))) throw Error('Include a complete phone number with this request.');
+  if (!previous && (phoneNumber != null && (typeof phoneNumber !== 'string' || (phoneNumber && !/^\+[1-9]\d{7,14}$/.test(phoneNumber))))) throw Error('Enter a valid phone number with country code, or leave it blank.');
   if (previous?.birthDate === birthDate) throw Error('Choose a different date of birth.');
-  const item = { id: randomUUID(), uid: who.uid, name: who.name, organizerUid, previousBirthDate: previous?.birthDate ?? null, birthDate, phoneNumber: previous?.phoneNumber ?? phoneNumber, status: 'pending', createdAt: new Date().toISOString() };
+  const item = { id: randomUUID(), uid: who.uid, name: who.name, organizerUid, previousBirthDate: previous?.birthDate ?? null, birthDate, phoneNumber: previous?.phoneNumber ?? phoneNumber ?? '', status: 'pending', createdAt: new Date().toISOString() };
   state.ageRequests.push(item);
   notice(state, organizerUid, 'Birth-date approval needed', who.name + ' requested a date-of-birth change. Review it in Your family.');
   Object.keys(state.guardians).filter(uid => state.guardians[uid] === organizerUid).forEach(uid => notice(state, uid, 'Birth-date approval needed', who.name + ' requested a date-of-birth change. Review it in Your family.'));

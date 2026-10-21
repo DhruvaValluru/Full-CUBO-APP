@@ -80,6 +80,11 @@ test('family snapshot does not expose other members phone numbers or dates of bi
   assert.equal(value.members.some(item => 'account' in item), false);
   assert.equal(value.account.birthDate, '1980-01-01');
 });
+test('account phone number is optional but invalid non-empty values are rejected', () => {
+  const state = freshState(); register(state, parent);
+  assert.equal(updateAccount(state, parent, { birthDate: '1980-01-01', phoneNumber: '' }).phoneNumber, '');
+  assert.throws(() => updateAccount(state, parent, { birthDate: '1980-01-01', phoneNumber: '9195550123' }));
+});
 test('feedback stays queued until provider configuration, validates lengths and rate limits', () => {
   const { state } = linkedFamily();
   assert.throws(() => submitFeedback(state, parent, { kind: 'bug', subject: 'x', message: 'short' }));

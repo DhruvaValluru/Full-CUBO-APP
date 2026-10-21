@@ -6,13 +6,16 @@ import { AuthScreen } from './AuthScreen';
 import { WelcomeScreen } from './WelcomeScreen';
 
 /** Both screens share one transition so there is no blank frame between them. */
-export function WelcomeFlow() {
+type Props = { initialMode?: 'login' | 'signup'; onReturnToWelcome?: () => void };
+
+export function WelcomeFlow({ initialMode, onReturnToWelcome }: Props) {
   const { colors } = useAppearance();
   const reduced = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const startInAuth = !!initialMode;
+  const progress = useRef(new Animated.Value(startInAuth ? 1 : 0)).current;
   const locked = useRef(false);
-  const [login, setLogin] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [login, setLogin] = useState(startInAuth);
+  const [mounted, setMounted] = useState(startInAuth);
   const [moving, setMoving] = useState(false);
 
   const navigate = (next: boolean) => {
@@ -53,7 +56,7 @@ export function WelcomeFlow() {
     </Animated.View>
     {mounted ? <Animated.View pointerEvents={!login || moving ? 'none' : 'auto'} accessibilityElementsHidden={!login} importantForAccessibility={!login ? 'no-hide-descendants' : 'auto'}
       style={[styles.layer, { opacity: progress, transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [reduced ? 0 : 48, 0] }) }] }]}>
-      <AuthScreen onBack={() => navigate(false)} />
+      <AuthScreen initialMode={initialMode} onBack={() => { onReturnToWelcome?.(); navigate(false); }} />
     </Animated.View> : null}
   </View>;
 }

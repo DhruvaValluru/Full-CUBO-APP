@@ -77,6 +77,7 @@ test('phone entry formats locally and stores the selected calling code', () => {
   assert.equal(formatPhoneInput('9195550123', '1'), '(919) 555-0123');
   assert.equal(internationalPhone('9195550123', '1'), '+19195550123');
   assert.equal(internationalPhone('9876543210', '91'), '+919876543210');
+  assert.equal(internationalPhone('', '1'), '');
   assert.throws(() => internationalPhone('919', '1'));
 });
 test('age classification changes on the eighteenth birthday and rejects impossible dates', () => {
@@ -87,6 +88,7 @@ test('age classification changes on the eighteenth birthday and rejects impossib
   assert.throws(() => parseBirthDate('10/09/2030', now));
   assert.throws(() => makeAccountDetails('10/09/2008', '9195550123'));
   assert.equal(makeAccountDetails('10/09/2008', '+1 (919) 555-0123').phoneVerification, 'unverified');
+  assert.equal(makeAccountDetails('10/09/2008', '').phoneNumber, '');
 });
 test('Cruise recognizer requires trusted stable signals and refuses ambiguous cars', () => {
   const now = 10000; const bindings = [{ deviceId: 'a', vehicleId: 'car-a' }, { deviceId: 'b', vehicleId: 'car-b' }];
