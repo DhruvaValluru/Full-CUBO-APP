@@ -10,6 +10,7 @@ import { auth } from '../../lib/firebaseAuth';
 import { syncIdentity } from './syncIdentity';
 import { startGoogleSignIn } from './googleSignIn';
 import { googleAccountNeedsSetup } from './googleAccountSetup';
+import { linkCurrentUserWithGoogle } from './linkGoogleAccount';
 
 type AuthContextValue = {
   user: User | null;
@@ -22,6 +23,8 @@ type AuthContextValue = {
   changePassword: (password: string, currentPassword: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  googleLinked: boolean;
+  linkGoogleAccount: () => Promise<void>;
   signUp: (name: string, email: string, password: string, details: AccountDetails) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -62,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authNotice, setAuthNotice] = useState('');
+  const [providerRevision, setProviderRevision] = useState(0);
   const [signedOutDestination, setSignedOutDestination] = useState<'welcome' | 'signup'>('welcome');
 
   useEffect(() => {
@@ -110,6 +114,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     setAuthNotice('');
     await startGoogleSignIn();
+  }, []);
+  const googleLinked = user?.providerData.some(provider => provider.providerId === GoogleAuthProvider.PROVIDER_ID) ?? false;
+  const linkGoogleAccount = useCallback(async () => {
+    await linkCurrentUserWithGoogle();
+    setProviderRevision(value => value + 1);
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string, details: AccountDetails) => {
@@ -197,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await updatePassword(current, password);
   }, []);
   const clearAuthNotice = useCallback(() => setAuthNotice(''), []);
-  const value = useMemo(() => ({ user, loading: loading || provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, signUp, resetPassword, signOut, useDifferentAccount, signedOutDestination, showWelcome, authNotice, clearAuthNotice }), [loading, provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, signOut, useDifferentAccount, signedOutDestination, showWelcome, signUp, user, authNotice, clearAuthNotice]);
+  const value = useMemo(() => ({ user, loading: loading || provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, signIn, signInWithGoogle, googleLinked, linkGoogleAccount, signUp, resetPassword, signOut, useDifferentAccount, signedOutDestination, showWelcome, authNotice, clearAuthNotice }), [loading, provisioning, needsAccountSetup, accountDetails, completeGoogleAccountSetup, saveAccountDetails, changeEmail, changePassword, resetPassword, signIn, signInWithGoogle, googleLinked, linkGoogleAccount, providerRevision, signOut, useDifferentAccount, signedOutDestination, showWelcome, signUp, user, authNotice, clearAuthNotice]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

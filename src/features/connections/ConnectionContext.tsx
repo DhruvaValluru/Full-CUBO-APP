@@ -5,7 +5,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { db } from '../../lib/firebase';
 import { useAuth } from '../auth/AuthContext';
 import { useDrives } from '../drives/DriveContext';
-import { useProfile } from '../profile/ProfileContext';
+import type { AccountDetails } from '../auth/accountDetails';
 import { connectionPairId, dedupeConnections } from './connectionIdentity';
 
 export type ConnectionKind = 'family' | 'friend';
@@ -48,12 +48,27 @@ export type CuboConnection = {
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
+export type BirthDateChangeRequest = {
+  id: string;
+  connectionId: string;
+  organizerUid: string;
+  organizerName: string;
+  minorUid: string;
+  minorName: string;
+  previousBirthDate: string;
+  requestedBirthDate: string;
+  requestedAccountType: 'minor' | 'adult';
+  status: 'pending' | 'approved' | 'denied';
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};
 type ShareKey = 'score' | 'location';
 type CreatedCode = { code: string; expiresAt: Date; kind: ConnectionKind };
 type ConnectionContextValue = {
   connections: CuboConnection[];
   incoming: ConnectionRequest[];
   outgoing: ConnectionRequest[];
+  birthDateRequests: BirthDateChangeRequest[];
   loading: boolean;
   error: string;
   canGenerateFamilyCode: boolean;
@@ -63,6 +78,8 @@ type ConnectionContextValue = {
   declineRequest: (request: ConnectionRequest) => Promise<void>;
   setSharing: (connection: CuboConnection, key: ShareKey, enabled: boolean) => Promise<void>;
   removeConnection: (connection: CuboConnection) => Promise<void>;
+  requestBirthDateChange: (details: AccountDetails) => Promise<void>;
+  reviewBirthDateChange: (request: BirthDateChangeRequest, approved: boolean) => Promise<void>;
 };
 
 const ConnectionContext = createContext<ConnectionContextValue | null>(null);
@@ -86,29 +103,35 @@ function averageScore(sessions: ReturnType<typeof useDrives>['sessions']) {
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const { user, accountDetails } = useAuth();
-  const { profile } = useProfile();
   const { sessions } = useDrives();
   const [rawConnections, setRawConnections] = useState<CuboConnection[]>([]);
   const connections = useMemo(() => dedupeConnections(rawConnections), [rawConnections]);
   const [incoming, setIncoming] = useState<ConnectionRequest[]>([]);
   const [outgoing, setOutgoing] = useState<ConnectionRequest[]>([]);
+  const [birthDateRequests, setBirthDateRequests] = useState<BirthDateChangeRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setRawConnections([]); setIncoming([]); setOutgoing([]); setError('');
+    setRawConnections([]); setIncoming([]); setOutgoing([]); setBirthDateRequests([]); setError('');
     if (!user) return;
     const incomingQuery = query(collection(db, 'connectionRequests'), where('ownerUid', '==', user.uid));
     const outgoingQuery = query(collection(db, 'connectionRequests'), where('requesterUid', '==', user.uid));
     const ownedQuery = query(collection(db, 'connections'), where('ownerUid', '==', user.uid));
     const joinedQuery = query(collection(db, 'connections'), where('memberUid', '==', user.uid));
+    const organizedBirthChanges = query(collection(db, 'birthDateChangeRequests'), where('organizerUid', '==', user.uid));
+    const requestedBirthChanges = query(collection(db, 'birthDateChangeRequests'), where('minorUid', '==', user.uid));
     let owned: CuboConnection[] = []; let joined: CuboConnection[] = [];
+    let organized: BirthDateChangeRequest[] = []; let requested: BirthDateChangeRequest[] = [];
     const merge = () => setRawConnections([...owned, ...joined].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
+    const mergeBirthChanges = () => setBirthDateRequests([...organized, ...requested].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
     const unsubs = [
       onSnapshot(incomingQuery, snap => setIncoming(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest)).filter(item => item.status === 'pending')), cause => setError(cause.message)),
       onSnapshot(outgoingQuery, snap => setOutgoing(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest)).filter(item => item.status === 'pending')), cause => setError(cause.message)),
       onSnapshot(ownedQuery, snap => { owned = snap.docs.map(item => ({ id: item.id, ...item.data() } as CuboConnection)); merge(); }, cause => setError(cause.message)),
       onSnapshot(joinedQuery, snap => { joined = snap.docs.map(item => ({ id: item.id, ...item.data() } as CuboConnection)); merge(); }, cause => setError(cause.message)),
+      onSnapshot(organizedBirthChanges, snap => { organized = snap.docs.map(item => ({ id: item.id, ...item.data() } as BirthDateChangeRequest)); mergeBirthChanges(); }, cause => setError(cause.message)),
+      onSnapshot(requestedBirthChanges, snap => { requested = snap.docs.map(item => ({ id: item.id, ...item.data() } as BirthDateChangeRequest)); mergeBirthChanges(); }, cause => setError(cause.message)),
     ];
     return () => unsubs.forEach(unsub => unsub());
   }, [user?.uid]);
@@ -131,6 +154,21 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     }
   }, [rawConnections, user?.uid]);
 
+  // Backfill the protected minor-membership marker for family links created by
+  // earlier builds. It lets Firestore require organizer approval for DOB edits.
+  useEffect(() => {
+    if (!user) return;
+    for (const item of connections) {
+      if (item.kind !== 'family' || item.memberAccountType !== 'minor') continue;
+      void setDoc(doc(db, 'familyMemberships', item.memberUid), {
+        minorUid: item.memberUid,
+        organizerUid: item.ownerUid,
+        connectionId: item.id,
+        createdAt: item.createdAt ?? serverTimestamp(),
+      }).catch(() => undefined);
+    }
+  }, [connections, user?.uid]);
+
   const currentScore = useMemo(() => averageScore(sessions), [sessions]);
   const currentScoreMeasured = useMemo(() => sessions.some(item => item.attentionMeasured), [sessions]);
   useEffect(() => {
@@ -147,9 +185,18 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [connections, currentScore, currentScoreMeasured, user?.uid]);
 
   const canGenerateFamilyCode = accountDetails?.accountType === 'adult' && !connections.some(item => item.kind === 'family' && item.memberUid === user?.uid);
+  const loadIdentity = useCallback(async () => {
+    if (!user) throw Error('Sign in before continuing.');
+    const snapshot = await getDoc(doc(db, 'users', user.uid));
+    const data = snapshot.data();
+    if (!snapshot.exists() || typeof data?.name !== 'string' || !data.accountDetails) throw Error('Finish setting up your CUBO profile before continuing.');
+    return { name: data.name as string, details: data.accountDetails as AccountDetails };
+  }, [user?.uid]);
   const createCode = useCallback(async (kind: ConnectionKind) => {
     if (!user) throw Error('Sign in before creating a code.');
-    if (kind === 'family' && !canGenerateFamilyCode) throw Error(accountDetails?.accountType === 'minor' ? 'Minors can enter a Family code, but only an adult organizer can create one.' : 'Only the family organizer can create another Family code.');
+    const identity = await loadIdentity();
+    if (kind === 'family' && identity.details.accountType === 'minor') throw Error('You’re signed in as a minor and are not eligible to generate a Family code. Ask an adult organizer to create one for you.');
+    if (kind === 'family' && !canGenerateFamilyCode) throw Error('Only the family organizer can create another Family code.');
     setLoading(true); setError('');
     try {
       for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -157,18 +204,19 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         const reference = doc(db, 'connectionCodes', code);
         if ((await getDoc(reference)).exists()) continue;
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-        await setDoc(reference, { code, kind, ownerUid: user.uid, ownerName: profile.name, status: 'active', createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(expiresAt) });
+        await setDoc(reference, { code, kind, ownerUid: user.uid, ownerName: identity.name, status: 'active', createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(expiresAt) });
         return { code, expiresAt, kind };
       }
       throw Error('Could not reserve a code. Try again.');
     } finally { setLoading(false); }
-  }, [accountDetails?.accountType, canGenerateFamilyCode, profile.name, user?.uid]);
+  }, [canGenerateFamilyCode, loadIdentity, user?.uid]);
 
   const enterCode = useCallback(async (rawCode: string, expectedKind: ConnectionKind) => {
-    if (!user || !accountDetails) throw Error('Finish setting up your account before joining.');
+    if (!user) throw Error('Finish setting up your account before joining.');
     const code = normalizeCode(rawCode);
     setLoading(true); setError('');
     try {
+      const identity = await loadIdentity();
       const codeSnap = await getDoc(doc(db, 'connectionCodes', code));
       if (!codeSnap.exists()) throw Error('That code was not found. Check it and try again.');
       const data = codeSnap.data();
@@ -180,12 +228,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       const previous = await getDoc(doc(db, 'connectionRequests', requestId));
       if (previous.exists() && previous.data().status === 'pending') throw Error('A request between these accounts is already waiting for approval.');
       if (previous.exists() && previous.data().status === 'approved') throw Error(`This person is already in your ${data.kind === 'family' ? 'family' : 'friends'}.`);
-      const request: Omit<ConnectionRequest, 'id'> = { code, kind: data.kind, ownerUid: data.ownerUid, ownerName: data.ownerName, requesterUid: user.uid, requesterName: profile.name, requesterAccountType: accountDetails.accountType, status: 'pending' };
+      const request: Omit<ConnectionRequest, 'id'> = { code, kind: data.kind, ownerUid: data.ownerUid, ownerName: data.ownerName, requesterUid: user.uid, requesterName: identity.name, requesterAccountType: identity.details.accountType, status: 'pending' };
       if (previous.exists()) await updateDoc(doc(db, 'connectionRequests', requestId), { ...request, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       else await setDoc(doc(db, 'connectionRequests', requestId), { ...request, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return { id: requestId, ...request };
     } finally { setLoading(false); }
-  }, [accountDetails, connections, profile.name, user?.uid]);
+  }, [connections, loadIdentity, user?.uid]);
 
   const approveRequest = useCallback(async (request: ConnectionRequest) => {
     if (!user || request.ownerUid !== user.uid) throw Error('Only the code owner can approve this request.');
@@ -202,6 +250,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         ownerScore: null, memberScore: null, ownerScoreMeasured: false, memberScoreMeasured: false, ownerLatitude: null, ownerLongitude: null, ownerLocationAt: null, memberLatitude: null, memberLongitude: null, memberLocationAt: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
+      if (request.kind === 'family' && request.requesterAccountType === 'minor') batch.set(doc(db, 'familyMemberships', request.requesterUid), { minorUid: request.requesterUid, organizerUid: request.ownerUid, connectionId, createdAt: serverTimestamp() });
       batch.update(doc(db, 'connectionCodes', request.code), { status: 'closed' });
       await batch.commit();
     } finally { setLoading(false); }
@@ -245,11 +294,48 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const request = await getDoc(requestRef);
     const batch = writeBatch(db);
     batch.delete(doc(db, 'connections', connection.id));
+    if (connection.kind === 'family' && connection.memberAccountType === 'minor') batch.delete(doc(db, 'familyMemberships', connection.memberUid));
     if (request.exists()) batch.delete(requestRef);
     await batch.commit();
   }, [user?.uid]);
 
-  const value = useMemo<ConnectionContextValue>(() => ({ connections, incoming, outgoing, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection }), [connections, incoming, outgoing, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection]);
+  const requestBirthDateChange = useCallback(async (details: AccountDetails) => {
+    if (!user || !accountDetails) throw Error('Sign in before changing your birth date.');
+    const familyConnection = connections.find(item => item.kind === 'family' && item.memberUid === user.uid && item.memberAccountType === 'minor');
+    if (!familyConnection) throw Error('No parent or organizer is linked to approve this change.');
+    if (birthDateRequests.some(item => item.minorUid === user.uid && item.status === 'pending')) throw Error('A birth-date change is already waiting for your family organizer.');
+    await setDoc(doc(db, 'birthDateChangeRequests', user.uid), {
+      connectionId: familyConnection.id,
+      organizerUid: familyConnection.ownerUid,
+      organizerName: familyConnection.ownerName,
+      minorUid: user.uid,
+      minorName: familyConnection.memberName,
+      previousBirthDate: accountDetails.birthDate,
+      requestedBirthDate: details.birthDate,
+      requestedAccountType: details.accountType,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }, [accountDetails, birthDateRequests, connections, user?.uid]);
+
+  const reviewBirthDateChange = useCallback(async (request: BirthDateChangeRequest, approved: boolean) => {
+    if (!user || request.organizerUid !== user.uid) throw Error('Only this family organizer can review the change.');
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'birthDateChangeRequests', request.id), { status: approved ? 'approved' : 'denied', updatedAt: serverTimestamp() });
+    if (approved) {
+      batch.update(doc(db, 'users', request.minorUid), {
+        'accountDetails.birthDate': request.requestedBirthDate,
+        'accountDetails.accountType': request.requestedAccountType,
+        updatedAt: serverTimestamp(),
+      });
+      batch.update(doc(db, 'connections', request.connectionId), { memberAccountType: request.requestedAccountType, updatedAt: serverTimestamp() });
+      if (request.requestedAccountType === 'adult') batch.delete(doc(db, 'familyMemberships', request.minorUid));
+    }
+    await batch.commit();
+  }, [user?.uid]);
+
+  const value = useMemo<ConnectionContextValue>(() => ({ connections, incoming, outgoing, birthDateRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange }), [connections, incoming, outgoing, birthDateRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange]);
   return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>;
 }
 

@@ -59,7 +59,7 @@ test('recovery finishes only the interrupted trip without counting offline time 
 });
 test('email updates stay owned, match Auth identity and require verification for changed addresses', () => {
   const rules = fs.readFileSync('firestore.rules', 'utf8');
-  assert.match(rules, /allow update: if isOwner\(userId\)/);
+  assert.match(rules, /allow update: if \(isOwner\(userId\)/);
   assert.match(rules, /request.resource.data.email == request.auth.token.email/);
   assert.match(rules, /request.resource.data.email == resource.data.email \|\| request.auth.token.email_verified == true/);
   for (const file of ['src/features/auth/AuthContext.tsx', 'src/features/profile/ProfileContext.tsx']) assert.match(fs.readFileSync(file, 'utf8'), /await syncIdentity\(/);

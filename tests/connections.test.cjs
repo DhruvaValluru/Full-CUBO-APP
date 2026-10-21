@@ -23,9 +23,34 @@ test('Home and Account expose the separated Family and Friends flow', () => {
   assert.match(profile, /title="Drive Activity"/);
   assert.match(profile, /title="Camera Calibration"/);
   assert.match(screen, /Friend connections only share/);
-  assert.match(screen, /Minor accounts can enter a Family code|A minor can enter a Family code/);
+  assert.match(screen, /Minor accounts are not eligible to generate Family codes/);
   assert.match(screen, /enterCode\(code, kind\)/);
   assert.match(screen, /This is a.*code|Codes only work in their matching section/);
+});
+
+test('minor family accounts require organizer review and friend removal asks first', () => {
+  const provider = fs.readFileSync('src/features/connections/ConnectionContext.tsx', 'utf8');
+  const account = fs.readFileSync('src/components/AccountEditor.tsx', 'utf8');
+  const profile = fs.readFileSync('src/screens/ConnectionProfileScreen.tsx', 'utf8');
+  const screen = fs.readFileSync('src/screens/ConnectionsScreen.tsx', 'utf8');
+  const notifications = fs.readFileSync('src/screens/NotificationsScreen.tsx', 'utf8');
+  assert.match(provider, /birthDateChangeRequests/);
+  assert.match(provider, /requestBirthDateChange/);
+  assert.match(provider, /reviewBirthDateChange/);
+  assert.match(account, /family organizer must approve/);
+  assert.match(profile, /Birth-Date Change/);
+  assert.match(notifications, /requested an age change/);
+  assert.match(screen, /<ConfirmSheet visible=\{confirmRemove\}/);
+});
+
+test('email accounts can link Google without replacing their CUBO identity', () => {
+  const auth = fs.readFileSync('src/features/auth/AuthContext.tsx', 'utf8');
+  const editor = fs.readFileSync('src/components/AccountEditor.tsx', 'utf8');
+  const linker = fs.readFileSync('src/features/auth/linkGoogleAccount.web.ts', 'utf8');
+  assert.match(auth, /googleLinked/);
+  assert.match(auth, /linkGoogleAccount/);
+  assert.match(editor, /Link your Google account/);
+  assert.match(linker, /linkWithPopup\(current, googleProvider\)/);
 });
 
 test('join codes require approval and friend sharing stays opt-in', () => {
