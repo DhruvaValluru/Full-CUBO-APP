@@ -186,8 +186,8 @@ test('natural navigation, vehicle, family, hazard and confirmation variants use 
     ['how much time remaining', /10 minutes/],
     ['how long to go', /10 minutes/],
     ['which car am I driving today', /Toyota Prius/],
-    ['what is my oldest child score', /89/],
-    ['what is child number two score', /92/],
+    ['what is my oldest child score', /real linked accounts/],
+    ['what is child number two score', /real linked accounts/],
   ]) assert.match(c.answer(question, d).text, expected, question);
   assert.match(c.answer('please report an accident', d).text, /Save crash/);
   assert.equal(c.answer('go ahead', d).report.kind, 'crash');
@@ -214,12 +214,12 @@ test('ending read-aloud releases the interruption microphone and delayed restart
   } finally { voice.dispose(); global.window = oldWindow; global.SpeechSynthesisUtterance = oldUtterance; }
 });
 
-test('web start drive no longer routes through camera setup; saved calibration and demo map remain', () => {
+test('web start drive no longer routes through camera setup; saved calibration and shared map remain', () => {
   const map = fs.readFileSync('src/screens/MapScreen.web.tsx', 'utf8');
   assert.doesNotMatch(map, /navigate\('LiveDrive'\)|awaitingCamera|cameraConfirmation/);
   assert.match(map, /startDrive\(\); setNavigating\(true\)/);
   assert.match(map, /<DriveAttentionCamera/);
   assert.match(fs.readFileSync('src/components/DriveAttentionCamera.tsx', 'utf8'), /readCalibration\(\)/);
-  const demo = fs.readFileSync('src/components/DemoLiveMap.web.tsx', 'utf8');
-  assert.match(demo, /DrivingMap.web/); assert.match(demo, /fictional Raleigh/); assert.doesNotMatch(demo, /getCurrentPosition|watchPosition/);
+  const shared = fs.readFileSync('src/components/SharedLocationMap.web.tsx', 'utf8');
+  assert.match(shared, /DrivingMap.web/); assert.match(shared, /shared location/); assert.doesNotMatch(shared, /getCurrentPosition|watchPosition/);
 });

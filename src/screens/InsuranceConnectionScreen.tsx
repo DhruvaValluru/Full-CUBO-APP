@@ -7,17 +7,20 @@ import { ScreenShell } from '../components/ScreenShell';
 import { MotionPressable } from '../components/MotionPressable';
 import { InsurerLogo } from '../components/InsurerLogo';
 import { insuranceProviders, useInsurance } from '../features/insurance/InsuranceContext';
-import { findDemoMember } from '../features/family/demoFamily';
 import { useProfile } from '../features/profile/ProfileContext';
+import { useDrives } from '../features/drives/DriveContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/types';
 
-export function InsuranceConnectionScreen({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'InsuranceConnection'>) {
+export function InsuranceConnectionScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'InsuranceConnection'>) {
   const { colors: c } = useAppearance(); const s = styles(c); const settings = useInsurance(); const { profile } = useProfile();
-  const demoMember = findDemoMember(route.params?.demoMemberId);
-  const reportName = demoMember?.name ?? profile.name;
+  const { sessions } = useDrives();
+  const reportName = profile.name;
+  const measured = sessions.filter(item => item.attentionMeasured);
+  const score = measured.length ? Math.round(measured.reduce((total, item) => total + item.focusScore, 0) / measured.length) : 100;
+  const miles = sessions.reduce((total, item) => total + item.distanceMiles, 0);
   const reduced = useReducedMotion(); const counter = useRef(new Animated.Value(0)).current;
   const [nameTouched, setNameTouched] = useState(false);
   const [amount, setAmount] = useState(0); const [name, setName] = useState('');
@@ -39,12 +42,12 @@ export function InsuranceConnectionScreen({ navigation, route }: NativeStackScre
     setNameTouched(true);
     if (!matches || !selected || stage !== 'confirm') return;
     setStage('sending');
-    timer.current = setTimeout(() => { if (!demoMember) settings.shareDemoReport(); setName(''); setStage('success'); }, 1000);
+    timer.current = setTimeout(() => { settings.shareDemoReport(); setName(''); setStage('success'); }, 1000);
   };
   const busy = stage === 'sending';
   return <ScreenShell>
     <AppHeader title="Insurance" onBack={() => navigation.goBack()} />
-    <Text style={s.copy}>Demo preview · sample driving data{demoMember ? ` · ${demoMember.name}` : ''}</Text>
+    <Text style={s.copy}>Insurance preview · your saved driving summary</Text>
     <View style={s.savings}>
       <Text style={s.heroLabel}>Your safer driving could add up.</Text>
       <Text style={s.amount}>${amount}<Text style={s.per}> / year</Text></Text>
@@ -52,7 +55,7 @@ export function InsuranceConnectionScreen({ navigation, route }: NativeStackScre
       <View style={s.rule} /><Text style={s.heroBody}>$180/month → $153/month · example 15% discount</Text>
       <Text style={s.disclaimer}>Example only. Your insurer determines eligibility and pricing. No discount is guaranteed.</Text>
     </View>
-    <View style={s.metrics}>{[[String(demoMember?.score ?? 94), 'Safety score'], [String(demoMember?.trips ?? 28), 'Sample trips'], [String(demoMember?.miles ?? 412), 'Sample miles']].map(([value, label]) => <View key={label} style={s.metric}><Text style={s.value}>{value}</Text><Text style={s.small}>{label}</Text></View>)}</View>
+    <View style={s.metrics}>{[[String(score), measured.length ? 'Safety score' : 'Starter score'], [String(sessions.length), 'Saved trips'], [miles.toFixed(1), 'Saved miles']].map(([value, label]) => <View key={label} style={s.metric}><Text style={s.value}>{value}</Text><Text style={s.small}>{label}</Text></View>)}</View>
     <Text style={s.heading}>Your insurer</Text>
     <View style={s.providers}>{insuranceProviders.map(p => <MotionPressable key={p.id} disabled={busy} accessibilityRole="radio" accessibilityState={{ checked: settings.providerId === p.id }} style={[s.provider, settings.providerId === p.id && s.selected]} onPress={() => { settings.setProvider(p.id); reset(); }}><InsurerLogo id={p.id} /><Text style={[s.label, { flex: 1 }]}>{p.name}</Text><Ionicons name={settings.providerId === p.id ? 'checkmark-circle' : 'ellipse-outline'} color={settings.providerId === p.id ? c.accent : c.textSecondary} size={21} /></MotionPressable>)}</View>
     {settings.providerId === 'other' && <View style={{ gap: 8 }}><Text style={s.label}>Insurance company name</Text><TextInput accessibilityLabel="Insurance company name" editable={!busy} value={settings.customProviderName ?? ''} onChangeText={value => { settings.setCustomProviderName(value); reset(); }} placeholder="Enter your insurer" placeholderTextColor={c.textSecondary} maxLength={80} autoCapitalize="words" autoCorrect={false} style={s.input} /><Text style={s.small}>Enter a name to continue with your demo report.</Text></View>}

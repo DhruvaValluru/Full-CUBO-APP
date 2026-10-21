@@ -16,7 +16,7 @@ export function accountContext(input: AccountSnapshot): string {
     vehicleCount: input.vehiclesReady ? input.vehicles.length : null,
     otherVehicles: input.vehiclesReady ? input.vehicles.filter(v => v !== selected).slice(0, 2).map(car) : [],
     completedTrips: completed.length, measuredTrips: measured.length,
-    averageFocusOutOf100: measured.length ? Math.round(measured.reduce((n, t) => n + t.focusScore, 0) / measured.length) : null,
+    averageFocusOutOf100: measured.length ? Math.round(measured.reduce((n, t) => n + t.focusScore, 0) / measured.length) : 100,
     savedMiles: Math.min(9999999, completed.reduce((n, t) => n + (Number.isFinite(t.distanceMiles) && t.distanceMiles > 0 ? t.distanceMiles : 0), 0)).toFixed(1),
     calibration: input.calibration,
   };

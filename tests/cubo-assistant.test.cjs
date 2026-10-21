@@ -13,15 +13,15 @@ const { AssistantVoice } = load('src/features/cuboAI/assistantVoice.ts');
 const { appAnswer } = load('src/features/cuboAI/appAnswers.ts');
 const { readState, writeState } = load('src/features/cuboAI/localState.ts');
 const store = () => { const m = new Map(); return { getItem: key => m.get(key) ?? null, setItem: (key, value) => m.set(key, value), removeItem: key => m.delete(key) }; };
-test('typed and spoken questions share fresh saved account answers and family followups', async () => {
+test('typed and spoken questions share fresh saved account answers without fictional family facts', async () => {
   let vehicle = 'Toyota Prius';
   const session = new CuboAISession({ uid: 'a', currentUid: () => 'a', isDriving: () => false, store: store(), appContext: () => JSON.stringify({ selectedVehicle: vehicle, vehicleCount: 1 }), loadModel: () => assert.fail('No model download') });
   assert.match((await session.send('Hey Cubo could you tell me what automobile is selected please')).content, /Toyota Prius/);
   vehicle = 'Honda Civic';
   const voice = new AssistantVoice(async text => (await session.send(text, 'voice', true)).content);
   assert.match((await voice.answer('which vehicle am I using')).text, /Honda Civic/);
-  assert.match((await session.send('my first child score')).content, /89\/100/);
-  assert.match((await voice.answer('and their score')).text, /89\/100/);
+  assert.match((await session.send('my first child score')).content, /real linked accounts/);
+  assert.match((await voice.answer('and their score')).text, /select that person/);
   assert.equal(session.state().used, 4);
   assert.equal(session.state().messages.at(-1).source, 'voice');
   await session.dispose();

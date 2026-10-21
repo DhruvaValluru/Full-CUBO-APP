@@ -4,12 +4,10 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AppHeader } from '../components/AppHeader';
-import { FamilyAvatar } from '../components/FamilyAvatar';
 import { MotionPressable } from '../components/MotionPressable';
 import { ScreenShell } from '../components/ScreenShell';
 import { useAuth } from '../features/auth/AuthContext';
 import { useConnections } from '../features/connections/ConnectionContext';
-import { demoFamily } from '../features/family/demoFamily';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
@@ -30,11 +28,8 @@ export function FamilyScreen({ navigation }: NativeStackScreenProps<RootStackPar
     {outgoing.map(item => <View key={item.id} style={styles.note}><Ionicons name="time-outline" size={18} color={colors.accent} /><Text style={styles.noteText}>Waiting for {item.ownerName} to approve your Family request. Nothing is shared yet.</Text></View>)}
     {message || connection.error ? <Text accessibilityRole="alert" style={styles.body}>{message || connection.error}</Text> : null}
     <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Family Members</Text><Text style={styles.count}>{family.length}</Text></View>
-    {family.map(item => { const name = item.ownerUid === user?.uid ? item.memberName : item.ownerName; const organizer = item.ownerUid === user?.uid; return <View key={item.id} style={styles.member}><View style={styles.memberIcon}><Text style={styles.initial}>{name.slice(0, 1).toUpperCase()}</Text></View><View style={styles.fill}><Text style={styles.name}>{name}</Text><Text style={styles.body}>{organizer ? item.memberAccountType === 'minor' ? 'Minor · You are the organizer' : 'Parent/Guardian · You are the organizer' : 'Family organizer'}</Text></View><Ionicons name="shield-checkmark-outline" size={21} color={colors.accent} /></View>; })}
+    {family.map(item => { const name = item.ownerUid === user?.uid ? item.memberName : item.ownerName; const organizer = item.ownerUid === user?.uid; return <MotionPressable key={item.id} accessibilityLabel={`View ${name}'s family profile`} style={styles.member} onPress={() => navigation.navigate('ConnectionProfile', { connectionId: item.id })}><View style={styles.memberIcon}><Text style={styles.initial}>{name.slice(0, 1).toUpperCase()}</Text></View><View style={styles.fill}><Text style={styles.name}>{name}</Text><Text style={styles.body}>{organizer ? item.memberAccountType === 'minor' ? 'Minor · You are the organizer' : 'Parent/Guardian · You are the organizer' : 'Family organizer'}</Text></View><Ionicons name="chevron-forward" size={20} color={colors.accent} /></MotionPressable>; })}
     {!family.length ? <View style={styles.empty}><Ionicons name="people-outline" size={30} color={colors.accent} /><Text style={styles.emptyTitle}>No linked family members yet</Text><Text style={styles.body}>Use a secure code to connect real accounts. Approval is required before the link becomes active.</Text></View> : null}
-    <Text style={styles.sectionTitle}>Demo Family</Text>
-    <Text style={styles.body}>Preview profiles stay separate from real family links and do not grant account access.</Text>
-    {demoFamily.map(member => <MotionPressable key={member.uid} accessibilityLabel={`View demo profile for ${member.name}`} style={styles.member} onPress={() => navigation.navigate('FamilyMember', { uid: member.uid })}><FamilyAvatar id={member.uid} size={48} /><View style={styles.fill}><Text style={styles.name}>{member.name}</Text><Text style={styles.body}>{member.role} · Demo</Text></View><Ionicons name="chevron-forward" size={18} color={colors.accent} /></MotionPressable>)}
   </ScreenShell>;
 }
 

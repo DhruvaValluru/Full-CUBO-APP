@@ -21,8 +21,8 @@ export type RootStackParamList = {
   Connections: { action?: 'enter' | 'create'; kind?: 'family' | 'friend' } | undefined;
   Notifications: undefined;
   CuboAI: undefined;
-  FamilyMember: { uid: string };
-  InsuranceConnection: { demoMemberId?: string } | undefined;
+  ConnectionProfile: { connectionId: string };
+  InsuranceConnection: undefined;
   TripDetail: { sessionId: string };
   SettingsDetail: { kind: 'edit' | 'privacy' | 'help' | 'about' };
   LiveDrive: undefined;

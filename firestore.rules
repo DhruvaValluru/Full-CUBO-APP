@@ -63,11 +63,15 @@ service cloud.firestore {
         && data.updatedAt is timestamp && data.updatedAt == request.time;
     }
     function userDoc(userId) { return get(/databases/$(database)/documents/users/$(userId)).data; }
+    function connectionPairId(kind, firstUid, secondUid) {
+      return kind + '_' + (firstUid < secondUid ? firstUid + '_' + secondUid : secondUid + '_' + firstUid);
+    }
     function validConnectionCode(codeId, data) {
       return data.keys().hasAll(['code', 'kind', 'ownerUid', 'ownerName', 'status', 'createdAt', 'expiresAt'])
         && data.keys().hasOnly(['code', 'kind', 'ownerUid', 'ownerName', 'status', 'createdAt', 'expiresAt'])
         && data.code == codeId && data.code is string && data.code.size() == 11
-        && data.code.matches('^[FR]-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$')
+        && ((data.kind == 'family' && data.code.matches('^F-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$'))
+          || (data.kind == 'friend' && data.code.matches('^R-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$')))
         && data.kind in ['family', 'friend']
         && data.ownerUid is string && data.ownerUid.size() >= 20 && data.ownerUid.size() <= 128
         && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
@@ -78,6 +82,8 @@ service cloud.firestore {
       return data.keys().hasAll(['code', 'kind', 'ownerUid', 'ownerName', 'requesterUid', 'requesterName', 'requesterAccountType', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['code', 'kind', 'ownerUid', 'ownerName', 'requesterUid', 'requesterName', 'requesterAccountType', 'status', 'createdAt', 'updatedAt'])
         && data.code is string && data.code.size() == 11
+        && ((data.kind == 'family' && data.code.matches('^F-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$'))
+          || (data.kind == 'friend' && data.code.matches('^R-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$')))
         && data.kind in ['family', 'friend']
         && data.ownerUid is string && data.ownerUid.size() >= 20 && data.ownerUid.size() <= 128
         && data.requesterUid is string && data.requesterUid.size() >= 20 && data.requesterUid.size() <= 128
@@ -94,7 +100,10 @@ service cloud.firestore {
     function nullableTimestamp(value) { return value == null || value is timestamp; }
     function validConnection(data) {
       return data.keys().hasAll(['kind', 'ownerUid', 'ownerName', 'memberUid', 'memberName', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['kind', 'ownerUid', 'ownerName', 'memberUid', 'memberName', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['requestId', 'kind', 'ownerUid', 'ownerName', 'memberUid', 'memberName', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerScoreMeasured', 'memberScoreMeasured', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
+        && (!('requestId' in data) || (data.requestId is string && data.requestId.size() >= 1 && data.requestId.size() <= 320))
+        && (!('ownerScoreMeasured' in data) || data.ownerScoreMeasured is bool)
+        && (!('memberScoreMeasured' in data) || data.memberScoreMeasured is bool)
         && data.kind in ['family', 'friend']
         && data.ownerUid is string && data.ownerUid.size() >= 20 && data.ownerUid.size() <= 128
         && data.memberUid is string && data.memberUid.size() >= 20 && data.memberUid.size() <= 128
@@ -107,8 +116,8 @@ service cloud.firestore {
         && nullableScore(data.ownerScore) && nullableScore(data.memberScore)
         && nullableLatitude(data.ownerLatitude) && nullableLongitude(data.ownerLongitude) && nullableTimestamp(data.ownerLocationAt)
         && nullableLatitude(data.memberLatitude) && nullableLongitude(data.memberLongitude) && nullableTimestamp(data.memberLocationAt)
-        && (data.ownerShareScore || data.ownerScore == null)
-        && (data.memberShareScore || data.memberScore == null)
+        && (data.ownerShareScore || (data.ownerScore == null && (!('ownerScoreMeasured' in data) || data.ownerScoreMeasured == false)))
+        && (data.memberShareScore || (data.memberScore == null && (!('memberScoreMeasured' in data) || data.memberScoreMeasured == false)))
         && (data.ownerShareLocation || (data.ownerLatitude == null && data.ownerLongitude == null && data.ownerLocationAt == null))
         && (data.memberShareLocation || (data.memberLatitude == null && data.memberLongitude == null && data.memberLocationAt == null))
         && data.createdAt is timestamp && data.updatedAt is timestamp;
@@ -160,6 +169,7 @@ service cloud.firestore {
     match /connectionRequests/{requestId} {
       allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.requesterUid == request.auth.uid);
       allow create: if isAuthenticated() && validConnectionRequest(request.resource.data)
+        && requestId == connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)
         && request.resource.data.requesterUid == request.auth.uid
         && request.resource.data.requesterName == userDoc(request.auth.uid).name
         && request.resource.data.requesterAccountType == userDoc(request.auth.uid).accountDetails.accountType
@@ -170,37 +180,55 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.kind == request.resource.data.kind
         && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerUid == request.resource.data.ownerUid
         && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerName == request.resource.data.ownerName;
-      allow update: if isAuthenticated() && resource.data.ownerUid == request.auth.uid
-        && validConnectionRequest(request.resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-        && resource.data.status == 'pending' && request.resource.data.status in ['approved', 'declined']
+      allow update: if isAuthenticated() && validConnectionRequest(request.resource.data)
+        && requestId == connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid)
         && request.resource.data.updatedAt == request.time
-        && (request.resource.data.status == 'declined'
-          || getAfter(/databases/$(database)/documents/connections/$(requestId)).data.ownerUid == request.auth.uid);
-      allow delete: if false;
+        && ((resource.data.ownerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && resource.data.status == 'pending' && request.resource.data.status == 'approved'
+            && getAfter(/databases/$(database)/documents/connections/$(connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.requesterUid))).data.ownerUid == request.auth.uid)
+          || (request.resource.data.requesterUid == request.auth.uid
+            && resource.data.status == 'declined' && request.resource.data.status == 'pending'
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.requesterName == userDoc(request.auth.uid).name
+            && request.resource.data.requesterAccountType == userDoc(request.auth.uid).accountDetails.accountType
+            && ((resource.data.ownerUid == request.resource.data.ownerUid && resource.data.requesterUid == request.resource.data.requesterUid)
+              || (resource.data.ownerUid == request.resource.data.requesterUid && resource.data.requesterUid == request.resource.data.ownerUid))
+            && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.status == 'active'
+            && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.expiresAt > request.time
+            && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.kind == request.resource.data.kind
+            && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerUid == request.resource.data.ownerUid
+            && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerName == request.resource.data.ownerName));
+      allow delete: if isAuthenticated()
+        && ((resource.data.ownerUid == request.auth.uid && resource.data.status == 'pending')
+          || (resource.data.status == 'approved'
+            && (resource.data.ownerUid == request.auth.uid || resource.data.requesterUid == request.auth.uid)
+            && !existsAfter(/databases/$(database)/documents/connections/$(connectionPairId(resource.data.kind, resource.data.ownerUid, resource.data.requesterUid)))));
     }
 
     match /connections/{connectionId} {
       allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
       allow create: if isAuthenticated() && validConnection(request.resource.data)
+        && connectionId == connectionPairId(request.resource.data.kind, request.resource.data.ownerUid, request.resource.data.memberUid)
+        && request.resource.data.requestId is string
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerName == userDoc(request.auth.uid).name
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && request.resource.data.ownerShareScore == false && request.resource.data.ownerShareLocation == false
         && request.resource.data.memberShareScore == false && request.resource.data.memberShareLocation == false
-        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.status == 'approved'
-        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.ownerUid == request.resource.data.ownerUid
-        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.requesterUid == request.resource.data.memberUid
-        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.kind == request.resource.data.kind
-        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.requesterName == request.resource.data.memberName
-        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.requesterAccountType == request.resource.data.memberAccountType;
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.ownerUid == request.resource.data.ownerUid
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.requesterUid == request.resource.data.memberUid
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.kind == request.resource.data.kind
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.requesterName == request.resource.data.memberName
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.requesterAccountType == request.resource.data.memberAccountType;
       allow update: if isAuthenticated() && validConnection(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
         && ((resource.data.ownerUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerShareScore', 'ownerShareLocation', 'ownerScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'updatedAt']))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerShareScore', 'ownerShareLocation', 'ownerScore', 'ownerScoreMeasured', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'updatedAt']))
           || (resource.data.memberUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberShareScore', 'memberShareLocation', 'memberScore', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'updatedAt'])));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberShareScore', 'memberShareLocation', 'memberScore', 'memberScoreMeasured', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'updatedAt'])));
       allow delete: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
     }
 

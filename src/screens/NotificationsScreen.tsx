@@ -6,7 +6,6 @@ import { ScreenShell } from '../components/ScreenShell';
 import { AppHeader } from '../components/AppHeader';
 import { MotionPressable } from '../components/MotionPressable';
 import { useFamily } from '../features/family/FamilyContext';
-import { demoNotifications } from '../features/family/demoNotifications';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
@@ -16,18 +15,12 @@ export function NotificationsScreen({ navigation }: NativeStackScreenProps<RootS
   const { colors: c } = useAppearance(); const s = styles(c);
   const family = useFamily(); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const appBlocking = useAppBlocking();
-  const unread = family.notifications.filter(item => !item.read).length + demoNotifications.filter(item => !family.demoReadIds.includes(item.id)).length + appBlocking.notices.filter(item => !item.read).length;
+  const unread = family.notifications.filter(item => !item.read).length + appBlocking.notices.filter(item => !item.read).length;
   const markAll = async () => {
-    family.markDemoRead(); appBlocking.markNoticesRead(); setError('');
+    appBlocking.markNoticesRead(); setError('');
     if (!family.notifications.some(item => !item.read)) return;
     setBusy(true);
     try { await family.markRead(); } catch { setError('Could not mark synced notifications as read. Please try again.'); } finally { setBusy(false); }
-  };
-  const openDemo = (item: typeof demoNotifications[number]) => {
-    family.markDemoRead(item.id);
-    if (item.action === 'location') navigation.navigate('FamilyMember', { uid: 'demo-teen-2' });
-    else if (item.action === 'insurance') navigation.navigate('InsuranceConnection');
-    else navigation.navigate('CameraCalibration');
   };
   return <ScreenShell>
     <AppHeader title="Notifications" onBack={() => navigation.goBack()} />
@@ -38,16 +31,7 @@ export function NotificationsScreen({ navigation }: NativeStackScreenProps<RootS
       <View style={s.row}><View style={s.icon}><Ionicons name="shield-checkmark" size={22} color={c.accent} /></View><View style={{ flex: 1, gap: 4 }}><Text style={s.meta}>MINOR NOTIFICATION PREVIEW</Text><Text style={s.title}>{notice.title}</Text></View>{!notice.read && <View accessibilityLabel="Unread" style={s.dot} />}</View>
       <Text style={s.body}>{notice.body}</Text><View style={s.row}><Text style={[s.link, { flex: 1 }]}>Review Blocked Apps</Text><Ionicons name="chevron-forward" size={17} color={c.accent} /></View>
     </MotionPressable>)}
-    <Text style={s.section}>Demo updates</Text>
-    <Text style={s.body}>Sample notifications to explore. No real alert, payment or permission change occurred.</Text>
-    {demoNotifications.map(item => {
-      const read = family.demoReadIds.includes(item.id);
-      return <MotionPressable key={item.id} accessibilityLabel={item.title + (read ? ', read, demo' : ', unread, demo')} onPress={() => openDemo(item)} style={[s.card, !read && s.unread]}>
-        <View style={s.row}><View style={[s.icon, item.action === 'camera' && { backgroundColor: c.amberSoft }]}><Ionicons name={item.icon} size={22} color={item.action === 'camera' ? c.amber : c.accent} /></View><View style={{ flex: 1, gap: 4 }}><Text style={s.meta}>{item.label} · Demo</Text><Text style={s.title}>{item.title}</Text></View>{!read && <View accessibilityLabel="Unread" style={s.dot} />}</View>
-        <Text style={s.body}>{item.body}</Text>
-        <View style={s.row}><Text style={[s.link, { flex: 1 }]}>{item.action === 'location' ? 'View Child 2’s demo drive' : item.action === 'insurance' ? 'View savings preview' : 'Open camera calibration'}</Text><Ionicons name="chevron-forward" size={17} color={c.accent} /></View>
-      </MotionPressable>;
-    })}
+    {!family.notifications.length && !appBlocking.notices.length ? <View style={s.empty}><Ionicons name="notifications-outline" size={30} color={c.accent} /><Text style={s.title}>No notifications yet</Text><Text style={s.body}>Real family requests and account updates will appear here.</Text></View> : null}
     {!!error && <Text accessibilityRole="alert" style={{ color: c.danger }}>{error}</Text>}
   </ScreenShell>;
 }
@@ -63,4 +47,5 @@ const styles = (c: AppColors) => StyleSheet.create({
   body: { color: c.textSecondary, fontSize: 13, lineHeight: 20 },
   meta: { color: c.textSecondary, fontSize: 11 },
   link: { color: c.accent, fontSize: 12, fontFamily: 'Manrope_700Bold' },
+  empty: { minHeight: 180, borderRadius: 22, borderWidth: 1, borderStyle: 'dashed', borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center', gap: 7, padding: 24 },
 });

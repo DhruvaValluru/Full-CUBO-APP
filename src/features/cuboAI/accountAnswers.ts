@@ -1,4 +1,3 @@
-import { demoFamily } from '../family/demoFamily';
 import { normalizeQuestion, quickAnswer, type LocalAnswerDetails } from './quickAnswers';
 
 /** App-data lookups do not rely on model inference. */
@@ -7,16 +6,10 @@ export function accountAnswer(question: string, context: string, details: LocalA
   if (/\b(emergency|collision|accident|injured|injury|car crash)\b/.test(q)) return quickAnswer(q, {});
   if (/\b(blocked apps?|block apps?|apps? (?:are )?blocked|app blocking|app limits?|child lock|facebook|telegram|social apps?)\b/.test(q)) return quickAnswer(q, {}, details);
   if (/\b(kids?|children|child|family|parent|guardian|partner|son|daughter)\b/.test(q)) {
-    const member = /\bchild (?:1|one)\b/.test(q) ? demoFamily[1] : /\bchild (?:2|two)\b/.test(q) ? demoFamily[2] : /\b(parent|partner|guardian)\b/.test(q) ? demoFamily[0] : null;
     if (/\b(invite|add|request|sharing|permission|manage|code|connect)\b/.test(q)) return 'On Home, open Family / Friends and choose Enter Code or Create Code. Family codes are created by an adult organizer; minors enter a code and wait for approval. Friend codes can be created or entered by anyone, and safety-score or location sharing stays off until each person enables it. I have not sent or created a code or request for you.';
-    if (/\b(where|location|driving|live|route)\b/.test(q)) return 'No live family data is available to this chat. The family map and moving trip are labeled demos, not real tracking. Open the member’s profile to review sharing controls.';
-    if (/\b(trips?|miles|time|minutes)\b/.test(q)) return member ? `${member.name} demo history: ${member.trips} trips, ${member.miles} miles and ${member.minutes} minutes. These are fictional sample values, not real activity.` : 'Which demo profile: Parent, Child 1, or Child 2? Name the person to see their sample trip totals.';
-    if (/\b(score|scores|rating|ratings)\b/.test(q)) {
-      const members = member ? [member] : demoFamily.filter(person => !person.adult);
-      return `Demo family scores: ${members.map(person => `${person.name}: ${person.score}/100`).join('; ')}. These are fictional sample profiles and scores, not live data about real family members.`;
-    }
-    if (/\b(who|names?|list|members|how many)\b/.test(q) && !/\b(car|vehicle|location|where|drive|driving)\b/.test(q)) return `Your CUBO demo family includes ${demoFamily.map(person => person.name).join(', ')}. The two child profiles are Child 1 and Child 2. These are demo people, not verified real family members.`;
-    return 'I can show demo family names or sample scores. Ask “Who are my kids?” or “What is Child 1’s score?” For real family members, open Account > Family. For optional friend sharing, open Family / Friends from Home. No live family or friend location is available to this chat.';
+    if (/\b(where|location|driving|live|route)\b/.test(q)) return 'Open Family / Friends and select the person. You can see a real foreground location snapshot only when they enabled location sharing. CUBO does not perform hidden background tracking.';
+    if (/\b(score|scores|rating|ratings|trips?|miles|time|minutes|who|names?|list|members|how many)\b/.test(q)) return 'Open Family / Friends to see your real linked accounts. Select a person for their opt-in safety score and current-location snapshot. New accounts start at 100, then completed measured drives update the score. Cubo Assistant does not invent or expose unshared family data.';
+    return 'Family and Friend connections use separate codes and approval. Open Family / Friends to view real linked accounts and each person’s sharing controls.';
   }
   const vehicle = /^(?:what|which) (?:is|are) my (?:selected |saved |current )?(?:vehicle|car)s?$/.test(q)
     || /^(?:what|which) (?:vehicle|car)s? (?:do i have|do i own|have i saved|is selected|am i using|am i driving)(?: today| right now)?$/.test(q)
@@ -27,7 +20,7 @@ export function accountAnswer(question: string, context: string, details: LocalA
   let data: Record<string, unknown>;
   try { const parsed = JSON.parse(context); data = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; } catch { data = {}; }
   if (!vehicle || /\b(change|edit|remove|delete|add|color|colour|worth|safe|fuel|repair|maintenance)\b/.test(q)) {
-    return quickAnswer(q, data, details) ?? (/\b(my|our|this app)\b/.test(q) ? 'That detail is not connected to Cubo Assistant. I can look up saved vehicles, focus averages, your name and saved places, or explain the demo family and insurance features. Please name the detail you need; I will not invent private or live data.' : null);
+    return quickAnswer(q, data, details) ?? (/\b(my|our|this app)\b/.test(q) ? 'That detail is not connected to Cubo Assistant. I can look up saved vehicles, focus averages, your name and saved places, or explain real Family / Friends connections and the insurance preview. Please name the detail you need; I will not invent private or live data.' : null);
   }
   if (!data || typeof data !== 'object' || typeof data.selectedVehicle !== 'string' || data.selectedVehicle === 'loading/unavailable') {
     return 'Your garage is still loading or unavailable. Try again shortly, or check Home > Manage vehicles.';

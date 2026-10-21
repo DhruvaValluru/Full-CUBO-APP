@@ -31,9 +31,7 @@ export function appAnswer(input: string, context: string, details?: LocalAnswerD
   let q = appQuestion(input);
   if (/^(repeat( that)?|say that again|what did you say)$/.test(q)) return [...history].reverse().find(turn => turn.role === 'assistant')?.content ?? 'Ask about your saved score, vehicle, family, or CUBO settings.';
   if (/^(and |what about )?(their|his|her) (score|trips|miles)$/.test(q)) {
-    const member = [...history].reverse().filter(turn => turn.role === 'user').map(turn => appQuestion(turn.content).match(/\b(child (?:1|2|one|two)|parent)\b/)?.[0]).find(Boolean);
-    if (!member) return 'Which demo family member: Parent, Child 1, or Child 2?';
-    q = `${member} ${q.match(/(score|trips|miles)$/)![0]}`;
+    return 'Open Family / Friends and select that person. Their real score or location appears only when they chose to share it.';
   }
   if (/\b(reroute|re route|next turn|next road|destination|eta|arrival|what then|after that|current speed)\b/.test(q)) return 'Cubo Assistant has no live route data; it uses saved app information. During a drive, use Cubo Voice Assist on the map for directions, arrival estimates, and rerouting.';
   return accountAnswer(q, context, details);

@@ -14,18 +14,18 @@ const { CuboAISession } = load('src/features/cuboAI/session.ts');
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }; };
 const monday = Date.UTC(2026, 9, 12);
 
-test('demo family questions and app clarifications never call model inference', async () => {
+test('real connection questions and app clarifications never call model inference', async () => {
   const session = new CuboAISession({ uid: 'alice', currentUid: () => 'alice', isDriving: () => false, store: storage(), now: () => monday,
     appContext: () => JSON.stringify({ averageFocusOutOf100: 83 }),
     loadModel: async () => ({ reply: async () => assert.fail('App question reached GPU inference'), dispose() {} }) });
   await session.prepare(true);
   for (const q of ['Who are my kids?', 'Hey Cubo, who are my children?', 'list my family', 'what are my kids names']) {
     const answer = (await session.send(q)).content;
-    assert.match(answer, /Child 1/); assert.match(answer, /Child 2/); assert.match(answer, /demo/i);
+    assert.match(answer, /real linked accounts/); assert.doesNotMatch(answer, /Child 1|Child 2|demo family/i);
   }
-  assert.match((await session.send('What is Child 1’s safety score?')).content, /89\/100/);
-  assert.match((await session.send('what is child two score')).content, /92\/100/);
-  assert.match((await session.send('Where is my child?')).content, /No live family data/);
+  assert.match((await session.send('What is Child 1’s safety score?')).content, /does not invent or expose unshared/);
+  assert.match((await session.send('what is child two score')).content, /completed measured drives/);
+  assert.match((await session.send('Where is my child?')).content, /foreground location snapshot/);
   assert.match((await session.send('what is my safety score')).content, /83\/100/);
   assert.match((await session.send('Explain my insurance')).content, /simulated/);
   assert.match((await session.send('How does camera calibration work?')).content, /While parked/);
@@ -71,7 +71,7 @@ test('account context includes selected car and only measured scores, excludes p
   assert.equal(data.completedTrips, 2);
   assert.equal(text.includes('SECRET'), false);
   assert.equal(JSON.parse(accountContext({ ...input, vehiclesReady: false })).selectedVehicle, 'loading/unavailable');
-  assert.equal(JSON.parse(accountContext({ ...input, sessions: [] })).averageFocusOutOf100, null);
+  assert.equal(JSON.parse(accountContext({ ...input, sessions: [] })).averageFocusOutOf100, 100);
   const huge = accountContext({ ...input, name: '"'.repeat(1000), vehicles: Array.from({ length: 100 }, () => ({ make: '"'.repeat(1000), model: '\\'.repeat(1000), year: '2021', nickname: '"'.repeat(1000), primary: false })) });
   assert.ok(huge.length <= 800); assert.doesNotThrow(() => JSON.parse(huge));
 });
@@ -239,9 +239,9 @@ test('usage circle follows requested thresholds and never goes negative', () => 
   assert.equal(usageBadge(110).percent, 0);
 });
 
-test('unmeasured trips do not become invented focus scores', () => {
+test('unmeasured trips use a clearly labeled starter score', () => {
   const { drivingContext } = load('src/features/cuboAI/presentation.ts');
-  assert.match(drivingContext([{ endedAt: 'today', attentionMeasured: false, focusScore: 100, distanceMiles: 1 }]), /unavailable/);
+  assert.match(drivingContext([{ endedAt: 'today', attentionMeasured: false, focusScore: 100, distanceMiles: 1 }]), /100\/100 starter score/);
   assert.match(drivingContext([{ endedAt: 'today', attentionMeasured: true, focusScore: 85, distanceMiles: 1 }]), /85\/100/);
 });
 test('logout while loading disposes the late model and never makes it usable', async () => {

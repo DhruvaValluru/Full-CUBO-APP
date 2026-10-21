@@ -5,13 +5,10 @@ import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { emptyFamily, familyApiConfigured, familyRequest, type FamilySnapshot } from './familyApi';
 
-type Value = FamilySnapshot & { demoReadIds: string[]; markDemoRead: (id?: string) => void; loading: boolean; error: string; configured: boolean; refresh: () => Promise<void>; invite: (email: string) => Promise<void>; respond: (id: string, accept: boolean) => Promise<void>; leave: () => Promise<void>; markRead: () => Promise<void>; saveAccount: (details: AccountDetails) => Promise<void>; requestAge: (birthDate: string, phoneNumber?: string) => Promise<void>; reviewAge: (id: string, approve: boolean) => Promise<void>; setGuardian: (uid: string, enabled: boolean) => Promise<void>; removeMember: (uid: string) => Promise<void> };
+type Value = FamilySnapshot & { loading: boolean; error: string; configured: boolean; refresh: () => Promise<void>; invite: (email: string) => Promise<void>; respond: (id: string, accept: boolean) => Promise<void>; leave: () => Promise<void>; markRead: () => Promise<void>; saveAccount: (details: AccountDetails) => Promise<void>; requestAge: (birthDate: string, phoneNumber?: string) => Promise<void>; reviewAge: (id: string, approve: boolean) => Promise<void>; setGuardian: (uid: string, enabled: boolean) => Promise<void>; removeMember: (uid: string) => Promise<void> };
 const Context = createContext<Value | null>(null);
 export function FamilyProvider({ children }: { children: ReactNode }) {
   const { user, accountDetails, saveAccountDetails } = useAuth();
-  const [demoReadIds, setDemoReadIds] = useState<string[]>([]);
-  const markDemoRead = (id?: string) => setDemoReadIds(current => id ? [...new Set([...current, id])] : ['demo-location', 'demo-savings', 'demo-camera']);
-  useEffect(() => { setDemoReadIds([]); }, [user?.uid]);
   const snapshotOwner = useRef<string | null>(null);
   const busy = useRef(false);
   const [snapshot, setSnapshot] = useState<FamilySnapshot>(emptyFamily);
@@ -42,6 +39,6 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     setLoading(true); setError('');
     try { const result = await familyRequest<FamilySnapshot>(path, body); if (auth.currentUser?.uid === user?.uid) { snapshotOwner.current = user?.uid ?? null; setSnapshot(result); } } catch (cause) { const message = cause instanceof Error ? cause.message : 'Could not complete request.'; setError(message); throw Error(message); } finally { if (auth.currentUser?.uid === user?.uid) { busy.current = false; setLoading(false); } }
   };
-  return <Context.Provider value={{ ...snapshot, demoReadIds, markDemoRead, loading, error, configured: familyApiConfigured, refresh, invite: email => action('/family/invite', { email: email.trim().toLowerCase() }), respond: (id, accept) => action('/family/respond', { id, accept }), leave: () => action('/family/leave', {}), markRead: () => action('/notifications/read', {}), saveAccount: details => action('/account/details', details), requestAge: (birthDate, phoneNumber) => action('/family/age/request', { birthDate, phoneNumber }), reviewAge: (id, approve) => action('/family/age/review', { id, approve }), setGuardian: (uid, enabled) => action('/family/guardian', { uid, enabled }), removeMember: uid => action('/family/remove', { uid }) }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ ...snapshot, loading, error, configured: familyApiConfigured, refresh, invite: email => action('/family/invite', { email: email.trim().toLowerCase() }), respond: (id, accept) => action('/family/respond', { id, accept }), leave: () => action('/family/leave', {}), markRead: () => action('/notifications/read', {}), saveAccount: details => action('/account/details', details), requestAge: (birthDate, phoneNumber) => action('/family/age/request', { birthDate, phoneNumber }), reviewAge: (id, approve) => action('/family/age/review', { id, approve }), setGuardian: (uid, enabled) => action('/family/guardian', { uid, enabled }), removeMember: uid => action('/family/remove', { uid }) }}>{children}</Context.Provider>;
 }
 export function useFamily() { const value = useContext(Context); if (!value) throw Error('FamilyProvider missing'); return value; }

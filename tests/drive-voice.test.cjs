@@ -15,8 +15,8 @@ test('spoken variants reuse account answers and live facts without inference', (
   const c = new DriveCommands(() => 1000);
   for (const [q, expected] of [
     ['Hey Cubo, what is my vehicle selected?', /Toyota Prius/],
-    ['Who are my kids?', /Child 1 and Child 2/], ['what is my name', /Alice/],
-    ['child one safety score', /89\/100/], ['and their score', /89\/100/],
+    ['Who are my kids?', /real linked accounts/], ['what is my name', /Alice/],
+    ['child one safety score', /real linked accounts/], ['and their score', /linked person/],
     ['what is my home address', /Saved home/], ['what insurance do I have', /Example Insurance/],
     ['what road do I drive on next', /Main Street/], ['what road do I turn onto next', /Main Street/],
     ['how fast am I going', /24 miles/], ['how am I doing this drive', /88 out of 100/],
@@ -35,7 +35,7 @@ test('missing data is not invented and destructive actions stay blocked', () => 
   assert.match(c.answer('my speed', { ...data, speed: undefined }).text, /unavailable/);
   assert.match(c.answer('how am i doing', { ...data, score: undefined }).text, /No measured/);
   assert.match(c.answer('end drive', data).text, /cannot/);
-  assert.match(c.answer('and their score', data).text, /Which demo/);
+  assert.match(c.answer('and their score', data).text, /linked person/);
 });
 test('confirmation survives long speech, respond repair and controller restart within a drive', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -156,7 +156,7 @@ test('spoken off variants require fresh confirmation, never conflict with hazard
   const c = new DriveCommands(() => now);
   c.answer('turn off voice assist', data); assert.match(c.answer('no', data).text, /still on/);
   c.answer('turn off voice assist', data); c.readyForReply(); now += 61000; assert.equal(c.answer('yes', data).stop, undefined);
-  assert.match(c.answer('Hey Kubo could you tell me my first child score please', data).text, /89\/100/);
+  assert.match(c.answer('Hey Kubo could you tell me my first child score please', data).text, /real linked accounts/);
   assert.match(c.answer('what automobile do I have', data).text, /Toyota Prius/);
 });
 test('consent is once per account and drive, including remount, without auto-enabling', () => {

@@ -25,8 +25,8 @@ test('Account placement, family controls and drive lifecycle remain wired', () =
   const profile = fs.readFileSync('src/screens/ProfileScreen.tsx', 'utf8');
   assert.ok(profile.indexOf('title="Cubo Devices"') < profile.indexOf('title="Blocked Apps"'));
   assert.ok(profile.indexOf('title="Blocked Apps"') < profile.indexOf('title="Privacy & Safety"'));
-  assert.match(fs.readFileSync('src/components/DemoFamilyProfile.tsx', 'utf8'), /DrivingAppLimitsCard/);
-  assert.match(fs.readFileSync('src/screens/FamilyMemberScreen.tsx', 'utf8'), /accountType === 'minor'/);
+  assert.match(fs.readFileSync('src/screens/ConnectionProfileScreen.tsx', 'utf8'), /DrivingAppLimitsCard/);
+  assert.match(fs.readFileSync('src/screens/ConnectionProfileScreen.tsx', 'utf8'), /memberAccountType === 'minor'/);
   const map = fs.readFileSync('src/screens/MapScreen.tsx', 'utf8');
   assert.match(map, /setDriveBlockPlan\(beginAppBlocking\(\)\)/);
   assert.match(map, /endAppBlocking\(\)/);

@@ -18,9 +18,9 @@ const corpus = [
   ['how can I improve my score', /Set your route/], ['why is my focus unavailable', /measurements/],
   ['what insurance do I have', /Example Insurer/], ['which insurer is selected', /Example Insurer/], ['how much can I save on premiums', /illustration/],
   ['submit my insurance report', /nothing is sent/], ['automatic insurance reporting', /manual, monthly/],
-  ['who are my kids', /Child 1 and Child 2/], ['name my children', /Child 1/], ['list my family members', /Parent/],
-  ['child1 safety score', /89\/100/], ['what is child two rating', /92\/100/], ['parent score', /94\/100/],
-  ['where is my child', /No live family data/], ['how many miles did child 1 drive', /82 miles/], ['invite my partner', /not sent/],
+  ['who are my kids', /real linked accounts/], ['name my children', /real linked accounts/], ['list my family members', /real linked accounts/],
+  ['child1 safety score', /does not invent or expose unshared/], ['what is child two rating', /completed measured drives/], ['parent score', /completed measured drives/],
+  ['where is my child', /foreground location snapshot/], ['how many miles did child 1 drive', /real linked accounts/], ['invite my partner', /not sent/],
   ['what is my vehicle selected', /Toyota Prius/], ['what car do I own', /Toyota Prius/], ['tell me about my car', /Toyota Prius/],
   ['whats my vehicel', /Toyota Prius/], ['change my selected vehicle', /have not changed/], ['change my car color', /pencil/],
   ['is my car safe', /no vehicle diagnostics/], ['how do I add a vehicle', /Manage vehicles/],
@@ -53,7 +53,7 @@ test('malformed or missing data never invents a score, name, address or policy',
   assert.doesNotMatch(accountAnswer('what is my email address', '{}', details), /PRIVATE HOME|PRIVATE WORK/);
   assert.match(accountAnswer('turn off the microphone', '{}'), /dictate/);
   for (const value of ['{', 'null', '[]', '{}']) {
-    assert.match(accountAnswer('my score', value), /no measured/i);
+    assert.match(accountAnswer('my score', value), /still loading/i);
     assert.match(accountAnswer('my name', value), /unavailable/);
     assert.match(accountAnswer('my address', value), /loading or unavailable/);
   }
@@ -67,7 +67,7 @@ test('timed-out general AI is disposed and presets remain usable; no automatic r
     loadModel: async () => ({ reply: () => { calls++; return new Promise(() => {}); }, dispose: () => { disposed++; } }) });
   await session.prepare(true);
   assert.match((await session.send('Explain astronomy')).content, /General AI could not finish/);
-  assert.match((await session.send('who are my kids')).content, /Child 1/);
+  assert.match((await session.send('who are my kids')).content, /real linked accounts/);
   await session.send('Explain astronomy'); assert.equal(calls, 1); assert.equal(disposed, 1);
 });
 test('saved address replies never enter general model context', async () => {

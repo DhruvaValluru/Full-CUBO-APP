@@ -19,7 +19,6 @@ export const spokenQuestion = appQuestion;
 export class DriveCommands {
   private pending: Pending | null = null;
   private last = '';
-  private member = '';
   private askingHazard = false;
   private stopUntil = 0;
   private routeCursor = -1;
@@ -63,7 +62,7 @@ export class DriveCommands {
     return '';
   }
   answer(input: string, data: DriveVoiceSnapshot): DriveReply {
-    if (this.tripId && this.tripId !== data.tripId) { this.pending = null; this.stopUntil = 0; this.askingHazard = false; this.member = ''; this.last = ''; this.routeCursor = -1; this.routeId = ''; this.routes = []; this.selectedRoute = null; }
+    if (this.tripId && this.tripId !== data.tripId) { this.pending = null; this.stopUntil = 0; this.askingHazard = false; this.last = ''; this.routeCursor = -1; this.routeId = ''; this.routes = []; this.selectedRoute = null; }
     this.tripId = data.tripId;
     let q = spokenQuestion(input);
     const reply = (text: string, extra: Omit<DriveReply, 'text'> = {}) => { this.last = short(text); return { text: this.last, ...extra }; };
@@ -152,11 +151,8 @@ export class DriveCommands {
     if (/\b(voice|microphone|mic|are you listening|mute|stop talking|quiet)\b/.test(q)) return reply('Voice is on. To switch it off, say turn off voice assist, then confirm.');
     if (/\b(help|what can you|features|cubo)\b/.test(q)) return reply('Ask for your next turn, arrival time, score, vehicle, family, alternate routes, or a hazard report.');
     if (/\b(end drive|delete|remove|change|submit|send|navigate|take me)\b/.test(q)) return reply('I cannot do that by voice. Use the app controls when safely parked. Hazard reports support spoken confirmation.');
-    const member = q.match(/\b(child (?:1|2|one|two)|parent)\b/)?.[0];
-    if (member) this.member = member;
     if (/^(and |what about )?(their|his|her) (score|trips|miles)$/.test(q)) {
-      if (!this.member) return reply('Which demo family member: Parent, Child 1, or Child 2?');
-      q = `${this.member} ${q.match(/(score|trips|miles)$/)![0]}`;
+      return reply('Open the linked person’s profile when parked. Their real score appears only if they chose to share it.');
     }
     if (/\b(road|map|route|navigation|destination|turn)\b/.test(q)) return reply('I did not catch that route question. Ask for the next turn, destination, arrival time, or alternate routes.');
     const answer = appAnswer(q, data.account, data.details);
