@@ -67,6 +67,9 @@ test('join codes require approval and friend sharing stays opt-in', () => {
   assert.match(provider, /averageScore[\s\S]*: 100/);
   assert.match(provider, /ScoreMeasured/);
   assert.match(provider, /sessions\.some\(item => item\.attentionMeasured\)/);
+  assert.match(provider, /requestSnapshotsReady/);
+  assert.match(provider, /\[\.\.\.rawIncoming, \.\.\.rawOutgoing\]\.find/);
+  assert.doesNotMatch(provider, /getDoc\(doc\(db, 'connectionRequests', requestId\)\)/);
 });
 
 test('family and friend pairs use separate stable IDs and duplicates collapse', () => {

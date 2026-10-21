@@ -106,14 +106,17 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const { sessions } = useDrives();
   const [rawConnections, setRawConnections] = useState<CuboConnection[]>([]);
   const connections = useMemo(() => dedupeConnections(rawConnections), [rawConnections]);
-  const [incoming, setIncoming] = useState<ConnectionRequest[]>([]);
-  const [outgoing, setOutgoing] = useState<ConnectionRequest[]>([]);
+  const [rawIncoming, setRawIncoming] = useState<ConnectionRequest[]>([]);
+  const [rawOutgoing, setRawOutgoing] = useState<ConnectionRequest[]>([]);
+  const incoming = useMemo(() => rawIncoming.filter(item => item.status === 'pending'), [rawIncoming]);
+  const outgoing = useMemo(() => rawOutgoing.filter(item => item.status === 'pending'), [rawOutgoing]);
+  const [requestSnapshotsReady, setRequestSnapshotsReady] = useState({ incoming: false, outgoing: false });
   const [birthDateRequests, setBirthDateRequests] = useState<BirthDateChangeRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setRawConnections([]); setIncoming([]); setOutgoing([]); setBirthDateRequests([]); setError('');
+    setRawConnections([]); setRawIncoming([]); setRawOutgoing([]); setRequestSnapshotsReady({ incoming: false, outgoing: false }); setBirthDateRequests([]); setError('');
     if (!user) return;
     const incomingQuery = query(collection(db, 'connectionRequests'), where('ownerUid', '==', user.uid));
     const outgoingQuery = query(collection(db, 'connectionRequests'), where('requesterUid', '==', user.uid));
@@ -126,8 +129,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const merge = () => setRawConnections([...owned, ...joined].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
     const mergeBirthChanges = () => setBirthDateRequests([...organized, ...requested].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
     const unsubs = [
-      onSnapshot(incomingQuery, snap => setIncoming(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest)).filter(item => item.status === 'pending')), cause => setError(cause.message)),
-      onSnapshot(outgoingQuery, snap => setOutgoing(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest)).filter(item => item.status === 'pending')), cause => setError(cause.message)),
+      onSnapshot(incomingQuery, snap => { setRawIncoming(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest))); setRequestSnapshotsReady(value => ({ ...value, incoming: true })); }, cause => setError(cause.message)),
+      onSnapshot(outgoingQuery, snap => { setRawOutgoing(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest))); setRequestSnapshotsReady(value => ({ ...value, outgoing: true })); }, cause => setError(cause.message)),
       onSnapshot(ownedQuery, snap => { owned = snap.docs.map(item => ({ id: item.id, ...item.data() } as CuboConnection)); merge(); }, cause => setError(cause.message)),
       onSnapshot(joinedQuery, snap => { joined = snap.docs.map(item => ({ id: item.id, ...item.data() } as CuboConnection)); merge(); }, cause => setError(cause.message)),
       onSnapshot(organizedBirthChanges, snap => { organized = snap.docs.map(item => ({ id: item.id, ...item.data() } as BirthDateChangeRequest)); mergeBirthChanges(); }, cause => setError(cause.message)),
@@ -223,17 +226,22 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       if (data.status !== 'active' || !(data.expiresAt instanceof Timestamp) || data.expiresAt.toMillis() <= Date.now()) throw Error('That code expired. Ask for a new one.');
       if (data.kind !== expectedKind) throw Error(`This is a ${data.kind === 'family' ? 'Family' : 'Friend'} code. Switch to ${data.kind === 'family' ? 'Family' : 'Friends'} to use it.`);
       if (data.ownerUid === user.uid) throw Error('That is your own code. Share it with someone else.');
+      if (!requestSnapshotsReady.incoming || !requestSnapshotsReady.outgoing) throw Error('Your connections are still syncing. Try again in a moment.');
       const requestId = connectionPairId(data.kind, data.ownerUid, user.uid);
       if (connections.some(item => item.kind === data.kind && connectionPairId(item.kind, item.ownerUid, item.memberUid) === requestId)) throw Error(`This person is already in your ${data.kind === 'family' ? 'family' : 'friends'}.`);
-      const previous = await getDoc(doc(db, 'connectionRequests', requestId));
-      if (previous.exists() && previous.data().status === 'pending') throw Error('A request between these accounts is already waiting for approval.');
-      if (previous.exists() && previous.data().status === 'approved') throw Error(`This person is already in your ${data.kind === 'family' ? 'family' : 'friends'}.`);
+      const previous = [...rawIncoming, ...rawOutgoing].find(item => item.id === requestId);
+      if (previous?.status === 'pending') throw Error('A request between these accounts is already waiting for approval.');
+      if (previous?.status === 'approved') throw Error(`This person is already in your ${data.kind === 'family' ? 'family' : 'friends'}.`);
       const request: Omit<ConnectionRequest, 'id'> = { code, kind: data.kind, ownerUid: data.ownerUid, ownerName: data.ownerName, requesterUid: user.uid, requesterName: identity.name, requesterAccountType: identity.details.accountType, status: 'pending' };
-      if (previous.exists()) await updateDoc(doc(db, 'connectionRequests', requestId), { ...request, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      // Do not getDoc() this deterministic path first. A missing request has no
+      // participant fields for Firestore to authorize, so probing it is denied.
+      // The participant-scoped realtime queries above are the authoritative
+      // duplicate/status source and never expose another account's requests.
+      if (previous?.status === 'declined') await updateDoc(doc(db, 'connectionRequests', requestId), { ...request, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       else await setDoc(doc(db, 'connectionRequests', requestId), { ...request, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return { id: requestId, ...request };
     } finally { setLoading(false); }
-  }, [connections, loadIdentity, user?.uid]);
+  }, [connections, loadIdentity, rawIncoming, rawOutgoing, requestSnapshotsReady, user?.uid]);
 
   const approveRequest = useCallback(async (request: ConnectionRequest) => {
     if (!user || request.ownerUid !== user.uid) throw Error('Only the code owner can approve this request.');
