@@ -18,6 +18,7 @@ export type RootStackParamList = {
   ConnectedDevices: undefined;
   CruiseCamera: { deviceId: string };
   Family: undefined;
+  Connections: { action?: 'enter' | 'create'; kind?: 'family' | 'friend' } | undefined;
   Notifications: undefined;
   CuboAI: undefined;
   FamilyMember: { uid: string };

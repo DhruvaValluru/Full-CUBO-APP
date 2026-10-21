@@ -48,7 +48,7 @@ export function AccountEditor() {
   });
   const flag = (region: string) => String.fromCodePoint(...[...region].map(letter => 127397 + letter.charCodeAt(0)));
   return <View style={s.section}>
-    <Text style={s.heading}>Account details</Text>
+    <Text style={s.heading}>Account Details</Text>
     <Text style={s.body}>Your birth date determines your minor or adult account. It is self-declared, not identity verification.</Text>
     <Text style={s.label}>Date of birth</Text><TextInput accessibilityLabel="Date of birth" placeholder="MM/DD/YYYY" placeholderTextColor={c.textSecondary} keyboardType="number-pad" maxLength={10} value={birth} onChangeText={value => { setMessage(''); setBirth(formatBirthInput(value, birth)); }} style={s.input} />
     {family.organizerUid && account.accountDetails?.accountType !== 'adult' ? <Text style={s.body}>A parent’s approval is required to change your birth date.</Text> : null}

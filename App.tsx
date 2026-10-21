@@ -57,6 +57,8 @@ import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CruiseProvider } from './src/features/devices/CruiseContext';
 import { CameraCalibrationScreen } from './src/screens/CameraCalibrationScreen';
 import { AppBlockingProvider } from './src/features/appBlocking/AppBlockingContext';
+import { ConnectionProvider } from './src/features/connections/ConnectionContext';
+import { ConnectionsScreen } from './src/screens/ConnectionsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -123,7 +125,7 @@ function AppNavigation() {
   const theme = { ...navTheme, dark: mode === 'dark', colors: { ...navTheme.colors, primary: colors.accent, background: colors.background, card: colors.card, text: colors.text, border: colors.border } };
   return (
         <DriveProvider>
-        <NavigationContainer theme={theme}>
+        <ConnectionProvider><NavigationContainer theme={theme}>
           <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <Stack.Navigator initialRouteName={Platform.OS === 'web' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('familyInvite') ? 'Family' : 'MainTabs'} screenOptions={{ headerShown: false, animationDuration: 220, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="MainTabs" component={MainTabs} options={{ animation: 'fade' }} />
@@ -138,6 +140,7 @@ function AppNavigation() {
             <Stack.Screen name="CuboAI" component={CuboAIScreen} />
             <Stack.Screen name="FamilyMember" component={FamilyMemberScreen} />
             <Stack.Screen name="Family" component={FamilyScreen} options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="Connections" component={ConnectionsScreen} options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="InsuranceConnection" component={InsuranceConnectionScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="TripDetail" component={TripDetailScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="SettingsDetail" component={SettingsDetailScreen} options={{ animation: 'slide_from_right' }} />
@@ -154,7 +157,7 @@ function AppNavigation() {
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="AppBlocking" component={AppBlockingScreen} options={{ animation: 'slide_from_right' }} />
           </Stack.Navigator>
-        </NavigationContainer>
+        </NavigationContainer></ConnectionProvider>
         </DriveProvider>
   );
 }

@@ -8,7 +8,7 @@ export function accountAnswer(question: string, context: string, details: LocalA
   if (/\b(blocked apps?|block apps?|apps? (?:are )?blocked|app blocking|app limits?|child lock|facebook|telegram|social apps?)\b/.test(q)) return quickAnswer(q, {}, details);
   if (/\b(kids?|children|child|family|parent|guardian|partner|son|daughter)\b/.test(q)) {
     const member = /\bchild (?:1|one)\b/.test(q) ? demoFamily[1] : /\bchild (?:2|two)\b/.test(q) ? demoFamily[2] : /\b(parent|partner|guardian)\b/.test(q) ? demoFamily[0] : null;
-    if (/\b(invite|add|request|sharing|permission|manage)\b/.test(q)) return 'Use the + under Your family to invite by email or phone, or Manage for family profiles and sharing requests. Only the organizer manages membership and roles. I have not sent an invitation or a sharing request. Displayed sample profiles and locations are demos.';
+    if (/\b(invite|add|request|sharing|permission|manage|code|connect)\b/.test(q)) return 'On Home, open Family / Friends and choose Enter Code or Create Code. Family codes are created by an adult organizer; minors enter a code and wait for approval. Friend codes can be created or entered by anyone, and safety-score or location sharing stays off until each person enables it. I have not sent or created a code or request for you.';
     if (/\b(where|location|driving|live|route)\b/.test(q)) return 'No live family data is available to this chat. The family map and moving trip are labeled demos, not real tracking. Open the member’s profile to review sharing controls.';
     if (/\b(trips?|miles|time|minutes)\b/.test(q)) return member ? `${member.name} demo history: ${member.trips} trips, ${member.miles} miles and ${member.minutes} minutes. These are fictional sample values, not real activity.` : 'Which demo profile: Parent, Child 1, or Child 2? Name the person to see their sample trip totals.';
     if (/\b(score|scores|rating|ratings)\b/.test(q)) {
@@ -16,7 +16,7 @@ export function accountAnswer(question: string, context: string, details: LocalA
       return `Demo family scores: ${members.map(person => `${person.name}: ${person.score}/100`).join('; ')}. These are fictional sample profiles and scores, not live data about real family members.`;
     }
     if (/\b(who|names?|list|members|how many)\b/.test(q) && !/\b(car|vehicle|location|where|drive|driving)\b/.test(q)) return `Your CUBO demo family includes ${demoFamily.map(person => person.name).join(', ')}. The two child profiles are Child 1 and Child 2. These are demo people, not verified real family members.`;
-    return 'I can show demo family names or sample scores. Ask “Who are my kids?” or “What is Child 1’s score?” For real members or location sharing, open Account > Family safety. No live family data is available to this chat.';
+    return 'I can show demo family names or sample scores. Ask “Who are my kids?” or “What is Child 1’s score?” For real family members, open Account > Family. For optional friend sharing, open Family / Friends from Home. No live family or friend location is available to this chat.';
   }
   const vehicle = /^(?:what|which) (?:is|are) my (?:selected |saved |current )?(?:vehicle|car)s?$/.test(q)
     || /^(?:what|which) (?:vehicle|car)s? (?:do i have|do i own|have i saved|is selected|am i using|am i driving)(?: today| right now)?$/.test(q)

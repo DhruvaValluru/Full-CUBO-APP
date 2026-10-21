@@ -132,7 +132,7 @@ export function CameraCalibrationScreen({ navigation }: NativeStackScreenProps<R
   return <SafeAreaView style={styles.page}>
     <View style={styles.topbar}>
       <MotionPressable accessibilityLabel="Close calibration" style={styles.close} onPress={close}><Ionicons name="close" size={22} color={colors.text} /></MotionPressable>
-      <View style={styles.topCopy}><Text style={styles.title}>Camera calibration</Text><Text style={styles.subtitle}>Parked test · no driving required</Text></View>
+      <View style={styles.topCopy}><Text style={styles.title}>Camera Calibration</Text><Text style={styles.subtitle}>Parked test · no driving required</Text></View>
     </View>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.steps} accessibilityLabel={complete ? 'All calibration steps complete' : `Step ${step + 1} of 3`}>

@@ -47,7 +47,7 @@ export function AppInviteSheet({ name, onClose }: { name?: string; onClose: () =
       <View accessibilityViewIsModal style={[s.sheet, { backgroundColor: c.card, paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
         <View style={s.header}>
           <View style={s.heading}>
-            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>Invite someone</Text>
+            <Text accessibilityRole="header" style={[s.title, { color: c.text }]}>Invite Someone</Text>
             <Text style={[s.subtitle, { color: c.textSecondary }]}>Good company. More mindful miles.</Text>
           </View>
           <MotionPressable accessibilityLabel="Close invitation" onPress={onClose} style={[s.close, { backgroundColor: c.surfaceMuted }]}>

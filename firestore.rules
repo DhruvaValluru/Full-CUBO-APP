@@ -62,6 +62,57 @@ service cloud.firestore {
           || (domain == 'assistant' && data.payload.size() <= 500000))
         && data.updatedAt is timestamp && data.updatedAt == request.time;
     }
+    function userDoc(userId) { return get(/databases/$(database)/documents/users/$(userId)).data; }
+    function validConnectionCode(codeId, data) {
+      return data.keys().hasAll(['code', 'kind', 'ownerUid', 'ownerName', 'status', 'createdAt', 'expiresAt'])
+        && data.keys().hasOnly(['code', 'kind', 'ownerUid', 'ownerName', 'status', 'createdAt', 'expiresAt'])
+        && data.code == codeId && data.code is string && data.code.size() == 11
+        && data.code.matches('^[FR]-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$')
+        && data.kind in ['family', 'friend']
+        && data.ownerUid is string && data.ownerUid.size() >= 20 && data.ownerUid.size() <= 128
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
+        && data.status in ['active', 'closed']
+        && data.createdAt is timestamp && data.expiresAt is timestamp;
+    }
+    function validConnectionRequest(data) {
+      return data.keys().hasAll(['code', 'kind', 'ownerUid', 'ownerName', 'requesterUid', 'requesterName', 'requesterAccountType', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'kind', 'ownerUid', 'ownerName', 'requesterUid', 'requesterName', 'requesterAccountType', 'status', 'createdAt', 'updatedAt'])
+        && data.code is string && data.code.size() == 11
+        && data.kind in ['family', 'friend']
+        && data.ownerUid is string && data.ownerUid.size() >= 20 && data.ownerUid.size() <= 128
+        && data.requesterUid is string && data.requesterUid.size() >= 20 && data.requesterUid.size() <= 128
+        && data.ownerUid != data.requesterUid
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
+        && data.requesterName is string && data.requesterName.size() >= 1 && data.requesterName.size() <= 80
+        && data.requesterAccountType in ['minor', 'adult']
+        && data.status in ['pending', 'approved', 'declined']
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    function nullableScore(value) { return value == null || (value is int && value >= 0 && value <= 100); }
+    function nullableLatitude(value) { return value == null || ((value is int || value is float) && value >= -90 && value <= 90); }
+    function nullableLongitude(value) { return value == null || ((value is int || value is float) && value >= -180 && value <= 180); }
+    function nullableTimestamp(value) { return value == null || value is timestamp; }
+    function validConnection(data) {
+      return data.keys().hasAll(['kind', 'ownerUid', 'ownerName', 'memberUid', 'memberName', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['kind', 'ownerUid', 'ownerName', 'memberUid', 'memberName', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
+        && data.kind in ['family', 'friend']
+        && data.ownerUid is string && data.ownerUid.size() >= 20 && data.ownerUid.size() <= 128
+        && data.memberUid is string && data.memberUid.size() >= 20 && data.memberUid.size() <= 128
+        && data.ownerUid != data.memberUid
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
+        && data.memberName is string && data.memberName.size() >= 1 && data.memberName.size() <= 80
+        && data.memberAccountType in ['minor', 'adult']
+        && data.ownerShareScore is bool && data.ownerShareLocation is bool
+        && data.memberShareScore is bool && data.memberShareLocation is bool
+        && nullableScore(data.ownerScore) && nullableScore(data.memberScore)
+        && nullableLatitude(data.ownerLatitude) && nullableLongitude(data.ownerLongitude) && nullableTimestamp(data.ownerLocationAt)
+        && nullableLatitude(data.memberLatitude) && nullableLongitude(data.memberLongitude) && nullableTimestamp(data.memberLocationAt)
+        && (data.ownerShareScore || data.ownerScore == null)
+        && (data.memberShareScore || data.memberScore == null)
+        && (data.ownerShareLocation || (data.ownerLatitude == null && data.ownerLongitude == null && data.ownerLocationAt == null))
+        && (data.memberShareLocation || (data.memberLatitude == null && data.memberLongitude == null && data.memberLocationAt == null))
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
 
     match /users/{userId} {
       allow read: if isOwner(userId);
@@ -83,6 +134,74 @@ service cloud.firestore {
         allow create, update: if isOwner(userId) && isValidSyncDocument(domain, request.resource.data);
         allow delete: if false;
       }
+    }
+
+    // Short-lived exact-match codes. Listing is always denied, and knowing a
+    // code never grants access: the organizer still has to approve a request.
+    match /connectionCodes/{codeId} {
+      allow get: if isAuthenticated();
+      allow list: if false;
+      allow create: if isAuthenticated()
+        && validConnectionCode(codeId, request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerName == userDoc(request.auth.uid).name
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(20, 'm')
+        && (request.resource.data.kind == 'friend' || userDoc(request.auth.uid).accountDetails.accountType == 'adult');
+      allow update: if isAuthenticated() && resource.data.ownerUid == request.auth.uid
+        && validConnectionCode(codeId, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status == 'active' && request.resource.data.status == 'closed';
+      allow delete: if isAuthenticated() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /connectionRequests/{requestId} {
+      allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.requesterUid == request.auth.uid);
+      allow create: if isAuthenticated() && validConnectionRequest(request.resource.data)
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.requesterName == userDoc(request.auth.uid).name
+        && request.resource.data.requesterAccountType == userDoc(request.auth.uid).accountDetails.accountType
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.status == 'active'
+        && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.expiresAt > request.time
+        && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.kind == request.resource.data.kind
+        && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerUid == request.resource.data.ownerUid
+        && get(/databases/$(database)/documents/connectionCodes/$(request.resource.data.code)).data.ownerName == request.resource.data.ownerName;
+      allow update: if isAuthenticated() && resource.data.ownerUid == request.auth.uid
+        && validConnectionRequest(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && resource.data.status == 'pending' && request.resource.data.status in ['approved', 'declined']
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.status == 'declined'
+          || getAfter(/databases/$(database)/documents/connections/$(requestId)).data.ownerUid == request.auth.uid);
+      allow delete: if false;
+    }
+
+    match /connections/{connectionId} {
+      allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
+      allow create: if isAuthenticated() && validConnection(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerName == userDoc(request.auth.uid).name
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && request.resource.data.ownerShareScore == false && request.resource.data.ownerShareLocation == false
+        && request.resource.data.memberShareScore == false && request.resource.data.memberShareLocation == false
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.ownerUid == request.resource.data.ownerUid
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.requesterUid == request.resource.data.memberUid
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.kind == request.resource.data.kind
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.requesterName == request.resource.data.memberName
+        && getAfter(/databases/$(database)/documents/connectionRequests/$(connectionId)).data.requesterAccountType == request.resource.data.memberAccountType;
+      allow update: if isAuthenticated() && validConnection(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && ((resource.data.ownerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerShareScore', 'ownerShareLocation', 'ownerScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'updatedAt']))
+          || (resource.data.memberUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberShareScore', 'memberShareLocation', 'memberScore', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'updatedAt'])));
+      allow delete: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
     }
 
     match /{document=**} { allow read, write: if false; }

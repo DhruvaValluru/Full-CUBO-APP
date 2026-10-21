@@ -50,6 +50,6 @@ test('native copy checks success and native share respects dismissal', async () 
 });
 test('Account exposes invite immediately before Help; sheet is conditional', () => {
   const profile = fs.readFileSync('src/screens/ProfileScreen.tsx', 'utf8');
-  assert.ok(profile.indexOf('title="Invite someone"') < profile.indexOf('title="Help and feedback"'));
+  assert.ok(profile.indexOf('title="Invite Someone"') < profile.indexOf('title="Help & Feedback"'));
   assert.match(profile, /inviteOpen \? <AppInviteSheet name=\{profile.name\}/);
 });

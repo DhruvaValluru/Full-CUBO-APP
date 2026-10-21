@@ -48,7 +48,7 @@ export function AppBlockingScreen({ navigation, route }: NativeStackScreenProps<
   };
 
   return <ScreenShell>
-    <AppHeader title={parentManaged ? `${targetName}'s Blocked Apps` : 'Blocked apps'} onBack={() => navigation.goBack()} />
+    <AppHeader title={parentManaged ? `${targetName}'s Blocked Apps` : 'Blocked Apps'} onBack={() => navigation.goBack()} />
     <View style={s.hero}>
       <View style={s.heroTop}>
         <View style={s.shield}><Ionicons name="shield-checkmark" size={25} color={c.accent} /></View>

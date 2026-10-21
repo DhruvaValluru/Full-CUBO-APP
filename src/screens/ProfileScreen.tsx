@@ -37,20 +37,20 @@ export function ProfileScreen() {
     </View>
 
     {!accountDetails?.birthDate || !user?.email || !profile.name.trim() ? <View style={styles.group}><Text style={[styles.rowTitle, { paddingTop: 16 }]}>Account details not set</Text><Text style={[styles.rowDetail, { paddingBottom: 16 }]}>Add your missing birth date or name in Edit profile.</Text></View> : null}
-    <Text style={styles.section}>Saved places</Text><View style={styles.group}><SettingsRow icon="home-outline" title="Home address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'home' })} colors={colors} styles={styles} /><SettingsRow icon="briefcase-outline" title="Work address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'work' })} colors={colors} styles={styles} last /></View>
+    <Text style={styles.section}>Saved Places</Text><View style={styles.group}><SettingsRow icon="home-outline" title="Home Address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'home' })} colors={colors} styles={styles} /><SettingsRow icon="briefcase-outline" title="Work Address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'work' })} colors={colors} styles={styles} last /></View>
     <Text style={styles.section}>Connections</Text>
     <View style={styles.group}>
-      <SettingsRow icon="people-outline" title="Family safety" detail="Teen driving insights and sharing controls" onPress={() => navigation.navigate('Family')} colors={colors} styles={styles} />
+      <SettingsRow icon="people-outline" title="Family" detail="Members, safety insights, and family controls" onPress={() => navigation.navigate('Family')} colors={colors} styles={styles} />
       <SettingsRow icon="business-outline" title="Insurance" detail="Savings preview and driver reports" onPress={() => navigation.navigate('InsuranceConnection')} colors={colors} styles={styles} last />
     </View>
 
     <Text style={styles.section}>Driving</Text>
     <View style={styles.group}>
-      <SettingsRow icon="time-outline" title="Drive history" detail="Scores, events, and coaching" onPress={() => navigation.navigate('Drives')} colors={colors} styles={styles} />
-      <SettingsRow icon="scan-outline" title="Camera calibration" detail="Set your driver and cabin frame" onPress={() => navigation.navigate('CameraCalibration')} colors={colors} styles={styles} />
+      <SettingsRow icon="time-outline" title="Drive Activity" detail="Scores, events, and coaching" onPress={() => navigation.navigate('Drives')} colors={colors} styles={styles} />
+      <SettingsRow icon="scan-outline" title="Camera Calibration" detail="Set your driver and cabin frame" onPress={() => navigation.navigate('CameraCalibration')} colors={colors} styles={styles} />
       <SettingsRow icon="hardware-chip-outline" title="Cubo Devices" detail="CUBO Cruise hardware and diagnostics" onPress={() => navigation.navigate('ConnectedDevices')} colors={colors} styles={styles} />
-      <SettingsRow icon="ban-outline" title="Blocked apps" detail="Choose apps to block while driving" onPress={() => navigation.navigate('AppBlocking')} colors={colors} styles={styles} />
-      <SettingsRow icon="shield-checkmark-outline" title="Privacy and safety" detail="Video stays local · account data syncs" onPress={() => navigation.navigate('SettingsDetail', { kind: 'privacy' })} colors={colors} styles={styles} />
+      <SettingsRow icon="ban-outline" title="Blocked Apps" detail="Choose apps to block while driving" onPress={() => navigation.navigate('AppBlocking')} colors={colors} styles={styles} />
+      <SettingsRow icon="shield-checkmark-outline" title="Privacy & Safety" detail="Video stays local · account data syncs" onPress={() => navigation.navigate('SettingsDetail', { kind: 'privacy' })} colors={colors} styles={styles} />
     </View>
 
     <Text style={styles.section}>Preferences</Text>
@@ -59,8 +59,8 @@ export function ProfileScreen() {
         <Ionicons name="contrast-outline" size={20} color={colors.textSecondary} /><Text style={[styles.rowTitle, styles.fill]}>Appearance</Text><Text style={styles.rowTitle}>{preference === 'system' ? 'System appearance' : preference === 'dark' ? 'Dark' : 'Light'}</Text><Ionicons name={appearanceOpen ? 'chevron-up' : 'chevron-down'} size={17} color={colors.textSecondary} />
       </Pressable>
       {appearanceOpen ? <View accessibilityRole="radiogroup" style={{ paddingVertical: 4 }}>{([{ value: 'system', label: 'System appearance' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }] as const).map(option => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: preference === option.value }} onPress={() => { setMode(option.value); setAppearanceOpen(false); }} style={[styles.row, styles.lastRow, { paddingHorizontal: 12, minHeight: 48, borderRadius: 12, backgroundColor: preference === option.value ? colors.accentSoft : 'transparent' }]}><Text style={[styles.rowTitle, styles.fill]}>{option.label}</Text>{preference === option.value ? <Ionicons name="checkmark" size={20} color={colors.accent} /> : null}</Pressable>)}</View> : null}
-      <ToggleRow icon="notifications-outline" title="Safety notifications" value={notifications} onChange={() => setNotifications((value) => !value)} colors={colors} styles={styles} />
-      <ToggleRow icon="document-text-outline" title="Trip reports" value={tripReports} onChange={() => setTripReports((value) => !value)} colors={colors} styles={styles} />
+      <ToggleRow icon="notifications-outline" title="Safety Notifications" value={notifications} onChange={() => setNotifications((value) => !value)} colors={colors} styles={styles} />
+      <ToggleRow icon="document-text-outline" title="Trip Reports" value={tripReports} onChange={() => setTripReports((value) => !value)} colors={colors} styles={styles} />
       <MapSourcePreference />
       <MediaAccessPreference />
       <VoicePreference />
@@ -68,11 +68,11 @@ export function ProfileScreen() {
 
     <Text style={styles.section}>Support</Text>
     <View style={styles.group}>
-      <SettingsRow icon="paper-plane-outline" title="Invite someone" detail="Share CUBO and a quick setup guide" onPress={() => setInviteOpen(true)} colors={colors} styles={styles} />
-      <SettingsRow icon="help-circle-outline" title="Help and feedback" onPress={() => navigation.navigate('SettingsDetail', { kind: 'help' })} colors={colors} styles={styles} />
+      <SettingsRow icon="paper-plane-outline" title="Invite Someone" detail="Share CUBO and a quick setup guide" onPress={() => setInviteOpen(true)} colors={colors} styles={styles} />
+      <SettingsRow icon="help-circle-outline" title="Help & Feedback" onPress={() => navigation.navigate('SettingsDetail', { kind: 'help' })} colors={colors} styles={styles} />
       <SettingsRow icon="information-circle-outline" title="About CUBO" detail="Our mission and team" onPress={() => navigation.navigate('SettingsDetail', { kind: 'about' })} colors={colors} styles={styles} last />
     </View>
-    <Pressable onPress={() => void signOut()} style={styles.signOut}><Ionicons name="log-out-outline" size={18} color={colors.danger} /><View style={styles.fill}><Text style={styles.signOutText}>Log out</Text><Text style={styles.rowDetail}>{user?.email}</Text></View></Pressable>
+    <Pressable onPress={() => void signOut()} style={styles.signOut}><Ionicons name="log-out-outline" size={18} color={colors.danger} /><View style={styles.fill}><Text style={styles.signOutText}>Log Out</Text><Text style={styles.rowDetail}>{user?.email}</Text></View></Pressable>
     {inviteOpen ? <AppInviteSheet name={profile.name} onClose={() => setInviteOpen(false)} /> : null}
   </ScreenShell>;
 }
