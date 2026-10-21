@@ -41,6 +41,7 @@ test('minor family accounts require organizer review and friend removal asks fir
   assert.match(account, /saved birth date stays the same until your family organizer approves/);
   assert.match(account, /Update Pending Request/);
   assert.match(account, /Send Change Request/);
+  assert.ok(account.indexOf('{requestingBirthChange ? saveDetailsButton : null}') < account.indexOf('Phone number (optional)'), 'minor DOB request action should appear before the phone field');
   assert.match(profile, /Birth-Date Change/);
   assert.match(profile, /Always shared with your family organizer/);
   assert.match(profile, /Request Location/);
