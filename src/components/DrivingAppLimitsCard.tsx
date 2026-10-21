@@ -8,7 +8,7 @@ import { useAppearance } from '../theme/AppearanceContext';
 import { MotionPressable } from './MotionPressable';
 import { BlockAppIcon } from './BlockAppIcon';
 
-export function DrivingAppLimitsCard({ targetUid, targetName, navigation, parentManaged = true }: { targetUid: string; targetName: string; navigation: NativeStackNavigationProp<RootStackParamList>; parentManaged?: boolean }) {
+export function DrivingAppLimitsCard({ connectionId, targetUid, targetName, navigation, parentManaged = true }: { connectionId: string; targetUid: string; targetName: string; navigation: NativeStackNavigationProp<RootStackParamList>; parentManaged?: boolean }) {
   const { colors: c } = useAppearance();
   const { policyFor } = useAppBlocking();
   const policy = policyFor(targetUid, targetName);
@@ -20,7 +20,7 @@ export function DrivingAppLimitsCard({ targetUid, targetName, navigation, parent
       <Text style={[s.body, { color: c.textSecondary }]}>{policy.enabled ? `${apps.length} apps selected${policy.lockedByParent ? ' · Child Lock on' : ''}` : 'No blocked apps list enabled'}</Text>
       {apps.length ? <View style={s.icons}>{apps.slice(0, 5).map(app => <BlockAppIcon key={app.id} app={app} size={25} borderColor={c.card} borderWidth={2} style={{ marginRight: -5 }} />)}{apps.length > 5 ? <Text style={[s.more, { color: c.textSecondary }]}>+{apps.length - 5}</Text> : null}</View> : null}
     </View>
-    <MotionPressable accessibilityLabel={`Manage ${targetName}'s Blocked Apps`} onPress={() => navigation.navigate('AppBlocking', { targetUid, targetName, parentManaged })} style={[s.manage, { backgroundColor: c.accentSoft }]}><Text style={[s.manageText, { color: c.accent }]}>Manage</Text></MotionPressable>
+    <MotionPressable accessibilityLabel={`Manage ${targetName}'s Blocked Apps`} onPress={() => navigation.navigate('AppBlocking', { connectionId, targetUid, targetName, parentManaged })} style={[s.manage, { backgroundColor: c.accentSoft }]}><Text style={[s.manageText, { color: c.accent }]}>Manage</Text></MotionPressable>
   </View>;
 }
 

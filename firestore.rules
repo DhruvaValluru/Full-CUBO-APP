@@ -14,6 +14,23 @@ service cloud.firestore {
     //   createdAt: timestamp, required, immutable, server time on create
     //   updatedAt: timestamp, required, server time on every write
     // The document contains private PII and is readable only by its owner.
+    //
+    // Collection: connectionCodes — short-lived exact-match invite code owned
+    // by one authenticated account; listing is denied.
+    // Collection: connectionRequests — bounded pending/approved relationship
+    // request, readable only by its owner and requester.
+    // Collection: connections — one Family/Friend relationship with bounded
+    // score and foreground location-snapshot fields for its two participants.
+    // Collection: familyMemberships — immutable organizer authority marker for
+    // one linked minor, keyed by the minor UID.
+    // Collection: birthDateChangeRequests — exact linked-minor DOB/account-type
+    // request that only the organizer can approve and atomically apply.
+    // Collection: locationShareRequests — Family organizer request that only
+    // the linked minor may approve or deny; approval itself does not grant GPS.
+    // Collection: familyAppPolicies — organizer-managed Blocked Apps selection
+    // for one linked minor; Child Lock controls the minor's edit access.
+    // Collection: roadReports/confirmations — bounded, expiring road hazard
+    // reports and one response per authenticated account.
     // ===============================================================
 
     // Helper functions
@@ -156,6 +173,38 @@ service cloud.firestore {
         && data.requestedAccountType in ['minor', 'adult']
         && data.status in ['pending', 'approved', 'denied']
         && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    function validLocationShareRequest(connectionId, data) {
+      return data.keys().hasAll(['connectionId', 'organizerUid', 'organizerName', 'minorUid', 'minorName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['connectionId', 'organizerUid', 'organizerName', 'minorUid', 'minorName', 'status', 'createdAt', 'updatedAt'])
+        && data.connectionId == connectionId
+        && data.organizerUid is string && data.organizerUid.size() >= 20 && data.organizerUid.size() <= 128
+        && data.organizerName is string && data.organizerName.size() >= 1 && data.organizerName.size() <= 80
+        && data.minorUid is string && data.minorUid.size() >= 20 && data.minorUid.size() <= 128
+        && data.minorName is string && data.minorName.size() >= 1 && data.minorName.size() <= 80
+        && data.organizerUid != data.minorUid
+        && data.status in ['pending', 'approved', 'denied']
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    function validFamilyAppPolicy(minorId, data) {
+      return data.keys().hasAll(['minorUid', 'organizerUid', 'connectionId', 'targetName', 'enabled', 'lockedByParent', 'selectedIds', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['minorUid', 'organizerUid', 'connectionId', 'targetName', 'enabled', 'lockedByParent', 'selectedIds', 'createdAt', 'updatedAt'])
+        && data.minorUid == minorId
+        && data.organizerUid is string && data.organizerUid.size() >= 20 && data.organizerUid.size() <= 128
+        && data.connectionId is string && data.connectionId.size() >= 1 && data.connectionId.size() <= 320
+        && data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 60
+        && data.enabled is bool && data.lockedByParent is bool
+        && data.selectedIds is list && data.selectedIds.size() <= 12
+        && data.selectedIds.toSet().size() == data.selectedIds.size()
+        && data.selectedIds.toSet().hasOnly(['tiktok', 'instagram', 'facebook', 'snapchat', 'messages', 'facetime', 'whatsapp', 'telegram', 'youtube', 'spotify', 'uber', 'doordash'])
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    function isActiveMinorFamily(connectionId, organizerUid, minorUid) {
+      return exists(/databases/$(database)/documents/connections/$(connectionId))
+        && get(/databases/$(database)/documents/connections/$(connectionId)).data.kind == 'family'
+        && get(/databases/$(database)/documents/connections/$(connectionId)).data.ownerUid == organizerUid
+        && get(/databases/$(database)/documents/connections/$(connectionId)).data.memberUid == minorUid
+        && get(/databases/$(database)/documents/connections/$(connectionId)).data.memberAccountType == 'minor';
     }
 
     match /users/{userId} {
@@ -309,6 +358,60 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && request.auth.uid == minorId;
     }
 
+    // A request never grants location access. The linked minor must explicitly
+    // approve it in the app, which separately requests foreground OS consent.
+    match /locationShareRequests/{connectionId} {
+      allow get, list: if isAuthenticated()
+        && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid)
+        && isActiveMinorFamily(connectionId, resource.data.organizerUid, resource.data.minorUid);
+      allow create: if isAuthenticated() && validLocationShareRequest(connectionId, request.resource.data)
+        && request.resource.data.organizerUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && isActiveMinorFamily(connectionId, request.resource.data.organizerUid, request.resource.data.minorUid)
+        && request.resource.data.organizerName == get(/databases/$(database)/documents/connections/$(connectionId)).data.ownerName
+        && request.resource.data.minorName == get(/databases/$(database)/documents/connections/$(connectionId)).data.memberName;
+      allow update: if isAuthenticated() && validLocationShareRequest(connectionId, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && isActiveMinorFamily(connectionId, resource.data.organizerUid, resource.data.minorUid)
+        && ((request.auth.uid == resource.data.organizerUid
+            && resource.data.status in ['approved', 'denied'] && request.resource.data.status == 'pending')
+          || (request.auth.uid == resource.data.minorUid
+            && resource.data.status == 'pending' && request.resource.data.status in ['approved', 'denied']));
+      allow delete: if isAuthenticated()
+        && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid)
+        && !existsAfter(/databases/$(database)/documents/connections/$(connectionId));
+    }
+
+    // Parent-selected Blocked Apps synchronize to the linked minor. Child Lock
+    // is organizer-only; an unlocked minor may adjust only the app list/switch.
+    match /familyAppPolicies/{minorId} {
+      allow get, list: if isAuthenticated()
+        && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid)
+        && isActiveMinorFamily(resource.data.connectionId, resource.data.organizerUid, resource.data.minorUid);
+      allow create: if isAuthenticated() && validFamilyAppPolicy(minorId, request.resource.data)
+        && request.resource.data.organizerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && isActiveMinorFamily(request.resource.data.connectionId, request.resource.data.organizerUid, request.resource.data.minorUid)
+        && request.resource.data.targetName == get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberName;
+      allow update: if isAuthenticated() && validFamilyAppPolicy(minorId, request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && isActiveMinorFamily(resource.data.connectionId, resource.data.organizerUid, resource.data.minorUid)
+        && request.resource.data.targetName == get(/databases/$(database)/documents/connections/$(resource.data.connectionId)).data.memberName
+        && ((request.auth.uid == resource.data.organizerUid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['targetName', 'enabled', 'lockedByParent', 'selectedIds', 'updatedAt']))
+          || (request.auth.uid == resource.data.minorUid && resource.data.lockedByParent == false
+            && request.resource.data.lockedByParent == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabled', 'selectedIds', 'updatedAt'])));
+      allow delete: if isAuthenticated()
+        && (resource.data.organizerUid == request.auth.uid
+          || (resource.data.minorUid == request.auth.uid
+            && !existsAfter(/databases/$(database)/documents/connections/$(resource.data.connectionId))));
+    }
+
     match /connections/{connectionId} {
       allow get, list: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid);
       allow create: if isAuthenticated() && validConnection(request.resource.data)
@@ -320,7 +423,13 @@ service cloud.firestore {
         && request.resource.data.ownerName == userDoc(request.auth.uid).name
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && request.resource.data.ownerShareScore == false && request.resource.data.ownerShareLocation == false
-        && request.resource.data.memberShareScore == false && request.resource.data.memberShareLocation == false
+        && request.resource.data.memberShareLocation == false
+        && ((request.resource.data.kind == 'family' && request.resource.data.memberAccountType == 'minor'
+            && request.resource.data.memberShareScore == true && request.resource.data.memberScore == 100
+            && request.resource.data.memberScoreMeasured == false)
+          || ((request.resource.data.kind != 'family' || request.resource.data.memberAccountType != 'minor')
+            && request.resource.data.memberShareScore == false && request.resource.data.memberScore == null
+            && request.resource.data.memberScoreMeasured == false))
         && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.status == 'approved'
         && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.ownerUid == request.resource.data.ownerUid
         && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.requesterUid == request.resource.data.memberUid
@@ -336,7 +445,8 @@ service cloud.firestore {
         && ((resource.data.ownerUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerShareScore', 'ownerShareLocation', 'ownerScore', 'ownerScoreMeasured', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'updatedAt']))
           || (resource.data.memberUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberShareScore', 'memberShareLocation', 'memberScore', 'memberScoreMeasured', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'updatedAt']))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberShareScore', 'memberShareLocation', 'memberScore', 'memberScoreMeasured', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'updatedAt'])
+            && (resource.data.kind != 'family' || resource.data.memberAccountType != 'minor' || request.resource.data.memberShareScore == true))
           || (resource.data.ownerUid == request.auth.uid && resource.data.kind == 'family'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberAccountType', 'updatedAt'])
             && getAfter(/databases/$(database)/documents/birthDateChangeRequests/$(resource.data.memberUid)).data.status == 'approved'

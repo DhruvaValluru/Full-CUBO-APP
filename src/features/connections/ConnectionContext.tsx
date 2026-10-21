@@ -62,6 +62,17 @@ export type BirthDateChangeRequest = {
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
+export type LocationShareRequest = {
+  id: string;
+  connectionId: string;
+  organizerUid: string;
+  organizerName: string;
+  minorUid: string;
+  minorName: string;
+  status: 'pending' | 'approved' | 'denied';
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};
 type ShareKey = 'score' | 'location';
 type CreatedCode = { code: string; expiresAt: Date; kind: ConnectionKind };
 type ConnectionContextValue = {
@@ -69,6 +80,7 @@ type ConnectionContextValue = {
   incoming: ConnectionRequest[];
   outgoing: ConnectionRequest[];
   birthDateRequests: BirthDateChangeRequest[];
+  locationShareRequests: LocationShareRequest[];
   loading: boolean;
   error: string;
   canGenerateFamilyCode: boolean;
@@ -80,6 +92,8 @@ type ConnectionContextValue = {
   removeConnection: (connection: CuboConnection) => Promise<void>;
   requestBirthDateChange: (details: AccountDetails) => Promise<void>;
   reviewBirthDateChange: (request: BirthDateChangeRequest, approved: boolean) => Promise<void>;
+  requestLocationShare: (connection: CuboConnection) => Promise<void>;
+  respondLocationShare: (request: LocationShareRequest, approved: boolean) => Promise<void>;
 };
 
 const ConnectionContext = createContext<ConnectionContextValue | null>(null);
@@ -112,11 +126,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const outgoing = useMemo(() => rawOutgoing.filter(item => item.status === 'pending'), [rawOutgoing]);
   const [requestSnapshotsReady, setRequestSnapshotsReady] = useState({ incoming: false, outgoing: false });
   const [birthDateRequests, setBirthDateRequests] = useState<BirthDateChangeRequest[]>([]);
+  const [locationShareRequests, setLocationShareRequests] = useState<LocationShareRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setRawConnections([]); setRawIncoming([]); setRawOutgoing([]); setRequestSnapshotsReady({ incoming: false, outgoing: false }); setBirthDateRequests([]); setError('');
+    setRawConnections([]); setRawIncoming([]); setRawOutgoing([]); setRequestSnapshotsReady({ incoming: false, outgoing: false }); setBirthDateRequests([]); setLocationShareRequests([]); setError('');
     if (!user) return;
     const incomingQuery = query(collection(db, 'connectionRequests'), where('ownerUid', '==', user.uid));
     const outgoingQuery = query(collection(db, 'connectionRequests'), where('requesterUid', '==', user.uid));
@@ -124,10 +139,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const joinedQuery = query(collection(db, 'connections'), where('memberUid', '==', user.uid));
     const organizedBirthChanges = query(collection(db, 'birthDateChangeRequests'), where('organizerUid', '==', user.uid));
     const requestedBirthChanges = query(collection(db, 'birthDateChangeRequests'), where('minorUid', '==', user.uid));
+    const organizedLocationRequests = query(collection(db, 'locationShareRequests'), where('organizerUid', '==', user.uid));
+    const receivedLocationRequests = query(collection(db, 'locationShareRequests'), where('minorUid', '==', user.uid));
     let owned: CuboConnection[] = []; let joined: CuboConnection[] = [];
     let organized: BirthDateChangeRequest[] = []; let requested: BirthDateChangeRequest[] = [];
+    let locationRequested: LocationShareRequest[] = []; let locationReceived: LocationShareRequest[] = [];
     const merge = () => setRawConnections([...owned, ...joined].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
     const mergeBirthChanges = () => setBirthDateRequests([...organized, ...requested].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
+    const mergeLocationRequests = () => setLocationShareRequests([...locationRequested, ...locationReceived].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
     const unsubs = [
       onSnapshot(incomingQuery, snap => { setRawIncoming(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest))); setRequestSnapshotsReady(value => ({ ...value, incoming: true })); }, cause => setError(cause.message)),
       onSnapshot(outgoingQuery, snap => { setRawOutgoing(snap.docs.map(item => ({ id: item.id, ...item.data() } as ConnectionRequest))); setRequestSnapshotsReady(value => ({ ...value, outgoing: true })); }, cause => setError(cause.message)),
@@ -135,6 +154,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       onSnapshot(joinedQuery, snap => { joined = snap.docs.map(item => ({ id: item.id, ...item.data() } as CuboConnection)); merge(); }, cause => setError(cause.message)),
       onSnapshot(organizedBirthChanges, snap => { organized = snap.docs.map(item => ({ id: item.id, ...item.data() } as BirthDateChangeRequest)); mergeBirthChanges(); }, cause => setError(cause.message)),
       onSnapshot(requestedBirthChanges, snap => { requested = snap.docs.map(item => ({ id: item.id, ...item.data() } as BirthDateChangeRequest)); mergeBirthChanges(); }, cause => setError(cause.message)),
+      onSnapshot(organizedLocationRequests, snap => { locationRequested = snap.docs.map(item => ({ id: item.id, ...item.data() } as LocationShareRequest)); mergeLocationRequests(); }, cause => setError(cause.message)),
+      onSnapshot(receivedLocationRequests, snap => { locationReceived = snap.docs.map(item => ({ id: item.id, ...item.data() } as LocationShareRequest)); mergeLocationRequests(); }, cause => setError(cause.message)),
     ];
     return () => unsubs.forEach(unsub => unsub());
   }, [user?.uid]);
@@ -178,12 +199,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     for (const item of connections) {
       const owner = item.ownerUid === user.uid;
-      const enabled = owner ? item.ownerShareScore : item.memberShareScore;
+      const requiredFamilyScore = item.kind === 'family' && item.memberUid === user.uid && item.memberAccountType === 'minor';
+      const storedEnabled = owner ? item.ownerShareScore : item.memberShareScore;
+      const enabled = requiredFamilyScore || storedEnabled;
       const saved = owner ? item.ownerScore : item.memberScore;
       const savedMeasured = owner ? item.ownerScoreMeasured : item.memberScoreMeasured;
-      if (!enabled || (saved === currentScore && savedMeasured === currentScoreMeasured)) continue;
+      if (!enabled || (storedEnabled && saved === currentScore && savedMeasured === currentScoreMeasured)) continue;
       const prefix = owner ? 'owner' : 'member';
-      void updateDoc(doc(db, 'connections', item.id), { [`${prefix}Score`]: currentScore, [`${prefix}ScoreMeasured`]: currentScoreMeasured, updatedAt: serverTimestamp() }).catch(() => setError('Your shared safety score could not refresh yet.'));
+      void updateDoc(doc(db, 'connections', item.id), { [`${prefix}ShareScore`]: true, [`${prefix}Score`]: currentScore, [`${prefix}ScoreMeasured`]: currentScoreMeasured, updatedAt: serverTimestamp() }).catch(() => setError('Your shared safety score could not refresh yet.'));
     }
   }, [connections, currentScore, currentScoreMeasured, user?.uid]);
 
@@ -254,8 +277,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       batch.set(doc(db, 'connections', connectionId), {
         requestId: request.id,
         kind: request.kind, ownerUid: request.ownerUid, ownerName: request.ownerName, memberUid: request.requesterUid, memberName: request.requesterName,
-        memberAccountType: request.requesterAccountType, ownerShareScore: false, ownerShareLocation: false, memberShareScore: false, memberShareLocation: false,
-        ownerScore: null, memberScore: null, ownerScoreMeasured: false, memberScoreMeasured: false, ownerLatitude: null, ownerLongitude: null, ownerLocationAt: null, memberLatitude: null, memberLongitude: null, memberLocationAt: null,
+        memberAccountType: request.requesterAccountType, ownerShareScore: false, ownerShareLocation: false, memberShareScore: request.kind === 'family' && request.requesterAccountType === 'minor', memberShareLocation: false,
+        ownerScore: null, memberScore: request.kind === 'family' && request.requesterAccountType === 'minor' ? 100 : null, ownerScoreMeasured: false, memberScoreMeasured: false, ownerLatitude: null, ownerLongitude: null, ownerLocationAt: null, memberLatitude: null, memberLongitude: null, memberLocationAt: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
       if (request.kind === 'family' && request.requesterAccountType === 'minor') batch.set(doc(db, 'familyMemberships', request.requesterUid), { minorUid: request.requesterUid, organizerUid: request.ownerUid, connectionId, createdAt: serverTimestamp() });
@@ -272,10 +295,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     if (!user) throw Error('Sign in to update sharing.');
     const owner = connection.ownerUid === user.uid;
     if (!owner && connection.memberUid !== user.uid) throw Error('This connection does not belong to you.');
+    if (key === 'score' && !enabled && connection.kind === 'family' && connection.memberUid === user.uid && connection.memberAccountType === 'minor') throw Error('Your safety score is required for your linked family organizer.');
     setLoading(true); setError('');
     try {
       const prefix = owner ? 'owner' : 'member';
       const update: Record<string, unknown> = { [`${prefix}Share${key === 'score' ? 'Score' : 'Location'}`]: enabled, updatedAt: serverTimestamp() };
+      if (!owner && connection.kind === 'family' && connection.memberAccountType === 'minor') {
+        update.memberShareScore = true;
+        update.memberScore = averageScore(sessions);
+        update.memberScoreMeasured = sessions.some(item => item.attentionMeasured);
+      }
       if (key === 'score') {
         update[`${prefix}Score`] = enabled ? averageScore(sessions) : null;
         update[`${prefix}ScoreMeasured`] = enabled && sessions.some(item => item.attentionMeasured);
@@ -299,13 +328,40 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     if (!user || (connection.ownerUid !== user.uid && connection.memberUid !== user.uid)) throw Error('This connection does not belong to you.');
     const requestId = connection.requestId ?? connection.id;
     const requestRef = doc(db, 'connectionRequests', requestId);
-    const request = await getDoc(requestRef);
+    const requestExists = [...rawIncoming, ...rawOutgoing].some(request => request.id === requestId);
     const batch = writeBatch(db);
     batch.delete(doc(db, 'connections', connection.id));
     if (connection.kind === 'family' && connection.memberAccountType === 'minor') batch.delete(doc(db, 'familyMemberships', connection.memberUid));
-    if (request.exists()) batch.delete(requestRef);
+    if (locationShareRequests.some(item => item.connectionId === connection.id)) batch.delete(doc(db, 'locationShareRequests', connection.id));
+    if (requestExists) batch.delete(requestRef);
     await batch.commit();
-  }, [user?.uid]);
+  }, [locationShareRequests, rawIncoming, rawOutgoing, user?.uid]);
+
+  const requestLocationShare = useCallback(async (connection: CuboConnection) => {
+    if (!user || connection.kind !== 'family' || connection.ownerUid !== user.uid || connection.memberAccountType !== 'minor') throw Error('Only this minor’s family organizer can request a location snapshot.');
+    const previous = locationShareRequests.find(item => item.connectionId === connection.id);
+    if (previous?.status === 'pending') throw Error(`${connection.memberName} already has a location request waiting.`);
+    const reference = doc(db, 'locationShareRequests', connection.id);
+    if (previous) await updateDoc(reference, { status: 'pending', updatedAt: serverTimestamp() });
+    else await setDoc(reference, {
+      connectionId: connection.id,
+      organizerUid: connection.ownerUid,
+      organizerName: connection.ownerName,
+      minorUid: connection.memberUid,
+      minorName: connection.memberName,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }, [locationShareRequests, user?.uid]);
+
+  const respondLocationShare = useCallback(async (request: LocationShareRequest, approved: boolean) => {
+    if (!user || request.minorUid !== user.uid || request.status !== 'pending') throw Error('This location request is no longer waiting for you.');
+    const familyConnection = connections.find(item => item.id === request.connectionId && item.kind === 'family' && item.memberUid === user.uid);
+    if (!familyConnection) throw Error('This family connection is no longer available.');
+    if (approved) await setSharing(familyConnection, 'location', true);
+    await updateDoc(doc(db, 'locationShareRequests', request.id), { status: approved ? 'approved' : 'denied', updatedAt: serverTimestamp() });
+  }, [connections, setSharing, user?.uid]);
 
   const requestBirthDateChange = useCallback(async (details: AccountDetails) => {
     if (!user || !accountDetails) throw Error('Sign in before changing your birth date.');
@@ -343,7 +399,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     await batch.commit();
   }, [user?.uid]);
 
-  const value = useMemo<ConnectionContextValue>(() => ({ connections, incoming, outgoing, birthDateRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange }), [connections, incoming, outgoing, birthDateRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange]);
+  const value = useMemo<ConnectionContextValue>(() => ({ connections, incoming, outgoing, birthDateRequests, locationShareRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange, requestLocationShare, respondLocationShare }), [connections, incoming, outgoing, birthDateRequests, locationShareRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange, requestLocationShare, respondLocationShare]);
   return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>;
 }
 

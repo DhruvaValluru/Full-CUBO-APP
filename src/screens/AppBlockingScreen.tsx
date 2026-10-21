@@ -23,13 +23,15 @@ export function AppBlockingScreen({ navigation, route }: NativeStackScreenProps<
   const targetUid = route.params?.targetUid ?? user?.uid ?? 'signed-out';
   const targetName = route.params?.targetName ?? 'Your drive';
   const parentManaged = Boolean(route.params?.parentManaged);
+  const connectionId = route.params?.connectionId;
   const [policy, setPolicy] = useState<AppBlockingPolicy>(() => policyFor(targetUid, targetName));
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const returnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (hydrated) setPolicy(policyFor(targetUid, targetName));
-  }, [hydrated, targetName, targetUid]);
+  }, [hydrated, policyFor, targetName, targetUid]);
   useEffect(() => () => { if (returnTimer.current) clearTimeout(returnTimer.current); }, []);
 
   const readOnly = policy.lockedByParent && !parentManaged;
@@ -40,11 +42,16 @@ export function AppBlockingScreen({ navigation, route }: NativeStackScreenProps<
     setPolicy(current => ({ ...current, selectedIds: current.selectedIds.includes(id) ? current.selectedIds.filter(value => value !== id) : [...current.selectedIds, id] }));
   };
   const setPopular = () => { if (!readOnly) { setSaved(false); setPolicy(current => ({ ...current, selectedIds: popularBlockIds })); } };
-  const save = () => {
-    savePolicy(policy, parentManaged);
-    setSaved(true);
-    if (returnTimer.current) clearTimeout(returnTimer.current);
-    returnTimer.current = setTimeout(() => { if (navigation.canGoBack()) navigation.goBack(); }, 450);
+  const save = async () => {
+    setSaveError('');
+    try {
+      await savePolicy(policy, parentManaged, connectionId);
+      setSaved(true);
+      if (returnTimer.current) clearTimeout(returnTimer.current);
+      returnTimer.current = setTimeout(() => { if (navigation.canGoBack()) navigation.goBack(); }, 450);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Blocked Apps could not be saved.');
+    }
   };
 
   return <ScreenShell>
@@ -75,7 +82,8 @@ export function AppBlockingScreen({ navigation, route }: NativeStackScreenProps<
     })}</View>
 
     <View style={s.preview}><Ionicons name="construct-outline" size={20} color={c.amber} /><View style={s.fill}><Text style={s.cardTitle}>Phone controls come next</Text><Text style={s.cardBody}>This version saves the policy and drive flow. Actual iPhone and Android app blocking still requires their native family-control permissions.</Text></View></View>
-    <MotionPressable accessibilityRole="button" onPress={save} disabled={!hydrated || readOnly} style={[s.save, (!hydrated || readOnly) && s.disabled]}><Ionicons name={saved ? 'checkmark-circle' : 'shield-checkmark-outline'} size={20} color={c.onAccent} /><Text style={s.saveText}>{saved ? 'Blocked Apps saved' : parentManaged ? `Save for ${targetName}` : 'Save Blocked Apps'}</Text></MotionPressable>
+    {saveError ? <Text accessibilityRole="alert" style={s.error}>{saveError}</Text> : null}
+    <MotionPressable accessibilityRole="button" onPress={() => void save()} disabled={!hydrated || readOnly} style={[s.save, (!hydrated || readOnly) && s.disabled]}><Ionicons name={saved ? 'checkmark-circle' : 'shield-checkmark-outline'} size={20} color={c.onAccent} /><Text style={s.saveText}>{saved ? 'Blocked Apps saved' : parentManaged ? `Save for ${targetName}` : 'Save Blocked Apps'}</Text></MotionPressable>
   </ScreenShell>;
 }
 
@@ -84,5 +92,5 @@ const styles = (c: AppColors) => StyleSheet.create({
   parentCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.borderStrong, padding: 16 }, parentIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }, cardTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 13 }, cardBody: { color: c.textSecondary, fontSize: 10, lineHeight: 15, marginTop: 3 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }, sectionTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 19 }, sectionBody: { color: c.textSecondary, fontSize: 11, marginTop: 3 }, quickActions: { flexDirection: 'row', gap: 6 }, quick: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, backgroundColor: c.accentSoft }, quickText: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 11 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, appTile: { width: '31%', minHeight: 112, backgroundColor: c.card, borderRadius: 19, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 10 }, appTileOn: { borderColor: c.accent, backgroundColor: c.accentSoft }, appName: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 11, maxWidth: '100%' }, check: { position: 'absolute', right: -7, bottom: -5, width: 22, height: 22, borderRadius: 11, backgroundColor: c.card, borderWidth: 2, borderColor: c.border, alignItems: 'center', justifyContent: 'center' }, checkOn: { backgroundColor: c.accent, borderColor: c.card },
-  preview: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', borderRadius: 18, padding: 16, backgroundColor: c.amberSoft }, save: { minHeight: 54, borderRadius: 17, backgroundColor: c.accent, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }, saveText: { color: c.onAccent, fontFamily: 'Manrope_800ExtraBold', fontSize: 13 }, disabled: { opacity: .48 },
+  preview: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', borderRadius: 18, padding: 16, backgroundColor: c.amberSoft }, error: { color: c.danger, fontSize: 11, lineHeight: 17, padding: 12, borderRadius: 14, backgroundColor: c.dangerSoft }, save: { minHeight: 54, borderRadius: 17, backgroundColor: c.accent, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }, saveText: { color: c.onAccent, fontFamily: 'Manrope_800ExtraBold', fontSize: 13 }, disabled: { opacity: .48 },
 });

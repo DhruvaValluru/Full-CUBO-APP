@@ -37,10 +37,19 @@ test('minor family accounts require organizer review and friend removal asks fir
   assert.match(provider, /birthDateChangeRequests/);
   assert.match(provider, /requestBirthDateChange/);
   assert.match(provider, /reviewBirthDateChange/);
-  assert.match(account, /family organizer must approve/);
+  assert.match(account, /family organizer[\s\S]*unless they approve/);
+  assert.match(account, /Request Parent Approval/);
   assert.match(profile, /Birth-Date Change/);
+  assert.match(profile, /Always shared with your family organizer/);
+  assert.match(profile, /Request Location/);
+  assert.match(profile, /Share Location/);
   assert.match(notifications, /requested an age change/);
+  assert.match(notifications, /asked for your location/);
+  assert.match(provider, /locationShareRequests/);
+  assert.match(provider, /requestLocationShare/);
+  assert.match(provider, /respondLocationShare/);
   assert.match(screen, /<ConfirmSheet visible=\{confirmRemove\}/);
+  assert.match(screen, /owner \? item\.memberAccountType[\s\S]*: 'Family · Parent\/Guardian'/);
 });
 
 test('email accounts can link Google without replacing their CUBO identity', () => {
@@ -58,6 +67,7 @@ test('join codes require approval and friend sharing stays opt-in', () => {
   assert.match(provider, /status: 'pending'/);
   assert.match(provider, /status: 'approved'/);
   assert.match(provider, /ownerShareScore: false/);
+  assert.match(provider, /memberShareScore: request\.kind === 'family'/);
   assert.match(provider, /memberShareLocation: false/);
   assert.match(provider, /15 \* 60 \* 1000/);
   assert.match(provider, /requestForegroundPermissionsAsync/);
@@ -99,4 +109,8 @@ test('Firestore rules deny code listing and bind approval to one connection with
   assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['memberShareScore'/);
   assert.match(rules, /ownerScoreMeasured/);
   assert.match(rules, /memberScoreMeasured/);
+  assert.match(rules, /match \/locationShareRequests\/\{connectionId\}/);
+  assert.match(rules, /match \/familyAppPolicies\/\{minorId\}/);
+  assert.match(rules, /memberShareScore == true/);
+  assert.match(rules, /resource\.data\.status == 'pending' && request\.resource\.data\.status in \['approved', 'denied'\]/);
 });
