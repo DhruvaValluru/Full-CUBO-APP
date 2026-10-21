@@ -4,19 +4,36 @@ const test = require('node:test');
 
 const read = path => fs.readFileSync(path, 'utf8');
 
-test('Google authentication uses a phone-safe redirect and desktop popup', () => {
+const ts = require('typescript');
+function loadTypeScript(path) {
+  const source = fs.readFileSync(path, 'utf8');
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  const moduleUnderTest = { exports: {} };
+  new Function('module', 'exports', 'require', output)(moduleUnderTest, moduleUnderTest.exports, require);
+  return moduleUnderTest.exports;
+}
+
+test('Google authentication uses popup on Cloudflare phones and desktops', () => {
   const source = read('src/features/auth/googleSignIn.web.ts');
   assert.match(source, /GoogleAuthProvider/);
   assert.match(source, /prompt: 'select_account'/);
-  assert.match(source, /signInWithRedirect/);
   assert.match(source, /signInWithPopup/);
-  assert.match(source, /display-mode: standalone/);
+  assert.doesNotMatch(source, /signInWithRedirect|getRedirectResult|prefersRedirect/);
+});
+
+test('only incomplete Google accounts enter continued account creation', () => {
+  const { googleAccountNeedsSetup } = loadTypeScript('src/features/auth/googleAccountSetup.ts');
+  const details = { birthDate: '2008-10-09', phoneNumber: '+19195550123' };
+  assert.equal(googleAccountNeedsSetup(['password'], undefined), false);
+  assert.equal(googleAccountNeedsSetup(['password'], details), false);
+  assert.equal(googleAccountNeedsSetup(['google.com'], undefined), true);
+  assert.equal(googleAccountNeedsSetup(['google.com'], details), false);
 });
 
 test('new Google users must finish their private profile before entering CUBO', () => {
   const source = read('src/features/auth/AuthContext.tsx');
   assert.match(source, /provider\.providerId === GoogleAuthProvider\.PROVIDER_ID/);
-  assert.match(source, /return !hasCompleteAccountDetails\(existing\.data\(\)\.accountDetails\)/);
+  assert.match(source, /googleAccountNeedsSetup\(providerIds, existing\.data\(\)\.accountDetails\)/);
   assert.match(source, /setNeedsAccountSetup\(requiresSetup\)/);
   assert.match(source, /completeGoogleAccountSetup/);
   assert.match(source, /accountDetails: validated/);
@@ -35,10 +52,12 @@ test('Google account completion screen collects only name, phone, and birth date
   assert.match(app, /if \(needsAccountSetup\) return <GoogleAccountSetupScreen/);
 });
 
-test('authentication screen exposes one compact accessible Google action', () => {
+test('authentication screen keeps one compact Google action without changing email flows', () => {
   const source = read('src/screens/AuthScreen.tsx');
   assert.match(source, /accessibilityLabel="Continue with Google"/);
   assert.match(source, /or continue with/);
   assert.match(source, /Platform\.OS === 'web'/);
   assert.match(source, /auth\/account-exists-with-different-credential/);
+  assert.match(source, /if \(mode === 'signup'\) await signUp\(name, email, password/);
+  assert.match(source, /else await signIn\(email, password\)/);
 });

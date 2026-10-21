@@ -8,7 +8,8 @@ import { commitAccountDetails } from './commitAccountDetails';
 import { db } from '../../lib/firebase';
 import { auth } from '../../lib/firebaseAuth';
 import { syncIdentity } from './syncIdentity';
-import { finishGoogleRedirectSignIn, startGoogleSignIn } from './googleSignIn';
+import { startGoogleSignIn } from './googleSignIn';
+import { googleAccountNeedsSetup } from './googleAccountSetup';
 
 type AuthContextValue = {
   user: User | null;
@@ -30,19 +31,14 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function hasCompleteAccountDetails(value: unknown): value is AccountDetails {
-  if (!value || typeof value !== 'object') return false;
-  const details = value as Partial<AccountDetails>;
-  return typeof details.birthDate === 'string' && typeof details.phoneNumber === 'string';
-}
-
 async function provisionGoogleUser(user: User) {
-  if (!user.providerData.some(provider => provider.providerId === GoogleAuthProvider.PROVIDER_ID)) return false;
+  const providerIds = user.providerData.map(provider => provider.providerId);
+  if (!providerIds.includes(GoogleAuthProvider.PROVIDER_ID)) return false;
   const email = user.email?.trim().toLowerCase();
   if (!email) throw Error('Your Google account did not provide an email address.');
   const reference = doc(db, 'users', user.uid);
   const existing = await getDoc(reference);
-  if (existing.exists()) return !hasCompleteAccountDetails(existing.data().accountDetails);
+  if (existing.exists()) return googleAccountNeedsSetup(providerIds, existing.data().accountDetails);
   const fallbackName = email.split('@')[0] || 'CUBO driver';
   const name = (user.displayName?.trim() || fallbackName).slice(0, 80);
   await setDoc(reference, {
@@ -65,7 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => {
-    void finishGoogleRedirectSignIn().catch(() => setAuthNotice('Google sign-in could not be completed. Please try again.'));
     return onAuthStateChanged(auth, async nextUser => {
       setLoading(true);
       try {

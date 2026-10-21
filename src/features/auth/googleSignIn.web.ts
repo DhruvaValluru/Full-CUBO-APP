@@ -1,24 +1,14 @@
-import { GoogleAuthProvider, getRedirectResult, signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 import { auth } from '../../lib/firebaseAuth';
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-function prefersRedirect() {
-  if (typeof navigator === 'undefined') return false;
-  return /Android|iPad|iPhone|iPod|Mobile/i.test(navigator.userAgent)
-    || (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches === true);
-}
-
 export async function startGoogleSignIn() {
-  if (prefersRedirect()) {
-    await signInWithRedirect(auth, googleProvider);
-    return;
-  }
+  // CUBO is hosted by Cloudflare rather than Firebase Hosting. Firebase's
+  // redirect helper loses its cross-origin storage on modern Safari and other
+  // privacy-focused browsers, returning users to the signed-out welcome page.
+  // A user-initiated popup keeps the Firebase session on CUBO's own origin.
   await signInWithPopup(auth, googleProvider);
-}
-
-export async function finishGoogleRedirectSignIn() {
-  await getRedirectResult(auth);
 }
