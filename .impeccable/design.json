@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T02:56:38.6270704-04:00",
+  "title": "Design System: CUBO",
+  "extensions": {
+    "colorMeta": {
+      "signal-green": { "role": "primary", "displayName": "Signal Green", "canonical": "#087D52", "tonalRamp": ["#06261A", "#07402B", "#075A3B", "#087D52", "#35A878", "#63CF93", "#A5E5C0", "#E8F8EE"] },
+      "forest-cabin": { "role": "neutral", "displayName": "Forest Cabin", "canonical": "#07130E", "tonalRamp": ["#07130E", "#0F2119", "#183027", "#27483A", "#47705D", "#779989", "#B6CABE", "#EDF3EF"] },
+      "mineral-road": { "role": "neutral", "displayName": "Mineral Road", "canonical": "#F1F4F0", "tonalRamp": ["#1B211D", "#354039", "#53635A", "#75867C", "#A0AEA5", "#C7D0CA", "#E1E7E2", "#F1F4F0"] },
+      "danger": { "role": "semantic", "displayName": "Alert Red", "canonical": "#FF453A", "tonalRamp": ["#35100D", "#642019", "#982D25", "#C93636", "#FF453A", "#FF827A", "#FFB8B3", "#FFEAE8"] },
+      "caution": { "role": "semantic", "displayName": "Hazard Orange", "canonical": "#FFB020", "tonalRamp": ["#332005", "#68410A", "#98600D", "#C98210", "#FFB020", "#FFC95F", "#FFE0A4", "#FFF4DE"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Welcome and authentication statements." },
+      "headline": { "displayName": "Headline", "purpose": "Screen identity and safety scores." },
+      "body": { "displayName": "Body", "purpose": "Operational explanations and form content." },
+      "label": { "displayName": "Label", "purpose": "Short state labels and compact navigation." }
+    },
+    "shadows": [
+      { "name": "ambient-card", "value": "0 10px 22px rgba(0,0,0,0.16)", "purpose": "Major cards, floating navigation and bottom sheets." },
+      { "name": "phone-frame", "value": "0 18px 32px rgba(0,0,0,0.45)", "purpose": "Desktop-only phone preview shell." }
+    ],
+    "motion": [
+      { "name": "press-feedback", "value": "scale 0.96", "purpose": "Short, interruptible feedback on primary controls." },
+      { "name": "reduced-motion", "value": "0ms transform travel", "purpose": "State changes remain visible without decorative movement." }
+    ],
+    "breakpoints": [
+      { "name": "phone-fullscreen", "value": "600px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action on a form or safety flow.",
+      "html": "<button class=\"ds-btn-primary\">Continue</button>",
+      "css": ".ds-btn-primary{min-height:54px;padding:16px 20px;border:0;border-radius:14px;background:#087D52;color:#fff;font:700 14px Manrope,system-ui,sans-serif;transition:opacity .16s ease,transform .16s ease}.ds-btn-primary:hover{opacity:.92}.ds-btn-primary:active{transform:scale(.98)}.ds-btn-primary:focus-visible{outline:3px solid rgba(8,125,82,.28);outline-offset:3px}"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Secondary action that remains readable without competing with the primary verb.",
+      "html": "<button class=\"ds-btn-quiet\">Not now</button>",
+      "css": ".ds-btn-quiet{min-height:48px;padding:12px 18px;border:1px solid rgba(13,61,41,.19);border-radius:14px;background:#FBFCFA;color:#102019;font:700 14px Manrope,system-ui,sans-serif;transition:background .16s ease}.ds-btn-quiet:hover{background:#E7EDE8}.ds-btn-quiet:focus-visible{outline:3px solid rgba(8,125,82,.22);outline-offset:3px}"
+    },
+    {
+      "name": "Standard Input",
+      "kind": "input",
+      "refersTo": "input-standard",
+      "description": "Account and destination entry field.",
+      "html": "<input class=\"ds-input\" value=\"710 Suffield Way\" aria-label=\"Destination\" />",
+      "css": ".ds-input{min-height:52px;width:100%;padding:12px 14px;border:1px solid rgba(13,61,41,.19);border-radius:14px;background:#FBFCFA;color:#102019;font:500 14px Manrope,system-ui,sans-serif;box-sizing:border-box}.ds-input:focus-visible{border-color:#087D52;outline:2px solid rgba(8,125,82,.18)}"
+    },
+    {
+      "name": "Surface Card",
+      "kind": "card",
+      "refersTo": "card-surface",
+      "description": "Quiet container for supporting information.",
+      "html": "<section class=\"ds-card\"><strong>Camera ready</strong><span>Calibration saved</span></section>",
+      "css": ".ds-card{display:grid;gap:6px;padding:20px;border:1px solid rgba(13,61,41,.10);border-radius:22px;background:#FBFCFA;color:#102019;font-family:Manrope,system-ui,sans-serif;box-shadow:0 10px 22px rgba(0,0,0,.08)}.ds-card strong{font-size:16px}.ds-card span{color:#53635A;font-size:13px}"
+    },
+    {
+      "name": "Floating Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-floating",
+      "description": "Four-destination mobile tab bar with one quiet selected segment.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item is-active\">Home</button><button class=\"ds-nav-item\">Map</button><button class=\"ds-nav-item\">Activity</button><button class=\"ds-nav-item\">Account</button></nav>",
+      "css": ".ds-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px;border:1px solid rgba(13,61,41,.19);border-radius:24px;background:#fff;box-shadow:0 10px 24px rgba(20,35,29,.14)}.ds-nav-item{min-height:54px;border:0;border-radius:17px;background:transparent;color:#53635A;font:600 11px Manrope,system-ui,sans-serif}.ds-nav-item.is-active{background:rgba(8,125,82,.10);color:#087D52;font-weight:800}.ds-nav-item:focus-visible{outline:2px solid #087D52;outline-offset:1px}"
+    },
+    {
+      "name": "Safety Field",
+      "kind": "custom",
+      "refersTo": "safety-field",
+      "description": "Dominant home state with score, readiness and compact operational facts.",
+      "html": "<section class=\"ds-safety\"><span>Safety readiness</span><strong>100</strong><p>Ready for your next measured drive.</p></section>",
+      "css": ".ds-safety{min-height:240px;padding:22px;border-radius:28px;background:linear-gradient(145deg,#073B25,#0F2119);color:#F5FFF8;font-family:Manrope,system-ui,sans-serif;box-shadow:0 12px 28px rgba(7,19,14,.24)}.ds-safety span{font-size:16px;font-weight:700}.ds-safety strong{display:block;margin-top:28px;font-size:80px;line-height:.95;letter-spacing:-5px}.ds-safety p{max-width:26ch;color:#D1E9DC;font-size:13px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calm Cockpit",
+    "overview": "CUBO treats each screen like a composed vehicle cabin: the one state a driver needs now is dominant, while secondary controls remain calm, predictable, and close to the hand. The system is premium through restraint rather than ornament.",
+    "keyCharacteristics": ["One dominant state or action per viewport.", "Cool mineral light surfaces and deep forest dark surfaces.", "Restrained signal green and semantic alert colors.", "Compact floating navigation and bottom-sheet map controls.", "Purposeful reduced-motion-aware feedback."],
+    "rules": [
+      { "name": "The Signal, Not Paint Rule", "body": "Green identifies action, selection, readiness, or monitoring; it does not fill every container.", "section": "colors" },
+      { "name": "The Semantic Marker Rule", "body": "Police and community warnings are orange, route urgency is red, the driver is blue or green, and routes remain CUBO green.", "section": "colors" },
+      { "name": "The Glance Rule", "body": "The important number or action must read before supporting copy; labels never compete with the primary state.", "section": "typography" },
+      { "name": "The Float With Purpose Rule", "body": "A shadow signals a surface that moves, overlays, or controls the page; ordinary rows use tone and spacing instead.", "section": "elevation" }
+    ],
+    "dos": ["Do make the map, safety score, or immediate action dominate each screen.", "Do use Signal Green sparingly for meaningful state and interaction.", "Do preserve at least 44px touch targets and readable contrast in both modes.", "Do keep motion interruptible and honor reduced-motion settings."],
+    "donts": ["Don't turn every section into an equal soft card.", "Don't use neon green, blue-black default dark mode, gradient text, or decorative glass effects.", "Don't copy another product's branding or signature assets.", "Don't let visual polish imply capabilities CUBO does not have."]
+  }
+}

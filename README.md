@@ -14,12 +14,13 @@ Visitors do not need Expo Go, a development server, or a connection to the devel
 
 | Branch | Purpose |
 | --- | --- |
-| `main` | Current web release. GitHub pushes trigger the Cloudflare Pages production deployment. |
-| `standaloneapp` | Web development/staging branch. Merge reviewed changes into `main` to publish; sync it back from `main` when needed. |
-| `expo-version` | Separate native Expo / Expo Go app, including native map and device integrations. |
-| `old-app` | Historical app implementation, not the current production app. |
+| `main` | Current premium-interface web release. GitHub pushes trigger the Cloudflare Pages production deployment. |
+| `standalone-new-ui` | Exact recoverable counterpart of `main` at the redesign release point. Continue premium web-interface work here, then promote reviewed commits to `main`. |
+| `standalone-old-ui` | Preserved pre-redesign Cloudflare web app. Use only for comparison or rollback; do not deploy it as the current product. |
+| `shashank-expo` | Separate native Expo / Expo Go app. It is intentionally not part of this web redesign and must not be replaced with a web branch. |
+| `old-rsa-app` | Historical original/RSA-era implementation. Archive/reference only. |
 
-The two web branches can diverge during development. Expo and web share concepts and substantial code, but platform-specific files, dependencies, and permissions must be tested separately. Do not replace one platform's setup with the other's.
+See [`docs/branch-map.md`](docs/branch-map.md) before merging or asking an AI agent to change branches. Expo and web share concepts and substantial code, but platform-specific files, dependencies, and permissions must be tested separately. Do not replace one platform's setup with the other's.
 
 ## Use CUBO on your phone
 
@@ -160,7 +161,7 @@ Do not put private credentials in `EXPO_PUBLIC_*`; those values ship to browsers
 | Root directory | Repository root |
 | Public app | [cubo-app-cac.pages.dev](https://cubo-app-cac.pages.dev/) |
 
-Review web changes on `standaloneapp`, then merge into `main` and push. Confirm the production deployment succeeds for that exact commit. Native-only branches such as `expo-version` should be excluded from Pages preview builds.
+Review web changes on `standalone-new-ui`, then promote the exact reviewed commit to `main` and push. Confirm the production deployment succeeds for that commit. Native-only branches such as `shashank-expo` should be excluded from Pages preview builds.
 
 The build exports the Expo web app, bundles the optional AI worker, and prepares assets, headers, and install metadata. **Do not skip `scripts/prepare-web.cjs`**: it relocates dependency assets so fonts and icons survive Cloudflare's upload exclusions.
 

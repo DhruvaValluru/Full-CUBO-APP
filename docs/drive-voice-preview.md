@@ -1,6 +1,6 @@
 # Drive voice interface preview
 
-Scope: standaloneapp only. No speech recognition, wake word, commands, model changes or quota changes in this iteration.
+Historical scope: the web standalone line. This behavior is now present in `main`, `standalone-new-ui`, and the preserved `standalone-old-ui` snapshot.
 
 ## Direction contract
 
