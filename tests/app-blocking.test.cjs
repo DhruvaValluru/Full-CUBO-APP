@@ -61,8 +61,12 @@ test('UI is honest about the native enforcement boundary', () => {
   assert.match(provider, /familyAppPolicies/);
   assert.match(provider, /lockedByParent/);
   assert.match(provider, /Your family organizer selected/);
+  assert.match(provider, /assignedPolicies = \{\}; merge\(\)/);
   const rules = fs.readFileSync('firestore.rules', 'utf8');
+  assert.match(rules, /allow list: if isAuthenticated\(\)[\s\S]*resource\.data\.organizerUid == request\.auth\.uid/);
+  assert.match(rules, /allow get: if isAuthenticated\(\)[\s\S]*isActiveMinorFamily/);
   assert.match(rules, /request\.resource\.data\.targetName == get\(\/databases\/\$\(database\)\/documents\/connections\/\$\(resource\.data\.connectionId\)\)\.data\.memberName/);
+  assert.match(fs.readFileSync('src/features/connections/ConnectionContext.tsx', 'utf8'), /familyPolicyExists[\s\S]*batch\.delete\(familyPolicyRef\)/);
   assert.match(fs.readFileSync('src/screens/NotificationsScreen.tsx', 'utf8'), /navigation\.navigate\('AppBlocking', \{ targetUid: notice\.targetUid, targetName: notice\.targetName \}\)/);
   assert.doesNotMatch(fs.readFileSync('src/features/appBlocking/AppBlockingContext.tsx', 'utf8'), /Driving app limits updated/);
   for (const file of ['src/screens/AppBlockingScreen.tsx', 'src/screens/ProfileScreen.tsx', 'src/screens/NotificationsScreen.tsx', 'src/components/DrivingAppLimitsCard.tsx']) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /Drive Focus/i);

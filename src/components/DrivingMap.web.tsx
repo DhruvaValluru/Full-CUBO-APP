@@ -62,6 +62,9 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
       current = new LibreMap({ container: host.current, style: `https://tiles.openfreemap.org/styles/${props.userInterfaceStyle === 'dark' ? 'dark' : 'liberty'}`, center: coords(props.initialRegion), zoom: 13, attributionControl: false, interactive: props.interactive ?? true });
       instance.current = current;
       current.addControl(new AttributionControl({ compact: true }), 'top-left');
+      current.on('styleimagemissing', event => {
+        if (!current?.hasImage(event.id)) current?.addImage(event.id, { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) });
+      });
       current.on('load', () => { if (!live) return; applyWebDarkMapPaint(current!, props.userInterfaceStyle); clearTimeout(timer); setError(''); setMap(current!); callbacks.current.onMapReady?.(); });
       current.on('error', () => { if (live) setError('Some map tiles could not load. Check your connection.'); });
       current.on('click', () => callbacks.current.onPress?.());

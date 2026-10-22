@@ -76,8 +76,16 @@ export function AppBlockingProvider({ children }: { children: ReactNode }) {
       }, ...current].slice(0, 30));
     };
     const unsubs = [
-      onSnapshot(organized, snapshot => { organizedPolicies = mapSnapshot(snapshot); merge(); }),
-      onSnapshot(assigned, snapshot => { assignedPolicies = mapSnapshot(snapshot); merge(); addMinorNotice(assignedPolicies); }),
+      onSnapshot(
+        organized,
+        snapshot => { organizedPolicies = mapSnapshot(snapshot); merge(); },
+        () => { organizedPolicies = {}; merge(); },
+      ),
+      onSnapshot(
+        assigned,
+        snapshot => { assignedPolicies = mapSnapshot(snapshot); merge(); addMinorNotice(assignedPolicies); },
+        () => { assignedPolicies = {}; merge(); },
+      ),
     ];
     return () => unsubs.forEach(unsub => unsub());
   }, [hydrated, user?.uid]);

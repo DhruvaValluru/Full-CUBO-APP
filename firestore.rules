@@ -404,7 +404,12 @@ service cloud.firestore {
     // Parent-selected Blocked Apps synchronize to the linked minor. Child Lock
     // is organizer-only; an unlocked minor may adjust only the app list/switch.
     match /familyAppPolicies/{minorId} {
-      allow get, list: if isAuthenticated()
+      // Filtered collection listeners can prove participant ownership from
+      // organizerUid/minorUid, but cannot prove a linked-document exists for
+      // every potential query result. Writes retain the active-family check.
+      allow list: if isAuthenticated()
+        && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid);
+      allow get: if isAuthenticated()
         && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid)
         && isActiveMinorFamily(resource.data.connectionId, resource.data.organizerUid, resource.data.minorUid);
       allow create: if isAuthenticated() && validFamilyAppPolicy(minorId, request.resource.data)

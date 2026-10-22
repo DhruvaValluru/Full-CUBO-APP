@@ -334,9 +334,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const requestId = connection.requestId ?? connection.id;
     const requestRef = doc(db, 'connectionRequests', requestId);
     const requestExists = [...rawIncoming, ...rawOutgoing].some(request => request.id === requestId);
+    const familyPolicyRef = connection.kind === 'family' && connection.memberAccountType === 'minor'
+      ? doc(db, 'familyAppPolicies', connection.memberUid)
+      : null;
+    const familyPolicyExists = familyPolicyRef ? (await getDoc(familyPolicyRef)).exists() : false;
     const batch = writeBatch(db);
     batch.delete(doc(db, 'connections', connection.id));
     if (connection.kind === 'family' && connection.memberAccountType === 'minor') batch.delete(doc(db, 'familyMemberships', connection.memberUid));
+    if (familyPolicyRef && familyPolicyExists) batch.delete(familyPolicyRef);
     if (locationShareRequests.some(item => item.connectionId === connection.id)) batch.delete(doc(db, 'locationShareRequests', connection.id));
     if (requestExists) batch.delete(requestRef);
     await batch.commit();
