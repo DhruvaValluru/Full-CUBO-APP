@@ -38,11 +38,11 @@ test('shared welcome flow replaces instant screen swap and supports reduced moti
 test('welcome screen uses a restrained brand-led hierarchy', () => {
   const screen = read('src/screens/WelcomeScreen.tsx');
   const carousel = read('src/components/WelcomeCarousel.tsx');
-  assert.match(screen, /Drive focused/);
-  assert.match(screen, /Arrive safer/);
-  assert.match(screen, /DRIVER SAFETY/);
+  assert.match(screen, /Stay with the road/);
+  assert.match(screen, /Your drive, understood/);
   assert.match(screen, /backgroundColor: c\.accent/);
   assert.match(carousel, /styles\.media/);
+  assert.match(carousel, /LinearGradient/);
   assert.match(carousel, /\{page \+ 1\}\/\{photos\.length\}/);
   assert.doesNotMatch(screen, /Stay Alert\. Stay Alive\./);
 });

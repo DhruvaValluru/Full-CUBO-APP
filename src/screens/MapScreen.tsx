@@ -26,6 +26,7 @@ import type { AppColors } from '../theme/colors';
 import { spacing } from '../theme/theme';
 import { useAppBlocking, type DriveBlockPlan } from '../features/appBlocking/AppBlockingContext';
 import { DriveBlockModal } from '../components/DriveBlockModal';
+import { distanceToRouteMeters, LiveNavigationTracker } from '../features/navigation/liveNavigation';
 
 const fallbackRegion: Region = { latitude: 35.7796, longitude: -78.6382, latitudeDelta: .035, longitudeDelta: .035 };
 const hazardMeta: Record<RoadHazardKind, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
@@ -109,6 +110,9 @@ export function MapScreen() {
   const { results: suggestions, setResults: setSuggestions, busy: suggesting, error: suggestionError } = usePlaceSuggestions(query, gps.point, focused && !searchResult);
   const [routing, setRouting] = useState(false);
   const [navigationRoute, setNavigationRoute] = useState<NavigationRoute | null>(null);
+  const liveNavigation = useRef(new LiveNavigationTracker());
+  const arrivalEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishingDrive = useRef(false);
   const [navigating, setNavigating] = useState(!!activeSession);
   usePreventRemove(!!activeSession, () => {});
   const [pipHidden, setPipHidden] = useState(false);
@@ -124,6 +128,8 @@ export function MapScreen() {
   const [hazardMenu, setHazardMenu] = useState(false);
   const [hazardSaved, setHazardSaved] = useState<RoadHazardKind | null>(null);
   const [driveBlockPlan, setDriveBlockPlan] = useState<DriveBlockPlan | null>(null);
+  const [navigationNotice, setNavigationNotice] = useState<'following' | 'arrived'>('following');
+  const [arrivalCompleting, setArrivalCompleting] = useState(false);
   const pipPosition = useRef(new Animated.ValueXY({ x: Math.max(16, width - 128), y: 104 })).current;
   const pipOrigin = useRef({ x: Math.max(16, width - 128), y: 104 });
   const pipTop = topCardBottom + 12;
@@ -159,7 +165,8 @@ export function MapScreen() {
   }, [focused, activeSession?.id]);
   const trip = activeSession;
   const hazards = trip?.events.filter((event) => event.type === 'road_hazard' && event.latitude != null && event.longitude != null) ?? [];
-  const nearbyReport = activeSession && gps.point ? community.reports.filter((report) => report.reporterId !== community.userId && !community.confirmed.has(report.id) && !promptDismissed.has(report.id)).map((report) => ({ report, distance: distanceMeters(gps.point!, report) })).filter(({ report, distance }) => distance < 300 && isAhead(gps.point!, report) && (!navigationRoute || navigationRoute.coordinates.some((point) => distanceMeters(point, report) < 60))).sort((a, b) => a.distance - b.distance)[0] : undefined;
+  const routeReports = useMemo(() => community.reports.filter((report) => !navigationRoute || distanceToRouteMeters(navigationRoute, report) < 75), [community.reports, navigationRoute]);
+  const nearbyReport = activeSession && gps.point ? routeReports.filter((report) => report.reporterId !== community.userId && !community.confirmed.has(report.id) && !promptDismissed.has(report.id)).map((report) => ({ report, distance: distanceMeters(gps.point!, report) })).filter(({ report, distance }) => distance < 300 && isAhead(gps.point!, report)).sort((a, b) => a.distance - b.distance)[0] : undefined;
   const recordedRoute = trip?.route ?? [];
   const center = gps.point ?? recordedRoute[recordedRoute.length - 1] ?? fallbackRegion;
   const dismissSearchKeyboard = () => { setShowRecent(false); searchInputRef.current?.blur(); Keyboard.dismiss(); };
@@ -227,6 +234,7 @@ export function MapScreen() {
     if (!focused || awaitingCamera.current == null || cameraConfirmation <= awaitingCamera.current) return;
     awaitingCamera.current = null;
     distanceBaseline.current = gps.distanceMiles;
+    liveNavigation.current.reset(); setNavigationNotice('following'); setArrivalCompleting(false);
     startDrive(); setDriveBlockPlan(beginAppBlocking()); setNavigating(true); setFollowing(true); setStepIndex(0);
   }, [cameraConfirmation, focused, startDrive, beginAppBlocking]);
   const loadedDestination = useRef<string | null>(null);
@@ -257,14 +265,29 @@ export function MapScreen() {
   };
 
   const finishDrive = () => {
+    if (finishingDrive.current) return;
+    finishingDrive.current = true;
+    if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current);
+    arrivalEndTimer.current = null;
     endAppBlocking(); setDriveBlockPlan(null);
     const completed = endDrive();
     if (completed) setFinishedId(completed.id);
+    else finishingDrive.current = false;
   };
 
   useEffect(() => {
     if (finishedId && !activeSession) navigation.reset({ index: 1, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }, { name: 'TripSummary', params: { sessionId: finishedId } }] });
   }, [finishedId, activeSession, navigation]);
+
+  useEffect(() => {
+    liveNavigation.current.reset();
+    setNavigationNotice('following');
+    setArrivalCompleting(false);
+    finishingDrive.current = false;
+    if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current);
+    arrivalEndTimer.current = null;
+    return () => { if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current); };
+  }, [activeSession?.id]);
 
   useEffect(() => {
     if (!activeSession || !gps.point || gps.status === 'weak') return;
@@ -294,15 +317,26 @@ export function MapScreen() {
   }, [following, gps.point, compassHeading, navigating, navigationRoute, stepIndex]);
 
   useEffect(() => {
+    if (!activeSession || !gps.point || !navigationRoute || !searchResult || gps.status === 'weak' || navigationNotice === 'arrived') return;
+    const decision = liveNavigation.current.update(navigationRoute, gps.point, searchResult, Date.now());
+    if (decision.kind !== 'arrived') return;
+    setNavigationNotice('arrived'); setFollowing(true); setArrivalCompleting(true);
+    setStepIndex(Math.max(0, navigationRoute.steps.length - 1));
+    setSearchMessage(`Arrived at ${query || 'your destination'} · saving your drive`);
+    arrivalEndTimer.current = setTimeout(finishDrive, 1000);
+  }, [activeSession?.id, gps.point?.timestamp, gps.status, navigationRoute, searchResult, navigationNotice, query]);
+
+  useEffect(() => {
     if (!activeSession || !gps.point || hazardPrompt) return;
-    for (const report of community.reports) {
+    for (const report of routeReports) {
       if (report.reporterId === community.userId || community.confirmed.has(report.id) || promptDismissed.has(report.id)) continue;
       const distance = distanceMeters(gps.point, report);
+      if (!isAhead(gps.point, report)) continue;
       const closest = Math.min(closestReports.current.get(report.id) ?? Infinity, distance);
       closestReports.current.set(report.id, closest);
       if (distance < 55 || (closest < 65 && distance > closest + 15 && distance < 180)) { setHazardPrompt(report); break; }
     }
-  }, [gps.point?.timestamp, activeSession?.id, community.reports, community.confirmed, promptDismissed, hazardPrompt]);
+  }, [gps.point?.timestamp, activeSession?.id, routeReports, community.confirmed, promptDismissed, hazardPrompt]);
   useEffect(() => {
     if (!hazardPrompt) return;
     const reportId = hazardPrompt.id;
@@ -312,28 +346,28 @@ export function MapScreen() {
   useEffect(() => {
     if (hazardPrompt && !community.reports.some(report => report.id === hazardPrompt.id)) setHazardPrompt(null);
   }, [community.reports, hazardPrompt]);
-  const currentStep = navigationRoute?.steps[stepIndex];
+  const currentStep = navigationNotice === 'arrived' ? navigationRoute?.steps[navigationRoute.steps.length - 1] : navigationRoute?.steps[stepIndex];
 
   return <View style={styles.root}>
     <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={fallbackRegion} showsUserLocation={gps.hasFix && !navigating} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} userInterfaceStyle={mode} onPress={dismissSearchKeyboard} onPanDrag={() => { dismissSearchKeyboard(); if (navigating) setFollowing(false); }}>
       {navigationRoute ? <><Polyline coordinates={navigationRoute.coordinates} strokeColor="rgba(255,255,255,.9)" strokeWidth={11} lineCap="round" lineJoin="round" /><Polyline coordinates={navigationRoute.coordinates} strokeColor={colors.accent} strokeWidth={7} lineCap="round" lineJoin="round" /></> : null}
       {navigating && gps.point ? <Marker coordinate={gps.point} anchor={{ x: .5, y: .5 }} flat={Platform.OS === 'android'} rotation={Platform.OS === 'android' ? lastHeading.current : 0}><View style={styles.driverMarker}><Ionicons name="arrow-up" size={20} color="#FFFFFF" /></View></Marker> : null}
       {searchResult ? <Marker coordinate={searchResult} title={query.trim() || 'Search result'} pinColor={colors.accent} /> : null}
-      {community.reports.filter((report) => report.reporterId !== community.userId).map((report) => { const meta = hazardMeta[report.kind]; return <Marker key={report.id} coordinate={report} title={`${report.kind[0].toUpperCase()}${report.kind.slice(1)} reported here`} description="Community road report"><View style={[styles.hazardPin, { backgroundColor: meta.color }]}><Ionicons name={meta.icon} size={16} color="#FFFFFF" /></View></Marker>; })}
+      {routeReports.filter((report) => report.reporterId !== community.userId).map((report) => { const meta = hazardMeta[report.kind]; return <Marker key={report.id} coordinate={report} title={`${report.kind[0].toUpperCase()}${report.kind.slice(1)} reported here`} description="Community road report"><View style={[styles.hazardPin, { backgroundColor: meta.color }]}><Ionicons name={meta.icon} size={16} color="#FFFFFF" /></View></Marker>; })}
       {hazards.map((hazard) => { const meta = hazardMeta[hazard.hazardKind ?? 'object']; return <Marker key={hazard.id} coordinate={{ latitude: hazard.latitude!, longitude: hazard.longitude! }} title={hazard.title} description={hazard.detail}><View style={[styles.hazardPin, { backgroundColor: meta.color }]}><Ionicons name={meta.icon} size={16} color="#fff" /></View></Marker>; })}
     </MapView>
     <SafeAreaView edges={['top', 'bottom']} style={[styles.overlay, !activeSession && screenRoute.name === 'Map' && { paddingBottom: 100 }, activeSession && styles.overlayDrive]} pointerEvents="box-none">
-      {activeSession ? <View style={styles.guidanceCard} onLayout={event => setTopCardBottom(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}><View style={styles.maneuverIcon}><Ionicons name={currentStep?.type === 'arrive' ? 'flag' : currentStep?.modifier?.includes('left') ? 'arrow-back' : currentStep?.modifier?.includes('right') ? 'arrow-forward' : 'arrow-up'} size={25} color={colors.onAccent} /></View><View style={styles.fill}><Text style={styles.stepDistance}>{formatStepDistance(gps.point && currentStep ? distanceMeters(gps.point, currentStep.location) : currentStep?.distanceMeters)}</Text><Text numberOfLines={2} style={styles.instruction}>{stepInstruction(currentStep)}</Text></View><Pressable accessibilityLabel={pipHidden ? 'Show camera' : 'Hide camera'} onPress={() => setPipHidden((value) => !value)} style={styles.closeNavigation}><Ionicons name={pipHidden ? 'videocam-outline' : 'videocam-off-outline'} size={19} color={colors.accent} /></Pressable></View> : <View style={styles.topCard}><View style={styles.searchRow}><Ionicons name="search" size={19} color={colors.textSecondary} /><TextInput ref={searchInputRef} value={query} onFocus={() => { setSearchFocused(true); setShowRecent(!query.trim() || !!searchResult); }} onBlur={() => setSearchFocused(false)} onChangeText={(value) => { setShowRecent(!value.trim()); setQuery(value); setSearchResult(null); setNavigationRoute(null); setSearchMessage(''); }} onSubmitEditing={() => void search()} returnKeyType="search" placeholder="Where do you want to go?" placeholderTextColor={colors.textTertiary} style={styles.searchInput} />{query ? <Pressable accessibilityLabel="Clear search" onPress={() => { setQuery(''); setSearchResult(null); setNavigationRoute(null); setSearchMessage(''); setSuggestions([]); }} style={styles.inputAction}><Ionicons name="close-circle" size={19} color={colors.textTertiary} /></Pressable> : null}{searchFocused ? <Pressable accessibilityLabel="Hide keyboard" onPress={dismissSearchKeyboard} style={styles.inputAction}><Ionicons name="chevron-down" size={18} color={colors.textSecondary} /></Pressable> : null}<Pressable disabled={!query.trim() || searching || routing} onPress={() => void search()} style={[styles.searchButton, (!query.trim() || searching || routing) && styles.searchDisabled]}><Ionicons name={searching || suggesting || routing ? 'hourglass-outline' : 'arrow-forward'} size={15} color={colors.onAccent} /></Pressable></View>{searching || routing ? <View style={styles.searchStatus}><View style={styles.statusDot} /><Text style={styles.statusText}>{routing ? 'Building your route…' : 'Finding that place…'}</Text></View> : null}{showRecent && <RecentDestinations places={recent} onSelect={place => { setShowRecent(false); void chooseSuggestion(place); }} />}{!showRecent && suggestions.length ? <View style={styles.suggestions}>{suggestions.map((suggestion, index) => <Pressable key={suggestion.id} onPress={() => void chooseSuggestion(suggestion)} style={[styles.suggestion, index === suggestions.length - 1 && styles.suggestionLast]}><View style={styles.suggestionIcon}><Ionicons name="location" size={17} color={colors.accent} /></View><View style={styles.fill}><Text numberOfLines={1} style={styles.suggestionTitle}>{suggestion.title}</Text><Text numberOfLines={2} style={styles.suggestionSubtitle}>{suggestion.subtitle || 'Tap to view this location'}</Text></View><Ionicons name="chevron-forward" size={16} color={colors.textTertiary} /></Pressable>)}</View> : null}</View>}
+      {activeSession ? <View style={[styles.guidanceCard, navigationNotice === 'arrived' && { borderColor: colors.accent, backgroundColor: colors.accentSoft }]} onLayout={event => setTopCardBottom(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}><View style={styles.maneuverIcon}><Ionicons name={navigationNotice === 'arrived' || currentStep?.type === 'arrive' ? 'flag' : currentStep?.modifier?.includes('left') ? 'arrow-back' : currentStep?.modifier?.includes('right') ? 'arrow-forward' : 'arrow-up'} size={25} color={colors.onAccent} /></View><View style={styles.fill}><Text accessibilityLiveRegion="polite" style={styles.stepDistance}>{navigationNotice === 'arrived' ? 'DESTINATION REACHED' : formatStepDistance(gps.point && currentStep ? distanceMeters(gps.point, currentStep.location) : currentStep?.distanceMeters)}</Text><Text numberOfLines={2} style={styles.instruction}>{navigationNotice === 'arrived' ? `Arrived at ${query || 'your destination'}` : stepInstruction(currentStep)}</Text></View><Pressable accessibilityLabel={pipHidden ? 'Show camera' : 'Hide camera'} onPress={() => setPipHidden((value) => !value)} style={styles.closeNavigation}><Ionicons name={pipHidden ? 'videocam-outline' : 'videocam-off-outline'} size={19} color={colors.accent} /></Pressable></View> : <View style={styles.topCard}><View style={styles.searchRow}><Ionicons name="search" size={19} color={colors.textSecondary} /><TextInput ref={searchInputRef} value={query} onFocus={() => { setSearchFocused(true); setShowRecent(!query.trim() || !!searchResult); }} onBlur={() => setSearchFocused(false)} onChangeText={(value) => { setShowRecent(!value.trim()); setQuery(value); setSearchResult(null); setNavigationRoute(null); setSearchMessage(''); }} onSubmitEditing={() => void search()} returnKeyType="search" placeholder="Where do you want to go?" placeholderTextColor={colors.textTertiary} style={styles.searchInput} />{query ? <Pressable accessibilityLabel="Clear search" onPress={() => { setQuery(''); setSearchResult(null); setNavigationRoute(null); setSearchMessage(''); setSuggestions([]); }} style={styles.inputAction}><Ionicons name="close-circle" size={19} color={colors.textTertiary} /></Pressable> : null}{searchFocused ? <Pressable accessibilityLabel="Hide keyboard" onPress={dismissSearchKeyboard} style={styles.inputAction}><Ionicons name="chevron-down" size={18} color={colors.textSecondary} /></Pressable> : null}<Pressable disabled={!query.trim() || searching || routing} onPress={() => void search()} style={[styles.searchButton, (!query.trim() || searching || routing) && styles.searchDisabled]}><Ionicons name={searching || suggesting || routing ? 'hourglass-outline' : 'arrow-forward'} size={15} color={colors.onAccent} /></Pressable></View>{searching || routing ? <View style={styles.searchStatus}><View style={styles.statusDot} /><Text style={styles.statusText}>{routing ? 'Building your route…' : 'Finding that place…'}</Text></View> : null}{showRecent && <RecentDestinations places={recent} onSelect={place => { setShowRecent(false); void chooseSuggestion(place); }} />}{!showRecent && suggestions.length ? <View style={styles.suggestions}>{suggestions.map((suggestion, index) => <Pressable key={suggestion.id} onPress={() => void chooseSuggestion(suggestion)} style={[styles.suggestion, index === suggestions.length - 1 && styles.suggestionLast]}><View style={styles.suggestionIcon}><Ionicons name="location" size={17} color={colors.accent} /></View><View style={styles.fill}><Text numberOfLines={1} style={styles.suggestionTitle}>{suggestion.title}</Text><Text numberOfLines={2} style={styles.suggestionSubtitle}>{suggestion.subtitle || 'Tap to view this location'}</Text></View><Ionicons name="chevron-forward" size={16} color={colors.textTertiary} /></Pressable>)}</View> : null}</View>}
       {activeSession && focused ? <Animated.View pointerEvents={pipHidden ? 'none' : 'auto'} style={[styles.cameraPip, { opacity: pipHidden ? 0 : 1, transform: pipPosition.getTranslateTransform() }]} {...pipPan.panHandlers}><Pressable accessibilityLabel="Drag camera to a corner" style={StyleSheet.absoluteFill} onPress={() => setPipHidden(true)}><DriveAttentionCamera speedMph={gps.speedMph} gpsValid={gps.speedAvailable} /><View pointerEvents="none" style={styles.pipShade} /><View style={styles.pipLabel}><View style={styles.pipDot} /><Text style={styles.pipText}>DRAG TO A CORNER</Text></View><Pressable accessibilityLabel="Hide camera" onPress={() => setPipHidden(true)} style={{ position: 'absolute', right: 4, top: 4, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.45)', borderRadius: 12 }}><Ionicons name="remove" size={20} color="#FFFFFF" /></Pressable></Pressable></Animated.View> : null}
 
       <MotionPressable accessibilityLabel="Follow my location" style={[styles.recenter, activeSession && { bottom: bottomCardHeight + insets.bottom + 26, right: pipAtBottomRight && !pipHidden ? undefined : 16, left: pipAtBottomRight && !pipHidden ? 16 : undefined }]} scaleTo={0.9} onPress={() => { dismissSearchKeyboard(); recenter(); }}><Ionicons name="locate" size={21} color={colors.text} /></MotionPressable>
       <View style={styles.bottomCard} onLayout={(event) => setBottomCardHeight(event.nativeEvent.layout.height)} onTouchStart={dismissSearchKeyboard}>
-        <View style={styles.grabber} /><View style={styles.tripRow}><View><Text style={styles.eyebrow}>{activeSession ? 'LIVE DRIVE' : navigationRoute ? 'ROUTE READY' : 'ROAD OVERVIEW'}</Text><Text style={styles.cardTitle}>{activeSession ? `${gps.speedAvailable ? gps.speedMph : '—'} mph` : navigationRoute ? `${(navigationRoute.distanceMeters * .000621371).toFixed(1)} mi` : gps.hasFix ? `${gps.speedAvailable ? gps.speedMph : '—'} mph` : `${hazards.length} nearby report${hazards.length === 1 ? '' : 's'}`}</Text></View><View style={styles.stats}><View><Text style={styles.statValue}>{activeSession ? `${Math.floor(activeSession.durationSeconds / 60)}:${String(activeSession.durationSeconds % 60).padStart(2, '0')}` : navigationRoute ? Math.max(1, Math.round(navigationRoute.durationSeconds / 60)) : recordedRoute.length}</Text><Text style={styles.statLabel}>{activeSession ? 'Drive time' : navigationRoute ? 'min ETA' : 'GPS points'}</Text></View><View><Text style={styles.statValue}>{hazards.length}</Text><Text style={styles.statLabel}>Hazards</Text></View></View></View>
+        <View style={styles.grabber} /><View style={styles.tripRow}><View><Text style={styles.eyebrow}>{navigationNotice === 'arrived' ? 'ARRIVED' : activeSession ? 'LIVE DRIVE' : navigationRoute ? 'ROUTE READY' : 'ROAD OVERVIEW'}</Text><Text style={styles.cardTitle}>{activeSession ? `${gps.speedAvailable ? gps.speedMph : '—'} mph` : navigationRoute ? `${(navigationRoute.distanceMeters * .000621371).toFixed(1)} mi` : gps.hasFix ? `${gps.speedAvailable ? gps.speedMph : '—'} mph` : `${hazards.length} nearby report${hazards.length === 1 ? '' : 's'}`}</Text></View><View style={styles.stats}><View><Text style={styles.statValue}>{activeSession ? `${Math.floor(activeSession.durationSeconds / 60)}:${String(activeSession.durationSeconds % 60).padStart(2, '0')}` : navigationRoute ? Math.max(1, Math.round(navigationRoute.durationSeconds / 60)) : recordedRoute.length}</Text><Text style={styles.statLabel}>{activeSession ? 'Drive time' : navigationRoute ? 'min ETA' : 'GPS points'}</Text></View><View><Text style={styles.statValue}>{hazards.length}</Text><Text style={styles.statLabel}>Hazards</Text></View></View></View>
       {activeSession && (hazardPrompt || nearbyReport) ? <View style={{ marginTop: 12, padding: 14, paddingRight: hazardPrompt ? 14 : 44, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}><Text style={{ color: colors.text, fontFamily: 'Manrope_700Bold', fontSize: 13 }}>{hazardPrompt ? 'Do you still see this ' + hazardPrompt.kind + '?' : `${nearbyReport!.report.kind[0].toUpperCase()}${nearbyReport!.report.kind.slice(1)} reported ahead · ${Math.round(nearbyReport!.distance)} m`}</Text>{hazardPrompt ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>{[true, false].map((present) => <Pressable key={String(present)} style={{ flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: present ? colors.accentSoft : colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' }} onPress={() => { void community.confirm(hazardPrompt, present).then((sent) => { if (sent) { setPromptDismissed(value => new Set([...value, hazardPrompt.id])); setHazardPrompt(null); } }); }}><Text style={{ color: colors.text }}>{present ? 'Still there' : 'Gone'}</Text></Pressable>)}<Pressable accessibilityLabel="Dismiss confirmation" style={{ width: 44, alignItems: 'center', justifyContent: 'center' }} onPress={() => { setPromptDismissed((value) => new Set([...value, hazardPrompt.id])); setHazardPrompt(null); }}><Ionicons name="close" size={20} color={colors.textSecondary} /></Pressable></View> : <Pressable accessibilityLabel="Dismiss hazard alert" style={{ position: 'absolute', right: 6, top: 3, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} onPress={() => setPromptDismissed((value) => new Set([...value, nearbyReport!.report.id]))}><Ionicons name="close" size={18} color={colors.textSecondary} /></Pressable>}</View> : null}
         {activeSession ? <Text accessibilityLiveRegion="polite" style={{ color: colors.text, fontSize: 12, marginTop: 8 }}>{driveStatus}</Text> : null}{navigationRoute && !activeSession ? <MotionPressable onPress={startNavigation} style={styles.startRoute} scaleTo={0.96}><Ionicons name="navigate" size={17} color={colors.onAccent} /><Text style={styles.startRouteText}>Start drive</Text></MotionPressable> : null}
         {activeSession ? <View style={styles.driveControls}><MotionPressable style={styles.reportHazard} scaleTo={0.95} onPress={() => setHazardMenu(true)}><Ionicons name={hazardSaved ? 'checkmark-circle' : 'megaphone-outline'} size={18} color={colors.accent} /><Text style={styles.reportHazardText}>{hazardSaved ? 'Hazard saved' : 'Report hazard'}</Text></MotionPressable><MotionPressable accessibilityLabel="End drive" style={styles.endDrive} scaleTo={0.95} onPress={finishDrive}><Ionicons name="stop-circle" size={18} color="#FFFFFF" /><Text style={styles.endDriveText}>End drive</Text></MotionPressable></View> : null}
         {!activeSession ? <MotionPressable onPress={() => navigation.navigate('ReturningHome')} style={{ minHeight: 44, marginTop: 8, backgroundColor: colors.surfaceMuted, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="home-outline" size={17} color={colors.accent} /><Text style={{ color: colors.text, fontFamily: 'Manrope_700Bold', fontSize: 12 }}>Back to home</Text></MotionPressable> : null}
-        <Text style={styles.privacy}>{community.error || searchMessage || (navigationRoute ? navigating ? `${following ? 'Following your location' : 'Map unlocked'} · Tap locate to recenter` : 'Preview the route, then start when you are ready.' : 'Choose a destination, then press Start drive.')}</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.privacy}>{arrivalCompleting ? 'Arrival confirmed · saving your drive…' : community.error || searchMessage || (navigationRoute ? navigating ? `${following ? 'Following your location' : 'Map unlocked'} · Tap locate to recenter` : 'Preview the route, then start when you are ready.' : 'Choose a destination, then press Start drive.')}</Text>
       </View>
     </SafeAreaView>
     {hazardMenu ? <><Pressable style={styles.sheetBackdrop} onPress={() => setHazardMenu(false)} /><Reanimated.View entering={FadeInDown.duration(240).easing(Easing.out(Easing.cubic))} exiting={FadeOutDown.duration(180)} style={[styles.hazardSheet, { paddingBottom: Math.max(insets.bottom + 18, 34) }]}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>LIVE ROAD REPORT</Text><Text style={styles.sheetTitle}>What’s ahead?</Text></View><Pressable style={styles.sheetClose} onPress={() => setHazardMenu(false)}><Ionicons name="close" size={18} color={colors.text} /></Pressable></View><Text style={styles.sheetBody}>CUBO pins the report at your current GPS position for this drive.</Text><View style={styles.hazardGrid}>{hazardOptions.map((option) => { const meta = hazardMeta[option.kind]; return <MotionPressable key={option.kind} style={styles.hazardOption} scaleTo={0.94} onPress={() => reportHazard(option.kind)}><View style={[styles.hazardOptionIcon, { backgroundColor: `${meta.color}18` }]}><Ionicons name={meta.icon} size={23} color={meta.color} /></View><Text style={styles.hazardOptionLabel}>{option.label}</Text><Text style={styles.hazardOptionDetail}>{option.detail}</Text></MotionPressable>; })}</View></Reanimated.View></> : null}

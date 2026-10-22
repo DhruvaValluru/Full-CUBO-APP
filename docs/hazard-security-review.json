@@ -1,12 +1,12 @@
 {
-  "score": 3,
-  "summary": "Prototype reviewed structurally, not compiled or emulator-tested. Do not publish broadly until validation and abuse controls are in place.",
+  "score": 2,
+  "summary": "Release rules are schema-bounded, authenticated, atomic, and paired with the required index. Console compilation and production verification remain required before broad testing.",
   "findings": [
     {
       "check": "Business Logic vs. Rules",
-      "severity": "major",
-      "issue": "Live rules deny all road reports. The app query also needs the proposed composite index.",
-      "recommendation": "Compile and emulator-test the proposal, then explicitly publish rules and index before testing across phones."
+      "severity": "moderate",
+      "issue": "The checked-in release includes road-report rules and the composite index, but production must publish both and wait for the index to finish building.",
+      "recommendation": "Verify Firebase accepts the rules, publish the rules and index, then test report visibility between two authenticated phones."
     },
     {
       "check": "Authority Source",

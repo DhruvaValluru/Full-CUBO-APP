@@ -210,6 +210,25 @@ service cloud.firestore {
         && data.selectedIds.toSet().hasOnly(['tiktok', 'instagram', 'facebook', 'snapchat', 'messages', 'facetime', 'whatsapp', 'telegram', 'youtube', 'spotify', 'uber', 'doordash'])
         && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
+    function validRoadReport(data) {
+      return data.keys().hasAll(['reporterId', 'kind', 'latitude', 'longitude', 'cell', 'createdAt', 'confirmationCount', 'active'])
+        && data.keys().hasOnly(['reporterId', 'kind', 'latitude', 'longitude', 'cell', 'createdAt', 'confirmationCount', 'active'])
+        && data.reporterId is string && data.reporterId.size() >= 20 && data.reporterId.size() <= 128
+        && data.kind in ['object', 'police', 'crash']
+        && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+        && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+        && data.cell is string && data.cell.size() >= 3 && data.cell.size() <= 24
+        && data.cell == string(math.floor(data.latitude * 100)) + ':' + string(math.floor(data.longitude * 100))
+        && data.createdAt is timestamp
+        && data.confirmationCount is int && data.confirmationCount >= 0 && data.confirmationCount <= 10
+        && data.active is bool && data.active == (data.confirmationCount < 10);
+    }
+    function validRoadConfirmation(data) {
+      return data.keys().hasAll(['voterId', 'present', 'updatedAt'])
+        && data.keys().hasOnly(['voterId', 'present', 'updatedAt'])
+        && data.voterId is string && data.voterId.size() >= 20 && data.voterId.size() <= 128
+        && data.present is bool && data.updatedAt is timestamp;
+    }
     function isActiveFamilyConnection(connectionId, organizerUid, memberUid) {
       return exists(/databases/$(database)/documents/connections/$(connectionId))
         && get(/databases/$(database)/documents/connections/$(connectionId)).data.kind == 'family'
@@ -511,6 +530,43 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid)
         && (resource.data.kind != 'family'
           || !existsAfter(/databases/$(database)/documents/familyMemberships/$(resource.data.memberUid)));
+    }
+
+    // Community road reports are shared with any authenticated CUBO driver,
+    // independent of Family/Friends. They contain no names, routes, or profile
+    // data, expire from client queries after 30 minutes, and cannot be edited by
+    // their submitter. A response and its counter increment must commit together.
+    match /roadReports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && validRoadReport(request.resource.data)
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.confirmationCount == 0 && request.resource.data.active == true;
+      allow update: if isAuthenticated() && validRoadReport(request.resource.data)
+        && resource.data.reporterId != request.auth.uid && resource.data.active == true
+        && resource.data.createdAt + duration.value(30, 'm') > request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmationCount', 'active'])
+        && request.resource.data.confirmationCount == resource.data.confirmationCount + 1
+        && !exists(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid))
+        && validRoadConfirmation(getAfter(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid)).data)
+        && getAfter(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid)).data.voterId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/roadReports/$(reportId)/confirmations/$(request.auth.uid)).data.updatedAt == request.time;
+      allow delete: if false;
+
+      match /confirmations/{voterId} {
+        allow read: if isAuthenticated() && voterId == request.auth.uid;
+        allow create: if isAuthenticated() && voterId == request.auth.uid
+          && exists(/databases/$(database)/documents/roadReports/$(reportId))
+          && get(/databases/$(database)/documents/roadReports/$(reportId)).data.reporterId != request.auth.uid
+          && get(/databases/$(database)/documents/roadReports/$(reportId)).data.active == true
+          && get(/databases/$(database)/documents/roadReports/$(reportId)).data.createdAt + duration.value(30, 'm') > request.time
+          && validRoadConfirmation(request.resource.data)
+          && request.resource.data.voterId == request.auth.uid && request.resource.data.updatedAt == request.time
+          && validRoadReport(getAfter(/databases/$(database)/documents/roadReports/$(reportId)).data)
+          && getAfter(/databases/$(database)/documents/roadReports/$(reportId)).data.confirmationCount
+            == get(/databases/$(database)/documents/roadReports/$(reportId)).data.confirmationCount + 1;
+        allow update, delete: if false;
+      }
     }
 
     match /{document=**} { allow read, write: if false; }

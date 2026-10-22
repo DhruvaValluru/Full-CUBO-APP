@@ -17,6 +17,19 @@ test('voice preference persists per account and supports default and blocked sto
   writeVoicePreference(store, 'alice', ''); assert.equal(readVoicePreference(store, 'alice'), '');
   assert.equal(readVoicePreference({ getItem() { throw Error('blocked'); } }, 'alice'), '');
 });
+test('voice selector keeps at most six clear English voices and removes novelty voices', () => {
+  const { recommendedEnglishVoices, voiceDisplayName } = load('src/features/cuboAI/voicePreference.ts');
+  const voice = (name, lang, voiceURI = name, localService = true) => ({ name, lang, voiceURI, localService });
+  const choices = recommendedEnglishVoices([
+    voice('Zarvox', 'en-US'), voice('Samantha', 'en-US'), voice('Daniel', 'en-GB'), voice('Karen', 'en-AU'),
+    voice('Ava', 'en-US'), voice('Moira', 'en-IE'), voice('Tessa', 'en-ZA'), voice('Google français', 'fr-FR'),
+    voice('Microsoft Aria Online (Natural)', 'en-US', 'aria', false), voice('Extra English', 'en-CA'),
+  ]);
+  assert.equal(choices.length, 6);
+  assert.equal(choices.some(item => item.name === 'Zarvox'), false);
+  assert.equal(choices.some(item => item.lang === 'fr-FR'), false);
+  assert.match(voiceDisplayName(choices[0]), /English/);
+});
 test('Listen chooses preferred voice each time and falls back if unavailable', () => {
   const { CuboAIVoice } = load('src/features/cuboAI/browserVoice.ts');
   const oldWindow = global.window, oldUtterance = global.SpeechSynthesisUtterance;
@@ -42,6 +55,8 @@ test('voice dropdown follows map source and listens for delayed browser voices',
   assert.match(component, /aria-label="Voice Preference"/);
   assert.match(component, /Hear Voice/);
   assert.match(component, /speak\('This is Cubo\.'\)/);
+  assert.match(component, /recommendedEnglishVoices/);
+  assert.match(component, /Showing \$\{voices\.length\} clear English/);
   assert.match(component, /\[focused, activeSession\?\.id\]/);
   assert.match(component, /preview.current\?\.dispose\(\)/);
 });

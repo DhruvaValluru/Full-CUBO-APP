@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -39,26 +40,28 @@ export function WelcomeCarousel({ height }: { height: number }) {
           accessible={page === index} accessibilityLabel={`Photo ${index + 1} of ${photos.length}: ${photo.label}`}
           style={{ width, height, backgroundColor: colors.card }} />) : null}
       </ScrollView>
-      <View style={styles.counter}><View style={styles.counterDot} /><View style={styles.counterRule} /><Text style={styles.counterText}>{page + 1}/{photos.length}</Text></View>
-    </View>
-    <View style={styles.dots}>
-      {photos.map((photo, index) => <Pressable key={photo.label} accessibilityRole="button"
-        accessibilityLabel={`Show photo ${index + 1} of ${photos.length}: ${photo.label}`} accessibilityState={{ selected: page === index }}
-        onPress={() => select(index)} style={styles.dotTarget}>
-        <View style={[styles.dot, { width: page === index ? 22 : 6, backgroundColor: page === index ? colors.accent : colors.textSecondary, opacity: page === index ? 1 : .45 }]} />
-      </Pressable>)}
+      <LinearGradient pointerEvents="none" colors={['rgba(5,13,10,.46)', 'rgba(5,13,10,0)', 'rgba(5,13,10,.72)']} locations={[0, .45, 1]} style={StyleSheet.absoluteFill} />
+      <View style={styles.pagination}>
+        <View style={styles.dots}>
+          {photos.map((photo, index) => <Pressable key={photo.label} accessibilityRole="button"
+            accessibilityLabel={`Show photo ${index + 1} of ${photos.length}: ${photo.label}`} accessibilityState={{ selected: page === index }}
+            onPress={() => select(index)} style={styles.dotTarget}>
+            <View style={[styles.dot, page === index && styles.dotActive]} />
+          </Pressable>)}
+        </View>
+        <Text style={styles.counterText}>{page + 1}/{photos.length}</Text>
+      </View>
     </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  shell: { marginHorizontal: 20 },
-  media: { borderRadius: 16, overflow: 'hidden' },
-  counter: { position: 'absolute', left: 14, bottom: 12, minHeight: 24, paddingHorizontal: 9, borderRadius: 7, backgroundColor: '#07110DC7', flexDirection: 'row', alignItems: 'center', gap: 6 },
-  counterDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#6DE2B1' },
-  counterRule: { width: 28, height: 1, backgroundColor: '#FFFFFF66' },
-  counterText: { color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 9, fontVariant: ['tabular-nums'] },
-  dots: { height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  dotTarget: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
-  dot: { height: 4, borderRadius: 2 },
+  shell: { width: '100%' },
+  media: { overflow: 'hidden' },
+  pagination: { position: 'absolute', left: 20, right: 20, bottom: 16, minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dots: { flexDirection: 'row', alignItems: 'center' },
+  dotTarget: { width: 28, height: 32, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 6, height: 3, borderRadius: 2, backgroundColor: '#FFFFFF', opacity: .42 },
+  dotActive: { width: 24, opacity: 1 },
+  counterText: { color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 10, letterSpacing: .5, fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,.35)', textShadowRadius: 5 },
 });

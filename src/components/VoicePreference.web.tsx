@@ -3,7 +3,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../features/auth/AuthContext';
 import { useAppearance } from '../theme/AppearanceContext';
-import { readVoicePreference, writeVoicePreference, voicePreferenceKey } from '../features/cuboAI/voicePreference';
+import { readVoicePreference, recommendedEnglishVoices, voiceDisplayName, writeVoicePreference, voicePreferenceKey } from '../features/cuboAI/voicePreference';
 import { CuboAIVoice } from '../features/cuboAI/browserVoice';
 import { useDrives } from '../features/drives/DriveContext';
 
@@ -30,12 +30,20 @@ function VoiceChoice({ uid }: { uid: string }) {
     try { setValue(readVoicePreference(localStorage, uid)); } catch { setError('Browser storage is unavailable. The default voice will be used.'); }
     if (!supported) return;
     const synth = window.speechSynthesis;
-    const refresh = () => setVoices([...new Map(synth.getVoices().map(v => [v.voiceURI, v])).values()].sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name)));
+    const refresh = () => setVoices(recommendedEnglishVoices(synth.getVoices()));
     const sync = (event: StorageEvent) => { if (event.key === voicePreferenceKey(uid) || event.key === null) setValue(readVoicePreference(localStorage, uid)); };
     refresh(); synth.addEventListener('voiceschanged', refresh); window.addEventListener('storage', sync);
     return () => { synth.removeEventListener('voiceschanged', refresh); window.removeEventListener('storage', sync); };
   }, [uid, supported]);
   const missing = value !== '' && !voices.some(v => v.voiceURI === value);
+  useEffect(() => {
+    if (!voices.length || (!missing && value)) return;
+    try {
+      const next = voices[0].voiceURI;
+      writeVoicePreference(localStorage, uid, next);
+      setValue(next);
+    } catch { setError('Your voice choice could not be saved. Please try again.'); }
+  }, [missing, uid, value, voices]);
   return <div style={{ borderTop: `1px solid ${c.border}`, paddingBottom: 12 }}>
     <label style={{ minHeight: 60, display: 'flex', alignItems: 'center', gap: 12 }}>
       <Ionicons name="volume-medium-outline" size={20} color={c.textSecondary} />
@@ -44,9 +52,8 @@ function VoiceChoice({ uid }: { uid: string }) {
         try { writeVoicePreference(localStorage, uid, event.target.value); setValue(event.target.value); setError(''); window.speechSynthesis.cancel(); }
         catch { setError('Your voice choice could not be saved. Please try again.'); }
       }} style={{ minHeight: 44, minWidth: 0, maxWidth: '55%', padding: 8, borderRadius: 8, border: `1px solid ${c.borderStrong}`, background: c.card, color: c.text, fontFamily: 'Manrope_600SemiBold', fontSize: 16 }}>
-        <option value="">Default (English)</option>
-        {missing && <option value={value}>Saved voice unavailable</option>}
-        {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name} · {v.lang}</option>)}
+        {!voices.length && <option value="">System English</option>}
+        {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{voiceDisplayName(v)}</option>)}
       </select>
     </label>
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -61,7 +68,7 @@ function VoiceChoice({ uid }: { uid: string }) {
         <Ionicons name="volume-medium-outline" size={16} color={c.accent} />Hear Voice
       </button>
     </div>
-    <p id="cubo-voice-help" style={{ margin: '0 0 0 32px', fontSize: 12, lineHeight: '18px', color: c.textSecondary, fontFamily: 'Manrope_400Regular' }}>{!supported ? 'Read-aloud is not supported by this browser.' : missing ? 'The saved voice is unavailable here. Listen will use the default voice.' : voices.length ? 'Used by Listen and Cubo Voice Assist. Saved for this account on this browser.' : 'Only the default voice is available right now. More voices may appear when the browser loads them.'}</p>
+    <p id="cubo-voice-help" style={{ margin: '0 0 0 32px', fontSize: 12, lineHeight: '18px', color: c.textSecondary, fontFamily: 'Manrope_400Regular' }}>{!supported ? 'Read-aloud is not supported by this browser.' : voices.length ? `Showing ${voices.length} clear English voice${voices.length === 1 ? '' : 's'} available on this device. Used by Listen and Cubo Voice Assist.` : 'Waiting for this device’s English voices. The system English voice will be used for now.'}</p>
     {error && <p role="alert" style={{ color: c.text, fontSize: 12 }}>{error}</p>}
   </div>;
 }

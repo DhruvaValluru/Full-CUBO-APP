@@ -29,7 +29,7 @@ import type { AppColors } from '../theme/colors';
 import { spacing } from '../theme/theme';
 import { useAppBlocking, type DriveBlockPlan } from '../features/appBlocking/AppBlockingContext';
 import { DriveBlockModal } from '../components/DriveBlockModal';
-import { LiveNavigationTracker } from '../features/navigation/liveNavigation';
+import { distanceToRouteMeters, LiveNavigationTracker } from '../features/navigation/liveNavigation';
 import { CuboAIVoice } from '../features/cuboAI/browserVoice';
 import { readVoicePreference } from '../features/cuboAI/voicePreference';
 import { useAuth } from '../features/auth/AuthContext';
@@ -125,6 +125,9 @@ export function MapScreen() {
   const arrivalVoiceState = useRef({ focused, active: !!activeSession });
   arrivalVoiceState.current = { focused, active: !!activeSession };
   const arrivalVoice = useRef<CuboAIVoice | null>(null);
+  const arrivalEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishingDrive = useRef(false);
+  const announcedReports = useRef(new Set<string>());
   const voiceRouteState = useRef({ tripId: activeSession?.id, point: gps.point ?? undefined, destination: searchResult, gpsValid: gps.hasFix && gps.status !== 'weak' });
   voiceRouteState.current = { tripId: activeSession?.id, point: gps.point ?? undefined, destination: searchResult, gpsValid: gps.hasFix && gps.status !== 'weak' };
   const [voiceRoutes] = useState(() => new VoiceRoutes(() => voiceRouteState.current, route => {
@@ -147,6 +150,7 @@ export function MapScreen() {
   const [hazardSaved, setHazardSaved] = useState<RoadHazardKind | null>(null);
   const [driveBlockPlan, setDriveBlockPlan] = useState<DriveBlockPlan | null>(null);
   const [navigationNotice, setNavigationNotice] = useState<'following' | 'rerouting' | 'updated' | 'arrived'>('following');
+  const [arrivalCompleting, setArrivalCompleting] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pipPosition = useRef(new Animated.ValueXY({ x: Math.max(16, width - 128), y: 104 })).current;
   const pipOrigin = useRef({ x: Math.max(16, width - 128), y: 104 });
@@ -177,7 +181,8 @@ export function MapScreen() {
   }, [pipTop, pipBottom, pipRight, pipPosition]);
   const trip = activeSession;
   const hazards = trip?.events.filter((event) => event.type === 'road_hazard' && event.latitude != null && event.longitude != null) ?? [];
-  const nearbyReport = activeSession && gps.point ? community.reports.filter((report) => report.reporterId !== community.userId && !community.confirmed.has(report.id) && !promptDismissed.has(report.id)).map((report) => ({ report, distance: distanceMeters(gps.point!, report) })).filter(({ report, distance }) => distance < 300 && isAhead(gps.point!, report) && (!navigationRoute || navigationRoute.coordinates.some((point) => distanceMeters(point, report) < 60))).sort((a, b) => a.distance - b.distance)[0] : undefined;
+  const routeReports = useMemo(() => community.reports.filter((report) => !navigationRoute || distanceToRouteMeters(navigationRoute, report) < 75), [community.reports, navigationRoute]);
+  const nearbyReport = activeSession && gps.point ? routeReports.filter((report) => report.reporterId !== community.userId && !community.confirmed.has(report.id) && !promptDismissed.has(report.id)).map((report) => ({ report, distance: distanceMeters(gps.point!, report) })).filter(({ report, distance }) => distance < 300 && isAhead(gps.point!, report)).sort((a, b) => a.distance - b.distance)[0] : undefined;
   const recordedRoute = trip?.route ?? [];
   const center = gps.point ?? recordedRoute[recordedRoute.length - 1] ?? fallbackRegion;
   const dismissSearchKeyboard = () => { setShowRecent(false); searchInputRef.current?.blur(); Keyboard.dismiss(); };
@@ -310,10 +315,15 @@ export function MapScreen() {
   };
 
   const finishDrive = () => {
+    if (finishingDrive.current) return;
+    finishingDrive.current = true;
+    if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current);
+    arrivalEndTimer.current = null;
     automaticRouteRequest.current?.abort(); arrivalVoice.current?.stop();
     endAppBlocking(); setDriveBlockPlan(null);
     const completed = endDrive();
     if (completed) setFinishedId(completed.id);
+    else finishingDrive.current = false;
   };
 
   useEffect(() => {
@@ -332,9 +342,14 @@ export function MapScreen() {
   useEffect(() => {
     liveNavigation.current.reset();
     setNavigationNotice('following');
+    setArrivalCompleting(false);
+    finishingDrive.current = false;
+    announcedReports.current.clear();
     automaticRouteRequest.current?.abort();
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    return () => { automaticRouteRequest.current?.abort(); if (noticeTimer.current) clearTimeout(noticeTimer.current); };
+    if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current);
+    arrivalEndTimer.current = null;
+    return () => { automaticRouteRequest.current?.abort(); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current); };
   }, [activeSession?.id]);
 
   useEffect(() => {
@@ -371,21 +386,34 @@ export function MapScreen() {
     } else if (decision.kind === 'arrived') {
       setNavigationNotice('arrived'); setFollowing(true);
       setStepIndex(Math.max(0, navigationRoute.steps.length - 1));
-      setSearchMessage(`Arrived at ${query || 'your destination'} · end the drive when parked`);
-      try { arrivalVoice.current?.speak(`You have arrived at ${query || 'your destination'}.`, undefined, () => {}); } catch { /* The visual arrival state remains available. */ }
+      setArrivalCompleting(true);
+      setSearchMessage(`Arrived at ${query || 'your destination'} · saving your drive`);
+      try { if (!window.speechSynthesis.speaking) arrivalVoice.current?.speak(`Arrived at ${query || 'your destination'}.`, undefined, () => {}); } catch { /* The visual arrival state remains available. */ }
+      arrivalEndTimer.current = setTimeout(finishDrive, 1000);
     }
   }, [activeSession?.id, gps.point?.timestamp, gps.status, navigationRoute, searchResult, navigationNotice, query]);
 
   useEffect(() => {
+    if (!activeSession || !nearbyReport || announcedReports.current.has(nearbyReport.report.id)) return;
+    announcedReports.current.add(nearbyReport.report.id);
+    const label = nearbyReport.report.kind === 'object' ? 'Object' : nearbyReport.report.kind === 'police' ? 'Police activity' : 'Crash';
+    const distance = Math.max(10, Math.round(nearbyReport.distance / 10) * 10);
+    const message = `${label} reported ahead in ${distance} meters.`;
+    setVoiceStatus(message);
+    try { if (!window.speechSynthesis.speaking) arrivalVoice.current?.speak(message, undefined, () => {}); } catch { /* Keep the visible alert if speech is unavailable. */ }
+  }, [activeSession?.id, nearbyReport?.report.id]);
+
+  useEffect(() => {
     if (!activeSession || !gps.point || hazardPrompt) return;
-    for (const report of community.reports) {
+    for (const report of routeReports) {
       if (report.reporterId === community.userId || community.confirmed.has(report.id) || promptDismissed.has(report.id)) continue;
       const distance = distanceMeters(gps.point, report);
+      if (!isAhead(gps.point, report)) continue;
       const closest = Math.min(closestReports.current.get(report.id) ?? Infinity, distance);
       closestReports.current.set(report.id, closest);
       if (distance < 55 || (closest < 65 && distance > closest + 15 && distance < 180)) { setHazardPrompt(report); break; }
     }
-  }, [gps.point?.timestamp, activeSession?.id, community.reports, community.confirmed, promptDismissed, hazardPrompt]);
+  }, [gps.point?.timestamp, activeSession?.id, routeReports, community.confirmed, promptDismissed, hazardPrompt]);
   useEffect(() => {
     if (!hazardPrompt) return;
     const reportId = hazardPrompt.id;
@@ -404,7 +432,7 @@ export function MapScreen() {
       {navigationRoute ? <><Polyline coordinates={navigationRoute.coordinates} strokeColor="rgba(255,255,255,.9)" strokeWidth={11} lineCap="round" lineJoin="round" /><Polyline coordinates={navigationRoute.coordinates} strokeColor={colors.accent} strokeWidth={7} lineCap="round" lineJoin="round" /></> : null}
       {navigating && gps.point ? <Marker coordinate={gps.point} anchor={{ x: .5, y: .5 }} flat rotation={gps.point.heading ?? lastHeading.current}><View style={styles.driverMarker}><Ionicons name="arrow-up" size={20} color="#FFFFFF" /></View></Marker> : null}
       {searchResult ? <Marker coordinate={searchResult} anchor={{ x: .5, y: 1 }} title={query.trim() || 'Destination'}><View style={styles.destinationPin}><Ionicons name="location-sharp" size={36} color={colors.danger} /><View style={styles.destinationPinCenter} /></View></Marker> : null}
-      {community.reports.filter((report) => report.reporterId !== community.userId).map((report) => { const meta = hazardMeta[report.kind]; return <Marker key={report.id} coordinate={report} title={`${report.kind[0].toUpperCase()}${report.kind.slice(1)} reported here`} description="Community road report"><View style={[styles.hazardPin, { backgroundColor: meta.color }]}><Ionicons name={meta.icon} size={16} color="#FFFFFF" /></View></Marker>; })}
+      {routeReports.filter((report) => report.reporterId !== community.userId).map((report) => { const meta = hazardMeta[report.kind]; return <Marker key={report.id} coordinate={report} title={`${report.kind[0].toUpperCase()}${report.kind.slice(1)} reported here`} description="Community road report"><View style={[styles.hazardPin, { backgroundColor: meta.color }]}><Ionicons name={meta.icon} size={16} color="#FFFFFF" /></View></Marker>; })}
       {hazards.map((hazard) => { const meta = hazardMeta[hazard.hazardKind ?? 'object']; return <Marker key={hazard.id} coordinate={{ latitude: hazard.latitude!, longitude: hazard.longitude! }} title={hazard.title} description={hazard.detail}><View style={[styles.hazardPin, { backgroundColor: meta.color }]}><Ionicons name={meta.icon} size={16} color="#fff" /></View></Marker>; })}
     </MapView>
     <SafeAreaView edges={['top', 'bottom']} style={[styles.overlay, !activeSession && screenRoute.name === 'Map' && { paddingBottom: 100 }, activeSession && styles.overlayDrive]} pointerEvents="box-none">
@@ -420,7 +448,7 @@ export function MapScreen() {
         {activeSession ? <View style={styles.driveControls}><MotionPressable accessibilityLabel="End drive" style={styles.endDrive} scaleTo={0.95} onPress={finishDrive}><Ionicons name="stop-circle" size={18} color="#FFFFFF" /><Text style={styles.endDriveText}>End drive</Text></MotionPressable><DriveVoiceControl onReroute={(choice, signal) => voiceRoutes.run(choice, signal)} live={{ point: gps.point ?? undefined, gpsValid: gps.hasFix && gps.status !== 'weak', speed: gps.speedAvailable ? gps.speedMph : undefined, nextTurn: currentStep ? stepInstruction(currentStep) : undefined, destination: navigationRoute ? query : undefined, routeSteps: voiceInstructions, routeIndex: stepIndex, routeId: navigationRoute ? `${query}:${navigationRoute.durationSeconds}:${navigationRoute.coordinates.length}` : undefined, remainingSeconds: voiceRoute?.seconds, remainingMiles: voiceRoute?.miles }} onStatus={setVoiceStatus} /><MotionPressable accessibilityLabel={hazardSaved ? 'Hazard saved. Report another hazard' : 'Report hazard'} style={[styles.reportHazard, { flex: .54, minWidth: 44 }]} scaleTo={0.95} onPress={() => setHazardMenu(true)}><Ionicons name={hazardSaved ? 'checkmark-circle' : 'megaphone-outline'} size={20} color={colors.accent} /></MotionPressable></View> : null}
         {activeSession && voiceStatus ? <Text numberOfLines={3} style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16, marginTop: 8 }}>{voiceStatus}</Text> : null}
         {!activeSession ? <MotionPressable onPress={() => navigation.navigate('ReturningHome')} style={{ minHeight: 44, marginTop: 8, backgroundColor: colors.surfaceMuted, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="home-outline" size={17} color={colors.accent} /><Text style={{ color: colors.text, fontFamily: 'Manrope_700Bold', fontSize: 12 }}>Back to home</Text></MotionPressable> : null}
-        <Text style={styles.privacy}>{community.error || searchMessage || (navigationRoute ? navigating ? `${following ? 'Following your location' : 'Map unlocked'} · Tap locate to recenter` : 'Preview the route, then start when you are ready.' : 'Choose a destination, then press Start drive.')}</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.privacy}>{arrivalCompleting ? 'Arrival confirmed · saving your drive…' : community.error || searchMessage || (navigationRoute ? navigating ? `${following ? 'Following your location' : 'Map unlocked'} · Tap locate to recenter` : 'Preview the route, then start when you are ready.' : 'Choose a destination, then press Start drive.')}</Text>
       </View>
     </SafeAreaView>
     {hazardMenu ? <><Pressable style={styles.sheetBackdrop} onPress={() => setHazardMenu(false)} /><Reanimated.View entering={FadeInDown.duration(240).easing(Easing.out(Easing.cubic))} exiting={FadeOutDown.duration(180)} style={[styles.hazardSheet, { paddingBottom: Math.max(insets.bottom + 18, 34) }]}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>LIVE ROAD REPORT</Text><Text style={styles.sheetTitle}>What’s ahead?</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close hazard report" style={styles.sheetClose} onPress={() => setHazardMenu(false)}><Ionicons name="close" size={18} color={colors.text} /></Pressable></View><Text style={styles.sheetBody}>CUBO pins the report at your current GPS position for this drive.</Text><View style={styles.hazardGrid}>{hazardOptions.map((option) => { const meta = hazardMeta[option.kind]; return <MotionPressable key={option.kind} style={styles.hazardOption} scaleTo={0.94} onPress={() => reportHazard(option.kind)}><View style={[styles.hazardOptionIcon, { backgroundColor: `${meta.color}18` }]}><Ionicons name={meta.icon} size={23} color={meta.color} /></View><Text style={styles.hazardOptionLabel}>{option.label}</Text><Text style={styles.hazardOptionDetail}>{option.detail}</Text></MotionPressable>; })}</View></Reanimated.View></> : null}
