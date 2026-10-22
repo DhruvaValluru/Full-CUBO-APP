@@ -28,6 +28,9 @@ test('community hazard query has its required nearby-cell index', () => {
   assert.match(client, /where\('cell', 'in', cells\)/);
   assert.match(client, /where\('createdAt', '>', Timestamp\.fromMillis\(cutoff\)\)/);
   assert.match(client, /limit\(100\)/);
+  assert.match(client, /const coordinates = \{ latitude: location\.latitude, longitude: location\.longitude \}/);
+  assert.match(client, /setDoc\(ref, \{ reporterId: user\.uid, kind, \.\.\.coordinates,/);
+  assert.doesNotMatch(client, /setDoc\(ref, \{ reporterId: user\.uid, kind, \.\.\.location,/);
 });
 
 test('drive maps filter alerts to the active route and auto-finish one second after arrival', () => {
