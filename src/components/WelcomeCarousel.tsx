@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useAppearance } from '../theme/AppearanceContext';
 
@@ -26,18 +26,21 @@ export function WelcomeCarousel({ height }: { height: number }) {
     setPage(index);
     scroll.current?.scrollTo({ x: index * width, animated: !reduced });
   };
-  return <View onLayout={event => setWidth(event.nativeEvent.layout.width)}>
-    <ScrollView ref={scroll} horizontal pagingEnabled directionalLockEnabled bounces={false} showsHorizontalScrollIndicator={false}
-      style={{ height }} scrollEventThrottle={32}
-      onScroll={event => {
-        if (!width) return;
-        const index = Math.max(0, Math.min(photos.length - 1, Math.round(event.nativeEvent.contentOffset.x / width)));
-        if (current.current !== index) { current.current = index; setPage(index); }
-      }}>
-      {width > 0 ? photos.map((photo, index) => <Image key={photo.label} source={photo.source} resizeMode="cover"
-        accessible={page === index} accessibilityLabel={`Photo ${index + 1} of ${photos.length}: ${photo.label}`}
-        style={{ width, height, backgroundColor: colors.card }} />) : null}
-    </ScrollView>
+  return <View style={styles.shell} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+    <View style={[styles.media, { height, backgroundColor: colors.card }]}>
+      <ScrollView ref={scroll} horizontal pagingEnabled directionalLockEnabled bounces={false} showsHorizontalScrollIndicator={false}
+        style={StyleSheet.absoluteFill} scrollEventThrottle={32}
+        onScroll={event => {
+          if (!width) return;
+          const index = Math.max(0, Math.min(photos.length - 1, Math.round(event.nativeEvent.contentOffset.x / width)));
+          if (current.current !== index) { current.current = index; setPage(index); }
+        }}>
+        {width > 0 ? photos.map((photo, index) => <Image key={photo.label} source={photo.source} resizeMode="cover"
+          accessible={page === index} accessibilityLabel={`Photo ${index + 1} of ${photos.length}: ${photo.label}`}
+          style={{ width, height, backgroundColor: colors.card }} />) : null}
+      </ScrollView>
+      <View style={styles.counter}><View style={styles.counterDot} /><View style={styles.counterRule} /><Text style={styles.counterText}>{page + 1}/{photos.length}</Text></View>
+    </View>
     <View style={styles.dots}>
       {photos.map((photo, index) => <Pressable key={photo.label} accessibilityRole="button"
         accessibilityLabel={`Show photo ${index + 1} of ${photos.length}: ${photo.label}`} accessibilityState={{ selected: page === index }}
@@ -49,7 +52,13 @@ export function WelcomeCarousel({ height }: { height: number }) {
 }
 
 const styles = StyleSheet.create({
-  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  dotTarget: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  dot: { height: 6, borderRadius: 3 },
+  shell: { marginHorizontal: 20 },
+  media: { borderRadius: 16, overflow: 'hidden' },
+  counter: { position: 'absolute', left: 14, bottom: 12, minHeight: 24, paddingHorizontal: 9, borderRadius: 7, backgroundColor: '#07110DC7', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  counterDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#6DE2B1' },
+  counterRule: { width: 28, height: 1, backgroundColor: '#FFFFFF66' },
+  counterText: { color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 9, fontVariant: ['tabular-nums'] },
+  dots: { height: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  dotTarget: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+  dot: { height: 4, borderRadius: 2 },
 });

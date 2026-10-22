@@ -22,8 +22,8 @@ service cloud.firestore {
     // Collection: connections — one Family/Friend relationship with bounded
     // score and foreground location-snapshot fields for its two participants.
     // Collection: familyMemberships — immutable organizer authority marker for
-    // one linked minor, keyed by the minor UID.
-    // Collection: birthDateChangeRequests — exact linked-minor DOB/account-type
+    // every linked family member. The historical minorUid field is the member UID.
+    // Collection: birthDateChangeRequests — exact linked-member DOB/account-type
     // request that only the organizer can approve and atomically apply.
     // Collection: locationShareRequests — Family organizer request that only
     // the linked minor may approve or deny; approval itself does not grant GPS.
@@ -84,6 +84,7 @@ service cloud.firestore {
         && data.updatedAt is timestamp && data.updatedAt == request.time;
     }
     function userDoc(userId) { return get(/databases/$(database)/documents/users/$(userId)).data; }
+    function isAdultAccount(userId) { return userDoc(userId).accountDetails.accountType == 'adult'; }
     function familyMembership(userId) { return get(/databases/$(database)/documents/familyMemberships/$(userId)).data; }
     // Firestore Rules cannot safely use JavaScript-style lexical ordering for
     // Auth UID strings. Accept either of the two bounded pair orders instead;
@@ -137,7 +138,7 @@ service cloud.firestore {
     function nullableTimestamp(value) { return value == null || value is timestamp; }
     function validConnection(data) {
       return data.keys().hasAll(['kind', 'ownerUid', 'ownerName', 'memberUid', 'memberName', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['requestId', 'kind', 'ownerUid', 'ownerName', 'ownerAvatarId', 'memberUid', 'memberName', 'memberAvatarId', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerScoreMeasured', 'memberScoreMeasured', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['requestId', 'kind', 'ownerUid', 'ownerName', 'ownerAvatarId', 'ownerAccountType', 'memberUid', 'memberName', 'memberAvatarId', 'memberAccountType', 'ownerShareScore', 'ownerShareLocation', 'memberShareScore', 'memberShareLocation', 'ownerScore', 'memberScore', 'ownerScoreMeasured', 'memberScoreMeasured', 'ownerLatitude', 'ownerLongitude', 'ownerLocationAt', 'memberLatitude', 'memberLongitude', 'memberLocationAt', 'createdAt', 'updatedAt'])
         && (!('requestId' in data) || (data.requestId is string && data.requestId.size() >= 1 && data.requestId.size() <= 320))
         && (!('ownerScoreMeasured' in data) || data.ownerScoreMeasured is bool)
         && (!('memberScoreMeasured' in data) || data.memberScoreMeasured is bool)
@@ -148,6 +149,7 @@ service cloud.firestore {
         && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
         && data.memberName is string && data.memberName.size() >= 1 && data.memberName.size() <= 80
         && (!('ownerAvatarId' in data) || isValidAvatarId(data.ownerAvatarId))
+        && (!('ownerAccountType' in data) || data.ownerAccountType in ['minor', 'adult'])
         && (!('memberAvatarId' in data) || isValidAvatarId(data.memberAvatarId))
         && data.memberAccountType in ['minor', 'adult']
         && data.ownerShareScore is bool && data.ownerShareLocation is bool
@@ -208,11 +210,15 @@ service cloud.firestore {
         && data.selectedIds.toSet().hasOnly(['tiktok', 'instagram', 'facebook', 'snapchat', 'messages', 'facetime', 'whatsapp', 'telegram', 'youtube', 'spotify', 'uber', 'doordash'])
         && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
-    function isActiveMinorFamily(connectionId, organizerUid, minorUid) {
+    function isActiveFamilyConnection(connectionId, organizerUid, memberUid) {
       return exists(/databases/$(database)/documents/connections/$(connectionId))
         && get(/databases/$(database)/documents/connections/$(connectionId)).data.kind == 'family'
         && get(/databases/$(database)/documents/connections/$(connectionId)).data.ownerUid == organizerUid
-        && get(/databases/$(database)/documents/connections/$(connectionId)).data.memberUid == minorUid
+        && get(/databases/$(database)/documents/connections/$(connectionId)).data.memberUid == memberUid
+        && isAdultAccount(organizerUid);
+    }
+    function isActiveMinorFamily(connectionId, organizerUid, minorUid) {
+      return isActiveFamilyConnection(connectionId, organizerUid, minorUid)
         && get(/databases/$(database)/documents/connections/$(connectionId)).data.memberAccountType == 'minor';
     }
 
@@ -231,8 +237,9 @@ service cloud.firestore {
             || request.resource.data.accountDetails.birthDate == resource.data.accountDetails.birthDate
               && request.resource.data.accountDetails.accountType == resource.data.accountDetails.accountType))
         || (isAuthenticated()
-          && exists(/databases/$(database)/documents/familyMemberships/$(userId))
-          && familyMembership(userId).organizerUid == request.auth.uid
+          && exists(/databases/$(database)/documents/birthDateChangeRequests/$(userId))
+          && get(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.organizerUid == request.auth.uid
+          && isActiveFamilyConnection(get(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.connectionId, request.auth.uid, userId)
           && uidNotModified() && isValidUser(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accountDetails', 'updatedAt'])
           && request.resource.data.accountDetails.diff(resource.data.accountDetails).affectedKeys().hasOnly(['birthDate', 'accountType'])
@@ -242,7 +249,10 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.status == 'approved'
           && getAfter(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.organizerUid == request.auth.uid
           && getAfter(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.requestedBirthDate == request.resource.data.accountDetails.birthDate
-          && getAfter(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.requestedAccountType == request.resource.data.accountDetails.accountType);
+          && getAfter(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.requestedAccountType == request.resource.data.accountDetails.accountType
+          && getAfter(/databases/$(database)/documents/familyMemberships/$(userId)).data.organizerUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/familyMemberships/$(userId)).data.connectionId
+            == get(/databases/$(database)/documents/birthDateChangeRequests/$(userId)).data.connectionId);
       allow delete: if false;
 
       // Bounded JSON envelopes keep account sync inexpensive and make it
@@ -298,7 +308,12 @@ service cloud.firestore {
         && ((resource.data.ownerUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
             && resource.data.status == 'pending' && request.resource.data.status == 'approved'
+            && (resource.data.kind != 'family' || isAdultAccount(request.auth.uid))
             && getAfter(/databases/$(database)/documents/connections/$(requestId)).data.ownerUid == request.auth.uid)
+          || (resource.data.requesterUid == request.auth.uid
+            && resource.data.status == 'pending' && request.resource.data.status == 'pending'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requesterAccountType', 'updatedAt'])
+            && request.resource.data.requesterAccountType == userDoc(request.auth.uid).accountDetails.accountType)
           || (request.resource.data.requesterUid == request.auth.uid
             && resource.data.status == 'declined' && request.resource.data.status == 'pending'
             && request.resource.data.createdAt == request.time
@@ -322,14 +337,13 @@ service cloud.firestore {
       allow get, list: if isAuthenticated() && (resource.data.minorUid == request.auth.uid || resource.data.organizerUid == request.auth.uid);
       allow create: if isAuthenticated() && validFamilyMembership(minorId, request.resource.data)
         && (request.resource.data.minorUid == request.auth.uid || request.resource.data.organizerUid == request.auth.uid)
+        && isAdultAccount(request.resource.data.organizerUid)
         && getAfter(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.kind == 'family'
         && getAfter(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.ownerUid == request.resource.data.organizerUid
-        && getAfter(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberUid == request.resource.data.minorUid
-        && getAfter(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberAccountType == 'minor';
+        && getAfter(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberUid == request.resource.data.minorUid;
       allow update: if false;
       allow delete: if isAuthenticated() && (resource.data.minorUid == request.auth.uid || resource.data.organizerUid == request.auth.uid)
-        && (!existsAfter(/databases/$(database)/documents/connections/$(resource.data.connectionId))
-          || getAfter(/databases/$(database)/documents/connections/$(resource.data.connectionId)).data.memberAccountType == 'adult');
+        && !existsAfter(/databases/$(database)/documents/connections/$(resource.data.connectionId));
     }
 
     match /birthDateChangeRequests/{minorId} {
@@ -339,11 +353,8 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && request.resource.data.previousBirthDate == userDoc(minorId).accountDetails.birthDate
         && request.resource.data.minorName == userDoc(minorId).name
-        && userDoc(minorId).accountDetails.accountType == 'minor'
-        && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.kind == 'family'
-        && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.ownerUid == request.resource.data.organizerUid
+        && isActiveFamilyConnection(request.resource.data.connectionId, request.resource.data.organizerUid, minorId)
         && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.ownerName == request.resource.data.organizerName
-        && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberUid == minorId
         && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberName == request.resource.data.minorName
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
       allow update: if isAuthenticated() && validBirthDateChange(minorId, request.resource.data)
@@ -358,12 +369,11 @@ service cloud.firestore {
             && request.resource.data.status == 'pending'
             && request.resource.data.previousBirthDate == userDoc(minorId).accountDetails.birthDate
             && request.resource.data.minorName == userDoc(minorId).name
-            && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.kind == 'family'
-            && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.ownerUid == request.resource.data.organizerUid
+            && isActiveFamilyConnection(request.resource.data.connectionId, request.resource.data.organizerUid, minorId)
             && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.ownerName == request.resource.data.organizerName
-            && get(/databases/$(database)/documents/connections/$(request.resource.data.connectionId)).data.memberUid == minorId
             && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time)
           || (request.auth.uid == resource.data.organizerUid
+            && isAdultAccount(request.auth.uid)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
             && resource.data.status == 'pending' && request.resource.data.status in ['approved', 'denied']
             && request.resource.data.updatedAt == request.time
@@ -371,7 +381,9 @@ service cloud.firestore {
               || (getAfter(/databases/$(database)/documents/users/$(minorId)).data.accountDetails.birthDate == resource.data.requestedBirthDate
                 && getAfter(/databases/$(database)/documents/users/$(minorId)).data.accountDetails.accountType == resource.data.requestedAccountType
                 && getAfter(/databases/$(database)/documents/connections/$(resource.data.connectionId)).data.memberAccountType == resource.data.requestedAccountType))));
-      allow delete: if isAuthenticated() && request.auth.uid == minorId;
+      allow delete: if isAuthenticated() && (request.auth.uid == minorId
+        || (resource.data.organizerUid == request.auth.uid
+          && !existsAfter(/databases/$(database)/documents/connections/$(resource.data.connectionId))));
     }
 
     // A request never grants location access. The linked minor must explicitly
@@ -442,6 +454,8 @@ service cloud.firestore {
         && request.resource.data.requestId is string
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerName == userDoc(request.auth.uid).name
+        && (!('ownerAccountType' in request.resource.data) || request.resource.data.ownerAccountType == userDoc(request.auth.uid).accountDetails.accountType)
+        && (request.resource.data.kind != 'family' || isAdultAccount(request.auth.uid))
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && request.resource.data.ownerShareScore == false && request.resource.data.ownerShareLocation == false
         && request.resource.data.memberShareLocation == false
@@ -459,7 +473,7 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.requesterAccountType == request.resource.data.memberAccountType
         && (!('requesterAvatarId' in getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data)
           || request.resource.data.memberAvatarId == getAfter(/databases/$(database)/documents/connectionRequests/$(request.resource.data.requestId)).data.requesterAvatarId)
-        && (request.resource.data.kind != 'family' || request.resource.data.memberAccountType != 'minor'
+        && (request.resource.data.kind != 'family'
           || (getAfter(/databases/$(database)/documents/familyMemberships/$(request.resource.data.memberUid)).data.organizerUid == request.resource.data.ownerUid
             && getAfter(/databases/$(database)/documents/familyMemberships/$(request.resource.data.memberUid)).data.connectionId == connectionId));
       allow update: if isAuthenticated() && validConnection(request.resource.data)
@@ -478,12 +492,19 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerName', 'ownerAvatarId', 'updatedAt'])
             && request.resource.data.ownerName == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.name
             && request.resource.data.ownerAvatarId == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.avatarId)
+          || (resource.data.ownerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerAccountType', 'updatedAt'])
+            && request.resource.data.ownerAccountType == userDoc(request.auth.uid).accountDetails.accountType
+            && (resource.data.kind != 'family' || request.resource.data.ownerAccountType == 'adult'))
+          || (resource.data.memberUid == request.auth.uid && resource.data.kind == 'friend'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberAccountType', 'updatedAt'])
+            && request.resource.data.memberAccountType == userDoc(request.auth.uid).accountDetails.accountType)
           || (resource.data.memberUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberName', 'memberAvatarId', 'updatedAt'])
             && request.resource.data.memberName == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.name
             && request.resource.data.memberAvatarId == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.avatarId));
       allow delete: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || resource.data.memberUid == request.auth.uid)
-        && (resource.data.kind != 'family' || resource.data.memberAccountType != 'minor'
+        && (resource.data.kind != 'family'
           || !existsAfter(/databases/$(database)/documents/familyMemberships/$(resource.data.memberUid)));
     }
 

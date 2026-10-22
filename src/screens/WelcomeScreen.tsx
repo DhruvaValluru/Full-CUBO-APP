@@ -17,14 +17,14 @@ export function WelcomeScreen({ onGetStarted }: Props) {
   return <SafeAreaView onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)} style={[s.page, { backgroundColor: c.background }]}>
     <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
-      <View style={[s.header, compact && { minHeight: 60 }]}><Text style={[s.wordmark, { color: c.text }]}>CUBO</Text><Text style={[s.headerNote, { color: c.textSecondary }]}>Stay Alert. Stay Alive.</Text></View>
-      <WelcomeCarousel height={Math.max(140, Math.min(360, availableHeight * (compact ? .26 : .35)))} />
+      <View style={[s.header, compact && { minHeight: 58 }]}><View style={s.brand}><View style={[s.brandRail, { backgroundColor: c.accent }]} /><Text style={[s.wordmark, { color: c.text }]}>CUBO</Text></View><Text style={[s.headerNote, { color: c.textSecondary }]}>DRIVER SAFETY</Text></View>
+      <WelcomeCarousel height={Math.max(150, Math.min(350, availableHeight * (compact ? .27 : .35)))} />
       <View style={[s.copy, compact && { paddingTop: 4, paddingBottom: 16, gap: 10 }]}>
-        <Text style={[s.title, { color: c.text }, compact && { fontSize: 30, lineHeight: 35 }]}>Your attention.{'\n'}On the road.</Text>
-        <Text style={[s.subtitle, { color: c.textSecondary }, compact && { fontSize: 13, lineHeight: 20 }]}>Focus alerts, driving insights, and family sharing. Get to know your habits and build safer ones with CUBO.</Text>
+        <Text style={[s.title, { color: c.text }, compact && { fontSize: 30, lineHeight: 35 }]}>Drive focused.{"\n"}Arrive safer.</Text>
+        <Text style={[s.subtitle, { color: c.textSecondary }, compact && { fontSize: 13, lineHeight: 20 }]}>Attention alerts, route guidance, and private sharing for the people you choose—without adding noise to the drive.</Text>
       </View>
       <View style={s.footer}>
-        <MotionPressable accessibilityLabel="Get started with CUBO" onPress={onGetStarted} style={s.button}>
+        <MotionPressable accessibilityLabel="Get started with CUBO" onPress={onGetStarted} style={[s.button, { backgroundColor: c.accent }]}>
           <Text style={s.buttonText}>Get started</Text><Ionicons name="arrow-forward" size={22} color="#FFFFFF" />
         </MotionPressable>
         <Text style={[s.note, { color: c.textSecondary }]}>A helping hand. Never a substitute for attentive driving.</Text>
@@ -34,14 +34,15 @@ export function WelcomeScreen({ onGetStarted }: Props) {
 }
 const s = StyleSheet.create({
   page: { flex: 1 }, content: { flexGrow: 1, paddingBottom: 16 },
-  header: { minHeight: 72, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  wordmark: { fontFamily: 'Manrope_800ExtraBold', fontSize: 26, letterSpacing: 2.6 },
-  headerNote: { fontFamily: 'Manrope_500Medium', fontSize: 11 },
-  copy: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 14 },
-  title: { fontFamily: 'Manrope_800ExtraBold', fontSize: 36, lineHeight: 41, letterSpacing: -1.3 },
-  subtitle: { fontFamily: 'Manrope_400Regular', fontSize: 14, lineHeight: 23, maxWidth: 420 },
-  footer: { paddingHorizontal: 24, marginTop: 'auto', gap: 12 },
-  button: { minHeight: 58, backgroundColor: '#17694D', borderRadius: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { minHeight: 68, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 }, brandRail: { width: 4, height: 24, borderRadius: 2 },
+  wordmark: { fontFamily: 'Manrope_800ExtraBold', fontSize: 24, letterSpacing: 2.2 },
+  headerNote: { fontFamily: 'Manrope_700Bold', fontSize: 9, letterSpacing: 1.4 },
+  copy: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20, gap: 11 },
+  title: { fontFamily: 'Manrope_800ExtraBold', fontSize: 36, lineHeight: 40, letterSpacing: -1.4 },
+  subtitle: { fontFamily: 'Manrope_400Regular', fontSize: 14, lineHeight: 21, maxWidth: 430 },
+  footer: { paddingHorizontal: 20, marginTop: 'auto', gap: 10 },
+  button: { minHeight: 56, borderRadius: 12, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   buttonText: { color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 15 },
   note: { fontSize: 10, lineHeight: 16, textAlign: 'center' },
 });

@@ -13,6 +13,7 @@ export type MapView = {
   animateCamera: (camera: Camera, options?: { duration?: number }) => void;
   animateToRegion: (region: Region, duration?: number) => void;
   fitToCoordinates: (points: Coordinate[], options: { edgePadding: { top: number; right: number; bottom: number; left: number }; animated?: boolean }) => void;
+  zoomBy: (delta: number) => void;
 };
 type Props = {
   children?: ReactNode; style?: StyleProp<ViewStyle>; initialRegion: Region; userInterfaceStyle: 'light' | 'dark';
@@ -50,6 +51,7 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
       const factor = Math.min(1, Math.max(.2, (height - 100) / (options.edgePadding.top + options.edgePadding.bottom)));
       m.fitBounds(bounds, { padding: { ...options.edgePadding, top: options.edgePadding.top * factor, bottom: options.edgePadding.bottom * factor }, maxZoom: 17, duration: options.animated ? 450 : 0 });
     }),
+    zoomBy: delta => run(m => m.easeTo({ zoom: Math.max(2, Math.min(19, m.getZoom() + delta)), duration: 220 })),
   }), []);
   useEffect(() => {
     if (!host.current) return;

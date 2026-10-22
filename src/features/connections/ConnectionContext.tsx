@@ -32,6 +32,7 @@ export type CuboConnection = {
   ownerUid: string;
   ownerName: string;
   ownerAvatarId?: AvatarId;
+  ownerAccountType?: 'minor' | 'adult';
   memberUid: string;
   memberName: string;
   memberAvatarId?: AvatarId;
@@ -99,6 +100,7 @@ type ConnectionContextValue = {
   reviewBirthDateChange: (request: BirthDateChangeRequest, approved: boolean) => Promise<void>;
   requestLocationShare: (connection: CuboConnection) => Promise<void>;
   respondLocationShare: (request: LocationShareRequest, approved: boolean) => Promise<void>;
+  reconcileOwnAccountRole: (nextType: AccountDetails['accountType']) => Promise<{ removedFamilyConnections: number }>;
 };
 
 const ConnectionContext = createContext<ConnectionContextValue | null>(null);
@@ -183,12 +185,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     }
   }, [rawConnections, user?.uid]);
 
-  // Backfill the protected minor-membership marker for family links created by
-  // earlier builds. It lets Firestore require organizer approval for DOB edits.
+  // Backfill the protected family-membership marker for links created by older
+  // builds. It keeps every linked member's age change behind organizer approval.
   useEffect(() => {
     if (!user) return;
     for (const item of connections) {
-      if (item.kind !== 'family' || item.memberAccountType !== 'minor') continue;
+      if (item.kind !== 'family') continue;
       void setDoc(doc(db, 'familyMemberships', item.memberUid), {
         minorUid: item.memberUid,
         organizerUid: item.ownerUid,
@@ -275,22 +277,24 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     if (!user || request.ownerUid !== user.uid) throw Error('Only the code owner can approve this request.');
     setLoading(true); setError('');
     try {
+      const ownerIdentity = await loadIdentity();
+      if (request.kind === 'family' && ownerIdentity.details.accountType !== 'adult') throw Error('Minor accounts cannot approve Family requests or manage another account.');
       const connectionId = connectionPairId(request.kind, request.ownerUid, request.requesterUid);
       if (connections.some(item => item.kind === request.kind && connectionPairId(item.kind, item.ownerUid, item.memberUid) === connectionId)) throw Error(`This person is already in your ${request.kind === 'family' ? 'family' : 'friends'}.`);
       const batch = writeBatch(db);
       batch.update(doc(db, 'connectionRequests', request.id), { status: 'approved', updatedAt: serverTimestamp() });
       batch.set(doc(db, 'connections', connectionId), {
         requestId: request.id,
-        kind: request.kind, ownerUid: request.ownerUid, ownerName: request.ownerName, ownerAvatarId: request.ownerAvatarId ?? defaultAvatarId(request.ownerUid), memberUid: request.requesterUid, memberName: request.requesterName, memberAvatarId: request.requesterAvatarId ?? defaultAvatarId(request.requesterUid),
+        kind: request.kind, ownerUid: request.ownerUid, ownerName: request.ownerName, ownerAvatarId: request.ownerAvatarId ?? defaultAvatarId(request.ownerUid), ownerAccountType: ownerIdentity.details.accountType, memberUid: request.requesterUid, memberName: request.requesterName, memberAvatarId: request.requesterAvatarId ?? defaultAvatarId(request.requesterUid),
         memberAccountType: request.requesterAccountType, ownerShareScore: false, ownerShareLocation: false, memberShareScore: request.kind === 'family' && request.requesterAccountType === 'minor', memberShareLocation: false,
         ownerScore: null, memberScore: request.kind === 'family' && request.requesterAccountType === 'minor' ? 100 : null, ownerScoreMeasured: false, memberScoreMeasured: false, ownerLatitude: null, ownerLongitude: null, ownerLocationAt: null, memberLatitude: null, memberLongitude: null, memberLocationAt: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
-      if (request.kind === 'family' && request.requesterAccountType === 'minor') batch.set(doc(db, 'familyMemberships', request.requesterUid), { minorUid: request.requesterUid, organizerUid: request.ownerUid, connectionId, createdAt: serverTimestamp() });
+      if (request.kind === 'family') batch.set(doc(db, 'familyMemberships', request.requesterUid), { minorUid: request.requesterUid, organizerUid: request.ownerUid, connectionId, createdAt: serverTimestamp() });
       batch.update(doc(db, 'connectionCodes', request.code), { status: 'closed' });
       await batch.commit();
     } finally { setLoading(false); }
-  }, [connections, user?.uid]);
+  }, [connections, loadIdentity, user?.uid]);
   const declineRequest = useCallback(async (request: ConnectionRequest) => {
     if (!user || request.ownerUid !== user.uid) throw Error('Only the code owner can decline this request.');
     setLoading(true); try { await deleteDoc(doc(db, 'connectionRequests', request.id)); } finally { setLoading(false); }
@@ -338,17 +342,20 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       ? doc(db, 'familyAppPolicies', connection.memberUid)
       : null;
     const familyPolicyExists = familyPolicyRef ? (await getDoc(familyPolicyRef)).exists() : false;
+    const familyMembershipRef = connection.kind === 'family' ? doc(db, 'familyMemberships', connection.memberUid) : null;
+    const familyMembershipExists = familyMembershipRef ? (await getDoc(familyMembershipRef)).exists() : false;
     const batch = writeBatch(db);
     batch.delete(doc(db, 'connections', connection.id));
-    if (connection.kind === 'family' && connection.memberAccountType === 'minor') batch.delete(doc(db, 'familyMemberships', connection.memberUid));
+    if (familyMembershipRef && familyMembershipExists) batch.delete(familyMembershipRef);
     if (familyPolicyRef && familyPolicyExists) batch.delete(familyPolicyRef);
     if (locationShareRequests.some(item => item.connectionId === connection.id)) batch.delete(doc(db, 'locationShareRequests', connection.id));
+    if (birthDateRequests.some(item => item.connectionId === connection.id)) batch.delete(doc(db, 'birthDateChangeRequests', connection.memberUid));
     if (requestExists) batch.delete(requestRef);
     await batch.commit();
-  }, [locationShareRequests, rawIncoming, rawOutgoing, user?.uid]);
+  }, [birthDateRequests, locationShareRequests, rawIncoming, rawOutgoing, user?.uid]);
 
   const requestLocationShare = useCallback(async (connection: CuboConnection) => {
-    if (!user || connection.kind !== 'family' || connection.ownerUid !== user.uid || connection.memberAccountType !== 'minor') throw Error('Only this minor’s family organizer can request a location snapshot.');
+    if (!user || accountDetails?.accountType !== 'adult' || connection.kind !== 'family' || connection.ownerUid !== user.uid || connection.memberAccountType !== 'minor') throw Error('Only an adult family organizer can request this minor’s location snapshot.');
     const previous = locationShareRequests.find(item => item.connectionId === connection.id);
     if (previous?.status === 'pending') throw Error(`${connection.memberName} already has a location request waiting.`);
     const reference = doc(db, 'locationShareRequests', connection.id);
@@ -363,7 +370,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-  }, [locationShareRequests, user?.uid]);
+  }, [accountDetails?.accountType, locationShareRequests, user?.uid]);
 
   const respondLocationShare = useCallback(async (request: LocationShareRequest, approved: boolean) => {
     if (!user || request.minorUid !== user.uid || request.status !== 'pending') throw Error('This location request is no longer waiting for you.');
@@ -375,8 +382,18 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 
   const requestBirthDateChange = useCallback(async (details: AccountDetails) => {
     if (!user || !accountDetails) throw Error('Sign in before changing your birth date.');
-    const familyConnection = connections.find(item => item.kind === 'family' && item.memberUid === user.uid && item.memberAccountType === 'minor');
+    const familyConnection = connections.find(item => item.kind === 'family' && item.memberUid === user.uid);
     if (!familyConnection) throw Error('No parent or organizer is linked to approve this change.');
+    if (details.accountType === 'minor' && connections.some(item => item.kind === 'family' && item.ownerUid === user.uid)) throw Error('Remove the Family connections you organize before changing this account to a minor. A minor cannot keep parent controls over another account.');
+    const membershipRef = doc(db, 'familyMemberships', user.uid);
+    if (!(await getDoc(membershipRef)).exists()) {
+      await setDoc(membershipRef, {
+        minorUid: user.uid,
+        organizerUid: familyConnection.ownerUid,
+        connectionId: familyConnection.id,
+        createdAt: serverTimestamp(),
+      });
+    }
     const pending = birthDateRequests.find(item => item.minorUid === user.uid && item.status === 'pending');
     if (pending) {
       await updateDoc(doc(db, 'birthDateChangeRequests', user.uid), { requestedBirthDate: details.birthDate, requestedAccountType: details.accountType, updatedAt: serverTimestamp() });
@@ -398,7 +415,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [accountDetails, birthDateRequests, connections, user?.uid]);
 
   const reviewBirthDateChange = useCallback(async (request: BirthDateChangeRequest, approved: boolean) => {
-    if (!user || request.organizerUid !== user.uid) throw Error('Only this family organizer can review the change.');
+    if (!user || accountDetails?.accountType !== 'adult' || request.organizerUid !== user.uid) throw Error('Only an adult family organizer can review the change.');
     const batch = writeBatch(db);
     batch.update(doc(db, 'birthDateChangeRequests', request.id), { status: approved ? 'approved' : 'denied', updatedAt: serverTimestamp() });
     if (approved) {
@@ -408,12 +425,49 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         updatedAt: serverTimestamp(),
       });
       batch.update(doc(db, 'connections', request.connectionId), { memberAccountType: request.requestedAccountType, updatedAt: serverTimestamp() });
-      if (request.requestedAccountType === 'adult') batch.delete(doc(db, 'familyMemberships', request.minorUid));
     }
     await batch.commit();
-  }, [user?.uid]);
+  }, [accountDetails?.accountType, user?.uid]);
 
-  const value = useMemo<ConnectionContextValue>(() => ({ connections, incoming, outgoing, birthDateRequests, locationShareRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange, requestLocationShare, respondLocationShare }), [connections, incoming, outgoing, birthDateRequests, locationShareRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange, requestLocationShare, respondLocationShare]);
+  const reconcileOwnAccountRole = useCallback(async (nextType: AccountDetails['accountType']) => {
+    if (!user) throw Error('Sign in before changing account type.');
+    const ownedFamily = nextType === 'minor' ? connections.filter(item => item.kind === 'family' && item.ownerUid === user.uid) : [];
+    const cleanupState = await Promise.all(ownedFamily.map(async item => ({
+      policy: item.memberAccountType === 'minor' && (await getDoc(doc(db, 'familyAppPolicies', item.memberUid))).exists(),
+      membership: (await getDoc(doc(db, 'familyMemberships', item.memberUid))).exists(),
+    })));
+    const batch = writeBatch(db);
+    let writes = 0;
+    const deletedRequests = new Set<string>();
+    for (const [index, item] of ownedFamily.entries()) {
+      batch.delete(doc(db, 'connections', item.id)); writes += 1;
+      if (cleanupState[index].membership) { batch.delete(doc(db, 'familyMemberships', item.memberUid)); writes += 1; }
+      if (cleanupState[index].policy) { batch.delete(doc(db, 'familyAppPolicies', item.memberUid)); writes += 1; }
+      if (locationShareRequests.some(request => request.connectionId === item.id)) { batch.delete(doc(db, 'locationShareRequests', item.id)); writes += 1; }
+      if (birthDateRequests.some(request => request.connectionId === item.id)) { batch.delete(doc(db, 'birthDateChangeRequests', item.memberUid)); writes += 1; }
+      const requestId = item.requestId ?? item.id;
+      if ([...rawIncoming, ...rawOutgoing].some(request => request.id === requestId)) { batch.delete(doc(db, 'connectionRequests', requestId)); deletedRequests.add(requestId); writes += 1; }
+    }
+    for (const request of rawIncoming) {
+      if (nextType !== 'minor' || request.kind !== 'family' || request.status !== 'pending' || deletedRequests.has(request.id)) continue;
+      batch.delete(doc(db, 'connectionRequests', request.id)); deletedRequests.add(request.id); writes += 1;
+    }
+    for (const item of connections) {
+      if (item.ownerUid === user.uid && !(nextType === 'minor' && item.kind === 'family')) {
+        batch.update(doc(db, 'connections', item.id), { ownerAccountType: nextType, updatedAt: serverTimestamp() }); writes += 1;
+      } else if (item.memberUid === user.uid && item.kind === 'friend') {
+        batch.update(doc(db, 'connections', item.id), { memberAccountType: nextType, updatedAt: serverTimestamp() }); writes += 1;
+      }
+    }
+    for (const request of rawOutgoing) {
+      if (request.status !== 'pending') continue;
+      batch.update(doc(db, 'connectionRequests', request.id), { requesterAccountType: nextType, updatedAt: serverTimestamp() }); writes += 1;
+    }
+    if (writes) await batch.commit();
+    return { removedFamilyConnections: ownedFamily.length };
+  }, [birthDateRequests, connections, locationShareRequests, rawIncoming, rawOutgoing, user?.uid]);
+
+  const value = useMemo<ConnectionContextValue>(() => ({ connections, incoming, outgoing, birthDateRequests, locationShareRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange, requestLocationShare, respondLocationShare, reconcileOwnAccountRole }), [connections, incoming, outgoing, birthDateRequests, locationShareRequests, loading, error, canGenerateFamilyCode, createCode, enterCode, approveRequest, declineRequest, setSharing, removeConnection, requestBirthDateChange, reviewBirthDateChange, requestLocationShare, respondLocationShare, reconcileOwnAccountRole]);
   return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>;
 }
 

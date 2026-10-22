@@ -37,8 +37,8 @@ test('minor family accounts require organizer review and friend removal asks fir
   assert.match(provider, /birthDateChangeRequests/);
   assert.match(provider, /requestBirthDateChange/);
   assert.match(provider, /reviewBirthDateChange/);
-  assert.match(account, /Editable request/);
-  assert.match(account, /saved birth date stays the same until your family organizer approves/);
+  assert.match(account, /Approval required/);
+  assert.match(account, /saved age and account permissions stay unchanged until approval/);
   assert.match(account, /Update Pending Request/);
   assert.match(account, /Send Change Request/);
   assert.ok(account.indexOf('{requestingBirthChange ? saveDetailsButton : null}') < account.indexOf('Phone number (optional)'), 'minor DOB request action should appear before the phone field');
@@ -52,7 +52,51 @@ test('minor family accounts require organizer review and friend removal asks fir
   assert.match(provider, /requestLocationShare/);
   assert.match(provider, /respondLocationShare/);
   assert.match(screen, /<ConfirmSheet visible=\{confirmRemove\}/);
-  assert.match(screen, /owner \? item\.memberAccountType[\s\S]*: 'Family · Parent\/Guardian'/);
+  assert.match(screen, /item\.ownerAccountType === 'minor'/);
+});
+
+test('age role transitions remove stale parent authority and refresh relationship metadata', () => {
+  const provider = fs.readFileSync('src/features/connections/ConnectionContext.tsx', 'utf8');
+  const editor = fs.readFileSync('src/components/AccountEditor.tsx', 'utf8');
+  const family = fs.readFileSync('src/screens/FamilyScreen.tsx', 'utf8');
+  const profile = fs.readFileSync('src/screens/ConnectionProfileScreen.tsx', 'utf8');
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  assert.match(provider, /ownerAccountType/);
+  assert.match(provider, /reconcileOwnAccountRole/);
+  assert.match(provider, /removedFamilyConnections/);
+  assert.match(provider, /Minor accounts cannot approve Family requests/);
+  assert.match(provider, /requesterAccountType: nextType/);
+  assert.match(provider, /if \(request\.kind === 'family'\) batch\.set\(doc\(db, 'familyMemberships'/);
+  assert.match(provider, /if \(item\.kind !== 'family'\) continue/);
+  assert.match(provider, /cleanupState\[index\]\.membership/);
+  assert.match(editor, /Switch to a minor account\?/);
+  assert.match(editor, /close every Family connection you organize/);
+  assert.match(editor, /linkedFamilyMember && changesBirth/);
+  assert.match(family, /Parent controls removed/);
+  assert.match(profile, /selfCanManageFamily/);
+  assert.match(rules, /function isAdultAccount/);
+  assert.match(rules, /resource\.data\.kind != 'family' \|\| isAdultAccount\(request\.auth\.uid\)/);
+  assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['ownerAccountType', 'updatedAt'\]\)/);
+  assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['requesterAccountType', 'updatedAt'\]\)/);
+  assert.match(rules, /every linked family member/);
+  assert.match(rules, /request\.resource\.data\.kind != 'family'\s*\|\| \(getAfter[\s\S]*familyMemberships/);
+  assert.doesNotMatch(rules, /memberAccountType == 'adult'\);\s*}\s*match \/birthDateChangeRequests/);
+});
+
+test('shared locations are interactive and recenter on the latest snapshot', () => {
+  const web = fs.readFileSync('src/components/SharedLocationMap.web.tsx', 'utf8');
+  const native = fs.readFileSync('src/components/SharedLocationMap.native.tsx', 'utf8');
+  const map = fs.readFileSync('src/components/DrivingMap.web.tsx', 'utf8');
+  for (const source of [web, native]) {
+    assert.match(source, /Drag or pinch to explore/);
+    assert.match(source, /Zoom in/);
+    assert.match(source, /Zoom out/);
+    assert.match(source, /Recenter on/);
+    assert.match(source, /\[(?:focused, )?latitude, longitude\]/);
+  }
+  assert.match(web, /interactive onPanDrag/);
+  assert.match(native, /scrollEnabled zoomEnabled/);
+  assert.match(map, /zoomBy/);
 });
 
 test('cartoon avatars replace initials and identity changes sync only to connected records', () => {

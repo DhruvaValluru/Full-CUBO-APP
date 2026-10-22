@@ -8,8 +8,10 @@ import { useConnections } from '../features/connections/ConnectionContext';
 import { makeAccountDetails } from '../features/auth/accountDetails';
 import { formatBirthInput, formatPhoneInput, internationalPhone, phoneCountries, phoneDigits } from '../features/auth/inputFormatting';
 import { MotionPressable } from './MotionPressable';
+import { ConfirmSheet } from './ConfirmSheet';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
+import type { AccountDetails } from '../features/auth/accountDetails';
 
 export function AccountEditor() {
   const { colors: c } = useAppearance();
@@ -20,6 +22,7 @@ export function AccountEditor() {
   const [birth, setBirth] = useState(''); const [digits, setDigits] = useState(''); const [country, setCountry] = useState<(typeof phoneCountries)[number]>(phoneCountries[0]); const [countriesOpen, setCountriesOpen] = useState(false);
   const [email, setEmail] = useState(account.user?.email ?? ''); const [currentPassword, setCurrentPassword] = useState(''); const [password, setPassword] = useState(''); const [repeat, setRepeat] = useState('');
   const [security, setSecurity] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [failed, setFailed] = useState(false);
+  const [roleTransition, setRoleTransition] = useState<AccountDetails | null>(null);
   useFocusEffect(useCallback(() => {
     setEmail(account.user?.email ?? ''); setCurrentPassword(''); setPassword(''); setRepeat(''); setSecurity(false); setMessage(''); setFailed(false); setCountriesOpen(false);
     const details = account.accountDetails; if (!details) { setBirth(''); setDigits(''); setCountry(phoneCountries[0]); return; }
@@ -36,16 +39,20 @@ export function AccountEditor() {
   const saveDetails = () => run(async () => {
     const details = makeAccountDetails(birth, internationalPhone(digits, country.code));
     const changesBirth = details.birthDate !== account.accountDetails?.birthDate;
-    const linkedMinor = connections.connections.some(item => item.kind === 'family' && item.memberUid === account.user?.uid && item.memberAccountType === 'minor');
-    if (linkedMinor && changesBirth) {
+    const linkedFamilyMember = connections.connections.some(item => item.kind === 'family' && item.memberUid === account.user?.uid);
+    if (linkedFamilyMember && changesBirth) {
       if (account.accountDetails && details.phoneNumber !== account.accountDetails.phoneNumber) await account.saveAccountDetails({ ...account.accountDetails, phoneNumber: details.phoneNumber });
       await connections.requestBirthDateChange(details);
       return 'Birth-date change requested. Your family organizer can approve or deny it.';
     }
+    const becomingMinorOrganizer = account.accountDetails?.accountType === 'adult' && details.accountType === 'minor' && connections.connections.some(item => item.kind === 'family' && item.ownerUid === account.user?.uid);
+    if (becomingMinorOrganizer) { setRoleTransition(details); return ''; }
     await account.saveAccountDetails(details);
-    return 'Updated!';
+    const result = await connections.reconcileOwnAccountRole(details.accountType);
+    return result.removedFamilyConnections ? `Account changed to minor. ${result.removedFamilyConnections} family connection${result.removedFamilyConnections === 1 ? '' : 's'} closed and parent controls were removed.` : 'Updated!';
   });
-  const linkedMinor = connections.connections.some(item => item.kind === 'family' && item.memberUid === account.user?.uid && item.memberAccountType === 'minor');
+  const linkedFamilyMember = connections.connections.some(item => item.kind === 'family' && item.memberUid === account.user?.uid);
+  const linkedMinor = linkedFamilyMember && account.accountDetails?.accountType === 'minor';
   const birthRequest = connections.birthDateRequests.find(item => item.minorUid === account.user?.uid);
   const savedBirth = account.accountDetails ? (() => { const [year, month, day] = account.accountDetails.birthDate.split('-'); return `${month}/${day}/${year}`; })() : '';
   const requestingBirthChange = linkedMinor && birth.length === 10 && birth !== savedBirth;
@@ -60,9 +67,9 @@ export function AccountEditor() {
   return <View style={s.section}>
     <Text style={s.heading}>Account Details</Text>
     <Text style={s.body}>Your birth date determines your minor or adult account. It is self-declared, not identity verification.</Text>
-    <View style={s.labelRow}><Text style={s.label}>Date of birth</Text>{linkedMinor ? <View style={s.editableBadge}><Ionicons name="pencil-outline" size={12} color={c.accent} /><Text style={s.editableText}>Editable request</Text></View> : null}</View><TextInput editable accessibilityLabel="Date of birth" placeholder="MM/DD/YYYY" placeholderTextColor={c.textSecondary} keyboardType="number-pad" maxLength={10} value={birth} onChangeText={value => { setMessage(''); setBirth(formatBirthInput(value, birth)); }} style={s.input} />
-    {linkedMinor ? <Text style={s.body}>Edit the date above and save to send a pending change request. Your current saved birth date stays the same until your family organizer approves it.</Text> : null}
-    {linkedMinor && birthRequest ? <View style={s.requestStatus}><Ionicons name={birthRequest.status === 'pending' ? 'time-outline' : birthRequest.status === 'approved' ? 'checkmark-circle-outline' : 'close-circle-outline'} size={18} color={birthRequest.status === 'denied' ? c.danger : c.accent} /><View style={{ flex: 1 }}><Text style={s.requestTitle}>{birthRequest.status === 'pending' ? 'Waiting for organizer approval' : birthRequest.status === 'approved' ? 'Birth-date change approved' : 'Birth-date change denied'}</Text><Text style={s.body}>Requested date: {birthRequest.requestedBirthDate}</Text></View></View> : null}
+    <View style={s.labelRow}><Text style={s.label}>Date of birth</Text>{linkedFamilyMember ? <View style={s.editableBadge}><Ionicons name="shield-checkmark-outline" size={12} color={c.accent} /><Text style={s.editableText}>Approval required</Text></View> : null}</View><TextInput editable accessibilityLabel="Date of birth" placeholder="MM/DD/YYYY" placeholderTextColor={c.textSecondary} keyboardType="number-pad" maxLength={10} value={birth} onChangeText={value => { setMessage(''); setBirth(formatBirthInput(value, birth)); }} style={s.input} />
+    {linkedFamilyMember ? <Text style={s.body}>Birth-date changes are sent to your family organizer. Your saved age and account permissions stay unchanged until approval.</Text> : null}
+    {linkedFamilyMember && birthRequest ? <View style={s.requestStatus}><Ionicons name={birthRequest.status === 'pending' ? 'time-outline' : birthRequest.status === 'approved' ? 'checkmark-circle-outline' : 'close-circle-outline'} size={18} color={birthRequest.status === 'denied' ? c.danger : c.accent} /><View style={{ flex: 1 }}><Text style={s.requestTitle}>{birthRequest.status === 'pending' ? 'Waiting for organizer approval' : birthRequest.status === 'approved' ? 'Birth-date change approved' : 'Birth-date change denied'}</Text><Text style={s.body}>Requested date: {birthRequest.requestedBirthDate}</Text></View></View> : null}
     {requestingBirthChange ? saveDetailsButton : null}
     <Text style={s.label}>Phone number (optional)</Text><View style={s.phone}><MotionPressable accessibilityLabel="Select phone country" style={s.country} onPress={() => setCountriesOpen(true)}><Text style={s.countryText}>{flag(country.region)} +{country.code}</Text><Ionicons name="chevron-down" size={14} color={c.textSecondary} /></MotionPressable><TextInput accessibilityLabel="Phone number (optional)" keyboardType="phone-pad" value={formatPhoneInput(digits, country.code)} onChangeText={value => { setMessage(''); setDigits(phoneDigits(value, country.code)); }} placeholder={country.code === '1' ? '(919) 555-0123' : 'Phone number'} placeholderTextColor={c.textSecondary} style={[s.input, s.phoneInput]} /></View>
     {!requestingBirthChange ? saveDetailsButton : null}
@@ -78,6 +85,7 @@ export function AccountEditor() {
     </View> : null}
     {hasPassword ? <View style={s.googleCard}><View style={s.googleIcon}><Ionicons name="logo-google" size={20} color={c.accent} /></View><View style={{ flex: 1 }}><Text style={s.requestTitle}>{account.googleLinked ? 'Google account linked' : 'Link your Google account'}</Text><Text style={s.body}>{account.googleLinked ? 'You can sign in with Google or your email and password.' : 'Keep this same CUBO account and add Google as another secure sign-in option.'}</Text></View>{account.googleLinked ? <Ionicons name="checkmark-circle" size={22} color={c.accent} /> : <MotionPressable disabled={busy} style={s.linkButton} onPress={() => void run(async () => { await account.linkGoogleAccount(); return 'Google account linked. You can now use either sign-in method.'; })}><Text style={s.green}>Link</Text></MotionPressable>}</View> : null}
     {message && message !== 'Updated!' ? <Text accessibilityRole="alert" style={[s.body, { color: failed ? c.danger : c.accent }]}>{message}</Text> : null}
+    <ConfirmSheet visible={!!roleTransition} title="Switch to a minor account?" body="Minor accounts cannot manage other family members. Continuing will close every Family connection you organize and remove its parent controls. Friend connections stay in place." confirmLabel="Switch and remove controls" onCancel={() => setRoleTransition(null)} onConfirm={() => { const details = roleTransition; setRoleTransition(null); if (!details) return; void run(async () => { await account.saveAccountDetails(details); const result = await connections.reconcileOwnAccountRole(details.accountType); return `Account changed to minor. ${result.removedFamilyConnections} family connection${result.removedFamilyConnections === 1 ? '' : 's'} closed and parent controls were removed.`; }); }} />
     <Modal transparent visible={countriesOpen} animationType={reduced ? 'none' : 'slide'} onRequestClose={() => setCountriesOpen(false)}><View style={s.modal}><Pressable style={StyleSheet.absoluteFill} onPress={() => setCountriesOpen(false)} accessibilityLabel="Close country selector" /><View style={s.countrySheet}><Text style={s.heading}>Country calling code</Text>{phoneCountries.map(item => <MotionPressable key={item.region} style={s.countryChoice} onPress={() => { setMessage(''); setCountry(item); setDigits(''); setCountriesOpen(false); }}><Text style={s.countryText}>{flag(item.region)} {item.name}</Text><Text style={s.green}>+{item.code}</Text></MotionPressable>)}</View></View></Modal>
   </View>;
 }
