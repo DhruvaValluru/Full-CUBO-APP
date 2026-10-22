@@ -197,7 +197,11 @@ Home's forest field has a 422px minimum height and no enclosing small-card silho
 
 Map is full-bleed. Its idle destination sheet uses 12px outer gutters, 28px corners, and 18px internal horizontal padding. Search, saved places, real recent destinations, permission messages, route preview, and Start drive share that sheet. On the Map tab the overlay reserves 100px below it for navigation. The idle sheet is scrollable and capped at `max(100, height - topInset - bottomInset - bottomReserve - 190)`, where bottomReserve is 100 on the Map tab and 12 on the separate DriveMap screen. Below 680px measured height, Notifications, Account, Assistant, and Locate form one four-button utility row. Taller layouts place Assistant and Locate above the measured sheet height. These adaptations concern idle Map; active-drive controls retain their existing behavior.
 
+The idle Map sheet has two deliberate detents. Its compact detent leaves the destination field visible at 96px; its expanded detent reveals saved places, recent destinations, and route actions. Tapping or focusing the destination field expands it. The grabber is both tappable and vertically draggable, and the transition respects reduced-motion preferences.
+
 Welcome fills the viewport with the dusk background plate using cover sizing. Identity starts at 21% from the top; actions sit 8% from the bottom with 8% side gutters. Account extends the forest-header/mineral-body relationship and uses grouped settings rows.
+
+The rest of the product follows the same system rather than reverting to the previous card grid. Activity uses one dominant score field followed by compact metrics and a timeline-like trip list. Garage makes the selected vehicle the focal object, then uses a restrained inventory list. Family/Friends leads with relationship and permission status before code or management controls. Address search and settings-detail screens use the shared forest header, a single focused work surface, and flat grouped rows. Home keeps one drive-setup stage, one connection stage, and one service group below the cockpit instead of stacking equal-weight promotional cards.
 
 Web uses full-screen layout below 600px viewport width, or on a coarse-pointer phone whose shorter physical screen dimension is below 600px. Wider desktop views use the existing 340 × 780 preview shell, capped at 90vh. These are distinct width and height conditions, not interchangeable breakpoints. Preserve child ancestry across resizing so account and drive state are not remounted.
 
@@ -229,6 +233,8 @@ The existing READY badge is a compact calibration status, with accent fill, 28px
 
 Supporting calibration rows use a 76px minimum height, 22px corners, a subtle strong boundary, and 14px padding. Assistant uses a 76px minimum-height accent-wash action with 16px corners and 16px padding. Account groups use compact dividers. Preserve the hierarchy between broad headers, primary actions, and supporting rows.
 
+Avoid nested cards and repeated soft-corner tiles. A screen gets at most one dominant visual field; secondary information is usually a divided row, a timeline item, or a compact chip. White or forest surfaces should communicate hierarchy, not decorate every data point.
+
 ### Inputs / Fields
 
 The Map destination field lives inside a 58px minimum-height muted row with 16px corners. Input text can shrink within the row; trailing search, clear, and keyboard controls retain 44px hit areas. Search disables at opacity 0.35 while unavailable. Account editor fields remain 52px minimum-height white/forest controls with 14px corners and theme borders. Permission and search errors remain readable text.
@@ -248,6 +254,8 @@ The welcome image is `assets/welcome/cubo-dusk.webp` (832 × 1890, 47,770 bytes)
 ### Motion
 
 `Reveal` runs once with opacity and 12px upward settling over 420ms, using cubic-out easing; reduced motion sets duration and travel to zero. Home's ring and welcome identity/actions use it. Do not infer a performance benchmark or a repository-wide animation audit from this helper.
+
+Motion explains state changes: the Map sheet changes detent, buttons provide brief press feedback, and content settles in once. Avoid looping decoration, layout-jarring entrances, and long transitions. Reduced motion must preserve every state change without spatial travel.
 
 ## Do's and Don'ts
 

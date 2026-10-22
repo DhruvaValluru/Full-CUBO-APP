@@ -29,6 +29,10 @@ test('idle map has one destination sheet, saved places and no unhelpful back-hom
   assert.match(map, /<DriveAttentionCamera/);
   assert.match(map, /const compactMap = height < 680/);
   assert.match(map, /maxHeight: idleSheetMaxHeight/);
+  assert.match(map, /const idleSheetCollapsedHeight = 96/);
+  assert.match(map, /setIdleSheetExpanded\(true\)/);
+  assert.match(map, /accessibilityLabel=\{idleSheetExpanded \? 'Collapse destination panel' : 'Expand destination panel'\}/);
+  assert.match(map, /\.\.\.idleSheetPan\.panHandlers/);
   assert.match(map, /activeSession \? children : <ScrollView/);
   assert.match(map, /!activeSession && !compactMap && <MotionPressable/);
 });

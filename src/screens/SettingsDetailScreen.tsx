@@ -1,20 +1,22 @@
-import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { AboutCubo } from '../components/AboutCubo';
 import { AccountEditor } from '../components/AccountEditor';
+import { AppHeader } from '../components/AppHeader';
 import { AvatarPickerSheet } from '../components/AvatarPickerSheet';
 import { FeedbackForm } from '../components/FeedbackForm';
-import { AboutCubo } from '../components/AboutCubo';
-import { ScreenShell } from '../components/ScreenShell';
-import { ProfilePhotoButton } from '../components/ProfilePhotoButton';
 import { ProfileAvatar } from '../components/ProfileAvatar';
+import { ProfilePhotoButton } from '../components/ProfilePhotoButton';
+import { ScreenShell } from '../components/ScreenShell';
+import { useProfile } from '../features/profile/ProfileContext';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
-import { spacing } from '../theme/theme';
-import { useProfile } from '../features/profile/ProfileContext';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'SettingsDetail'>;
 const content = {
   edit: ['Edit profile', 'Manage your profile, account details, and sign-in security.'],
@@ -22,6 +24,7 @@ const content = {
   help: ['Help and feedback', 'Something not working? Tell us what happened, or share an idea for CUBO.'],
   about: ['About CUBO', 'Student-built driver safety for the Congressional App Challenge.'],
 } as const;
+
 export function SettingsDetailScreen({ navigation, route }: Props) {
   const { colors } = useAppearance();
   const { profile, updateName, updateAvatar, updatePhoto } = useProfile();
@@ -34,6 +37,38 @@ export function SettingsDetailScreen({ navigation, route }: Props) {
   useFocusEffect(useCallback(() => { setName(profile.name); setMessage(''); }, [profile.name]));
   const save = async () => { if (!name.trim()) return; try { await updateName(name); setMessage('Profile saved.'); } catch { setMessage('Could not save your name. Please try again.'); } };
   const selectAvatar = async (avatarId: typeof profile.avatarId) => { setAvatarBusy(true); setMessage(''); try { await updateAvatar(avatarId); updatePhoto(undefined); setAvatarOpen(false); setMessage('Avatar updated everywhere you are connected.'); } catch { setMessage('Could not update your avatar. Please try again.'); } finally { setAvatarBusy(false); } };
-  return <ScreenShell><Pressable style={styles.back} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={20} color={colors.text} /><Text style={styles.backText}>Account</Text></Pressable><Text style={styles.title}>{item[0]}</Text><Text style={styles.body}>{item[1]}</Text>{route.params.kind === 'edit' ? <><View style={styles.photoRow}><ProfileAvatar avatarId={profile.avatarId} photoUri={profile.photoUri} size={70} uid={profile.name} /><View style={styles.photoActions}><ProfilePhotoButton onPhoto={updatePhoto} /><Pressable accessibilityRole="button" accessibilityLabel="Edit avatar" onPress={() => setAvatarOpen(true)} style={styles.avatarButton}><Ionicons name="happy-outline" size={16} color={colors.accent} /><Text style={styles.avatarButtonText}>Edit avatar</Text></Pressable>{profile.photoUri ? <Pressable onPress={() => updatePhoto(undefined)}><Text style={styles.removePhoto}>Use avatar instead</Text></Pressable> : null}</View></View><Text style={styles.photoNote}>Your selected avatar syncs across approved connections. An uploaded photo stays only on this device.</Text><Text style={styles.label}>Driver name</Text><TextInput accessibilityLabel="Driver name" maxLength={80} style={styles.input} value={name} onChangeText={setName} placeholder="Driver name" placeholderTextColor={colors.textTertiary} /><Pressable style={[styles.save, !name.trim() && styles.disabled]} onPress={save}><Text style={styles.saveText}>Save profile</Text></Pressable>{message ? <Text accessibilityRole="alert" style={styles.body}>{message}</Text> : null}<AccountEditor /><AvatarPickerSheet visible={avatarOpen} value={profile.avatarId} busy={avatarBusy} onClose={() => setAvatarOpen(false)} onSelect={value => void selectAvatar(value)} /></> : route.params.kind === 'help' ? <FeedbackForm /> : route.params.kind === 'about' ? <AboutCubo /> : <View style={styles.note}><Ionicons name="checkmark-circle-outline" size={21} color={colors.accent} /><Text style={styles.noteText}>Family sharing requires consent. Camera footage is not included in shared driving summaries.</Text></View>}</ScreenShell>;
+
+  return <ScreenShell>
+    <AppHeader title={item[0]} eyebrow="Account" onBack={() => navigation.goBack()} />
+    <Text style={styles.body}>{item[1]}</Text>
+    {route.params.kind === 'edit' ? <>
+      <View style={styles.identityPanel}>
+        <ProfileAvatar avatarId={profile.avatarId} photoUri={profile.photoUri} size={78} uid={profile.name} />
+        <View style={styles.photoActions}><ProfilePhotoButton onPhoto={updatePhoto} /><Pressable accessibilityRole="button" accessibilityLabel="Edit avatar" onPress={() => setAvatarOpen(true)} style={styles.avatarButton}><Ionicons name="happy-outline" size={17} color={colors.accent} /><Text style={styles.avatarButtonText}>Edit avatar</Text></Pressable>{profile.photoUri ? <Pressable onPress={() => updatePhoto(undefined)}><Text style={styles.removePhoto}>Use avatar instead</Text></Pressable> : null}</View>
+      </View>
+      <Text style={styles.photoNote}>Your selected avatar syncs across approved connections. An uploaded photo stays only on this device.</Text>
+      <View style={styles.formPanel}><Text style={styles.label}>Driver name</Text><TextInput accessibilityLabel="Driver name" maxLength={80} style={styles.input} value={name} onChangeText={setName} placeholder="Driver name" placeholderTextColor={colors.textTertiary} /><Pressable style={[styles.save, !name.trim() && styles.disabled]} onPress={save}><Text style={styles.saveText}>Save profile</Text></Pressable>{message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}</View>
+      <AccountEditor />
+      <AvatarPickerSheet visible={avatarOpen} value={profile.avatarId} busy={avatarBusy} onClose={() => setAvatarOpen(false)} onSelect={value => void selectAvatar(value)} />
+    </> : route.params.kind === 'help' ? <FeedbackForm /> : route.params.kind === 'about' ? <AboutCubo /> : <View style={styles.note}><Ionicons name="checkmark-circle-outline" size={22} color={colors.accent} /><Text style={styles.noteText}>Family sharing requires consent. Camera footage is not included in shared driving summaries.</Text></View>}
+  </ScreenShell>;
 }
-const makeStyles = (c: AppColors) => StyleSheet.create({ back: { alignSelf: 'flex-start', flexDirection: 'row', gap: 7, alignItems: 'center', padding: 10, borderRadius: 13, marginTop: spacing.md, backgroundColor: c.card }, backText: { color: c.text, fontWeight: '600' }, title: { color: c.text, fontSize: 28, fontFamily: 'Manrope_800ExtraBold', fontWeight: '800', marginTop: spacing.xl }, body: { color: c.textSecondary, fontSize: 14, lineHeight: 22 }, photoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: spacing.lg }, photoActions: { flex: 1, gap: 8 }, avatarButton: { minHeight: 44, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.borderStrong }, avatarButtonText: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 12 }, removePhoto: { color: c.danger, textAlign: 'center', fontSize: 11, fontFamily: 'Manrope_700Bold' }, photoNote: { color: c.textTertiary, fontSize: 10, lineHeight: 15, marginTop: 8 }, label: { color: c.text, fontSize: 12, fontWeight: '700', marginTop: spacing.lg }, input: { color: c.text, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 14, minHeight: 50, paddingHorizontal: 13, fontSize: 15 }, save: { minHeight: 52, borderRadius: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md }, disabled: { opacity: .35 }, saveText: { color: c.onAccent, fontWeight: '800', fontSize: 14 }, note: { flexDirection: 'row', gap: 10, padding: spacing.lg, borderRadius: 18, backgroundColor: c.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border, marginTop: spacing.lg }, noteText: { color: c.text, fontSize: 12, lineHeight: 18, flex: 1 } });
+
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  body: { color: c.textSecondary, fontSize: 12, lineHeight: 19, marginBottom: 6 },
+  identityPanel: { minHeight: 124, borderRadius: 26, padding: 18, backgroundColor: c.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 18 },
+  photoActions: { flex: 1, gap: 8 },
+  avatarButton: { minHeight: 44, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.borderStrong },
+  avatarButtonText: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 12 },
+  removePhoto: { color: c.danger, textAlign: 'center', fontSize: 11, fontFamily: 'Manrope_700Bold' },
+  photoNote: { color: c.textTertiary, fontSize: 10, lineHeight: 15, marginHorizontal: 4 },
+  formPanel: { borderRadius: 24, padding: 18, backgroundColor: c.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border },
+  label: { color: c.text, fontSize: 12, fontFamily: 'Manrope_700Bold', marginBottom: 8 },
+  input: { color: c.text, backgroundColor: c.surfaceMuted, borderWidth: 1, borderColor: c.border, borderRadius: 16, minHeight: 54, paddingHorizontal: 14, fontSize: 15 },
+  save: { minHeight: 54, borderRadius: 17, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  disabled: { opacity: .35 },
+  saveText: { color: c.onAccent, fontFamily: 'Manrope_800ExtraBold', fontSize: 14 },
+  message: { color: c.textSecondary, fontSize: 11, lineHeight: 17, marginTop: 10 },
+  note: { flexDirection: 'row', gap: 11, padding: 18, borderRadius: 24, backgroundColor: c.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border, marginTop: 8 },
+  noteText: { color: c.text, fontSize: 12, lineHeight: 18, flex: 1 },
+});

@@ -35,6 +35,7 @@ import { readVoicePreference } from '../features/cuboAI/voicePreference';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { useProfile } from '../features/profile/ProfileContext';
 import { useAuth } from '../features/auth/AuthContext';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const fallbackRegion: Region = { latitude: 35.7796, longitude: -78.6382, latitudeDelta: .035, longitudeDelta: .035 };
 const hazardMeta: Record<RoadHazardKind, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
@@ -144,6 +145,10 @@ export function MapScreen() {
   const [topCardBottom, setTopCardBottom] = useState(insets.top + 94);
   const pipCorner = useRef({ right: true, bottom: false });
   const [bottomCardHeight, setBottomCardHeight] = useState(164);
+  const reducedMotion = useReducedMotion();
+  const [idleSheetExpanded, setIdleSheetExpanded] = useState(true);
+  const idleSheetProgress = useRef(new Animated.Value(1)).current;
+  const idleSheetDragStart = useRef(1);
   const [voiceStatus, setVoiceStatus] = useState('');
   useEffect(() => { setVoiceStatus(''); }, [activeSession?.id, focused]);
   const distanceBaseline = useRef(0);
@@ -432,7 +437,28 @@ export function MapScreen() {
 
   const compactMap = height < 680;
   const idleSheetMaxHeight = Math.max(100, height - insets.top - insets.bottom - (screenRoute.name === 'Map' ? 100 : 12) - 190);
-  const sheetContent = (children: React.ReactNode) => activeSession ? children : <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>{children}</ScrollView>;
+  const idleSheetCollapsedHeight = 96;
+  const idleSheetTravel = Math.max(1, idleSheetMaxHeight - idleSheetCollapsedHeight);
+  const idleSheetPan = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => !activeSession && Math.abs(gesture.dy) > Math.abs(gesture.dx) && Math.abs(gesture.dy) > 5,
+    onPanResponderGrant: () => idleSheetProgress.stopAnimation(value => { idleSheetDragStart.current = value; }),
+    onPanResponderMove: (_, gesture) => idleSheetProgress.setValue(Math.max(0, Math.min(1, idleSheetDragStart.current - gesture.dy / idleSheetTravel))),
+    onPanResponderRelease: (_, gesture) => {
+      const resting = Math.max(0, Math.min(1, idleSheetDragStart.current - gesture.dy / idleSheetTravel));
+      const expanded = gesture.vy < -.3 ? true : gesture.vy > .3 ? false : resting >= .5;
+      setIdleSheetExpanded(expanded);
+      Animated.spring(idleSheetProgress, { toValue: expanded ? 1 : 0, damping: 26, stiffness: 280, mass: .7, overshootClamping: true, useNativeDriver: false }).start();
+    },
+  }), [activeSession, idleSheetProgress, idleSheetTravel]);
+  useEffect(() => {
+    const animation = reducedMotion ? Animated.timing(idleSheetProgress, { toValue: idleSheetExpanded ? 1 : 0, duration: 0, useNativeDriver: false }) : Animated.spring(idleSheetProgress, { toValue: idleSheetExpanded ? 1 : 0, damping: 26, stiffness: 280, mass: .7, overshootClamping: true, useNativeDriver: false });
+    animation.start();
+    return () => animation.stop();
+  }, [idleSheetExpanded, idleSheetProgress, reducedMotion]);
+  useEffect(() => { if (navigationRoute || searchFocused) setIdleSheetExpanded(true); }, [navigationRoute, searchFocused]);
+  const sheetContent = (children: React.ReactNode) => activeSession ? children : <ScrollView scrollEnabled={idleSheetExpanded} style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>{children}</ScrollView>;
+  const idleSheetExpandedStyle = { maxHeight: idleSheetMaxHeight };
+  const idleSheetAnimatedStyle = !activeSession ? { maxHeight: idleSheetProgress.interpolate({ inputRange: [0, 1], outputRange: [idleSheetCollapsedHeight, idleSheetExpandedStyle.maxHeight] }) } : undefined;
 
   return <View style={styles.root} onLayout={event => { const { width, height } = event.nativeEvent.layout; setSize({ width, height }); }}>
     <MapView ref={mapRef} style={[StyleSheet.absoluteFill, { zIndex: 0 }]} initialRegion={fallbackRegion} attributionBottom={bottomCardHeight + insets.bottom + (!activeSession && screenRoute.name === 'Map' ? 112 : 24)} userLocation={gps.hasFix ? gps.point : null} showsUserLocation={gps.hasFix && !navigating} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false} userInterfaceStyle={mode} onPress={dismissSearchKeyboard} onPanDrag={() => { dismissSearchKeyboard(); if (navigating) setFollowing(false); }}>
@@ -449,8 +475,9 @@ export function MapScreen() {
       {activeSession && focused ? <Animated.View pointerEvents={pipHidden ? 'none' : 'auto'} style={[styles.cameraPip, { opacity: pipHidden ? 0 : 1, transform: pipPosition.getTranslateTransform() }]} {...pipPan.panHandlers}><Pressable accessibilityLabel="Drag camera to a corner" style={StyleSheet.absoluteFill} onPress={() => setPipHidden(true)}><DriveAttentionCamera speedMph={gps.speedMph} gpsValid={gps.speedAvailable} /><View pointerEvents="none" style={styles.pipShade} /><View style={styles.pipLabel}><View style={styles.pipDot} /><Text style={styles.pipText}>DRAG TO A CORNER</Text></View><Pressable accessibilityLabel="Hide camera" onPress={() => setPipHidden(true)} style={{ position: 'absolute', right: 4, top: 4, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.45)', borderRadius: 12 }}><Ionicons name="remove" size={20} color="#FFFFFF" /></Pressable></Pressable></Animated.View> : null}
 
       {(activeSession || !compactMap) && <MotionPressable accessibilityLabel="Follow my location" accessibilityState={{ selected: !!activeSession && following }} style={[styles.recenter, !activeSession && { bottom: bottomCardHeight + insets.bottom + (screenRoute.name === 'Map' ? 112 : 24) }, activeSession && following && styles.recenterActive, activeSession && { bottom: bottomCardHeight + insets.bottom + 26, right: pipAtBottomRight && !pipHidden ? undefined : 16, left: pipAtBottomRight && !pipHidden ? 16 : undefined }]} scaleTo={0.9} onPress={() => { dismissSearchKeyboard(); recenter(); }}><Ionicons name="locate" size={21} color={activeSession && following ? colors.onAccent : colors.text} /></MotionPressable>}
-      <View style={[styles.bottomCard, !activeSession && styles.bottomCardIdle, !activeSession && { maxHeight: idleSheetMaxHeight }]} onLayout={(event) => setBottomCardHeight(event.nativeEvent.layout.height)}>
+      <Animated.View style={[styles.bottomCard, !activeSession && styles.bottomCardIdle, idleSheetAnimatedStyle]} onLayout={(event) => setBottomCardHeight(event.nativeEvent.layout.height)}>
         {sheetContent(<>
+        {!activeSession ? <Pressable accessibilityRole="button" accessibilityLabel={idleSheetExpanded ? 'Collapse destination panel' : 'Expand destination panel'} onPress={() => setIdleSheetExpanded(value => !value)} style={styles.grabberTouch} {...idleSheetPan.panHandlers} /> : null}
         {!activeSession && <><View style={styles.grabber} /><View style={styles.topCard}><View style={styles.searchRow}><Ionicons name="search" size={19} color={colors.textSecondary} /><TextInput ref={searchInputRef} value={query} onFocus={() => { setSearchFocused(true); setShowRecent(!query.trim() || !!searchResult); }} onBlur={() => setSearchFocused(false)} onChangeText={(value) => { setShowRecent(!value.trim()); setQuery(value); setSearchResult(null); setNavigationRoute(null); setSearchMessage(''); }} onSubmitEditing={() => void search()} returnKeyType="search" placeholder="Where are you going?" placeholderTextColor={colors.textTertiary} style={styles.searchInput} />{query ? <Pressable accessibilityLabel="Clear search" onPress={() => { setQuery(''); setSearchResult(null); setNavigationRoute(null); setSearchMessage(''); setSuggestions([]); }} style={styles.inputAction}><Ionicons name="close-circle" size={19} color={colors.textTertiary} /></Pressable> : null}{searchFocused ? <Pressable accessibilityLabel="Hide keyboard" onPress={dismissSearchKeyboard} style={styles.inputAction}><Ionicons name="chevron-down" size={18} color={colors.textSecondary} /></Pressable> : null}<Pressable disabled={!query.trim() || searching || routing} onPress={() => void search()} style={[styles.searchButton, (!query.trim() || searching || routing) && styles.searchDisabled]}><Ionicons name={searching || suggesting || routing ? 'hourglass-outline' : 'arrow-forward'} size={15} color={colors.onAccent} /></Pressable></View>{searching || routing ? <View style={styles.searchStatus}><View style={styles.statusDot} /><Text style={styles.statusText}>{routing ? 'Building your route…' : 'Finding that place…'}</Text></View> : null}{showRecent && <RecentDestinations places={recent} onSelect={place => { setShowRecent(false); void chooseSuggestion(place); }} />}{!showRecent && suggestions.length ? <ScrollView style={[styles.suggestions, { maxHeight: Math.min(220, height * .28) }]} keyboardShouldPersistTaps="always" nestedScrollEnabled>{suggestions.map((suggestion, index) => <Pressable key={suggestion.id} onPress={() => void chooseSuggestion(suggestion)} style={[styles.suggestion, index === suggestions.length - 1 && styles.suggestionLast]}><View style={styles.suggestionIcon}><Ionicons name="location" size={17} color={colors.accent} /></View><View style={styles.fill}><Text numberOfLines={1} style={styles.suggestionTitle}>{suggestion.title}</Text><Text numberOfLines={2} style={styles.suggestionSubtitle}>{suggestion.subtitle || 'Tap to view this location'}</Text></View><Ionicons name="chevron-forward" size={16} color={colors.textTertiary} /></Pressable>)}</ScrollView> : null}</View>
           {!query.trim() && !suggestions.length && (!showRecent || !recent.length) && <View style={styles.savedPlaces}>
             {([{ kind: 'home', title: 'Home', icon: 'home-outline', place: home }, { kind: 'work', title: 'Work', icon: 'briefcase-outline', place: work }] as const).map(item => <MotionPressable key={item.kind} style={styles.savedRow} onPress={() => item.place ? void chooseSuggestion(item.place) : navigation.navigate('SavedPlace', { kind: item.kind })}><Ionicons name={item.icon} size={23} color={colors.accent} /><View style={styles.fill}><Text style={styles.suggestionTitle}>{item.title}</Text><Text numberOfLines={1} style={styles.suggestionSubtitle}>{item.place?.title || 'Set address'}</Text></View><Ionicons name="chevron-forward" size={17} color={colors.textTertiary} /></MotionPressable>)}
@@ -466,7 +493,7 @@ export function MapScreen() {
         {!activeSession && !navigationRoute ? <View accessibilityState={{ disabled: true }} style={[styles.startRoute, { backgroundColor: colors.surfaceMuted }]}><Text style={{ color: colors.textSecondary, fontFamily: 'Manrope_700Bold', fontSize: 16 }}>Start drive</Text></View> : null}
         <Text accessibilityLiveRegion="polite" style={styles.privacy}>{arrivalCompleting ? 'Arrival confirmed · saving your drive…' : community.error || searchMessage || (navigationRoute ? navigating ? `${following ? 'Following your location' : 'Map unlocked'} · Tap locate to recenter` : 'Preview the route, then start when you are ready.' : 'Choose a destination, then press Start drive.')}</Text>
         </>)}
-      </View>
+      </Animated.View>
     </SafeAreaView>
     {hazardMenu ? <><Pressable style={styles.sheetBackdrop} onPress={() => setHazardMenu(false)} /><Reanimated.View entering={FadeInDown.duration(240).easing(Easing.out(Easing.cubic))} exiting={FadeOutDown.duration(180)} style={[styles.hazardSheet, { paddingBottom: Math.max(insets.bottom + 18, 34) }]}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>LIVE ROAD REPORT</Text><Text style={styles.sheetTitle}>What’s ahead?</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close hazard report" style={styles.sheetClose} onPress={() => setHazardMenu(false)}><Ionicons name="close" size={18} color={colors.text} /></Pressable></View><Text style={styles.sheetBody}>CUBO pins the report at your current GPS position for this drive.</Text><View style={styles.hazardGrid}>{hazardOptions.map((option) => { const meta = hazardMeta[option.kind]; return <MotionPressable key={option.kind} style={styles.hazardOption} scaleTo={0.94} onPress={() => reportHazard(option.kind)}><View style={[styles.hazardOptionIcon, { backgroundColor: `${meta.color}18` }]}><Ionicons name={meta.icon} size={23} color={meta.color} /></View><Text style={styles.hazardOptionLabel}>{option.label}</Text><Text style={styles.hazardOptionDetail}>{option.detail}</Text></MotionPressable>; })}</View></Reanimated.View></> : null}
     <DriveBlockModal plan={driveBlockPlan} onClose={() => setDriveBlockPlan(null)} />
@@ -475,6 +502,7 @@ export function MapScreen() {
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   bottomCardIdle: { marginTop: 'auto', borderRadius: 28, paddingTop: 12, paddingHorizontal: 18, paddingBottom: 16 },
+  grabberTouch: { position: 'absolute', zIndex: 30, top: 0, left: 0, right: 0, height: 34 },
   savedPlaces: { marginTop: 8 }, savedRow: { flexDirection: 'row', gap: 15, alignItems: 'center', minHeight: 58, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border },
   mapUtilities: { position: 'absolute', right: 18, top: 18, flexDirection: 'row', gap: 10 }, utilityButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', shadowColor: c.shadow, shadowOpacity: .15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   root: { flex: 1, minHeight: 0, backgroundColor: c.background }, overlay: { flex: 1, zIndex: 1, paddingHorizontal: spacing.md, paddingBottom: 12 }, overlayDrive: { paddingBottom: 12 }, fill: { flex: 1 },
