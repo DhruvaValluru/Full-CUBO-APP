@@ -173,6 +173,9 @@ test('Firestore rules deny code listing and bind approval to one connection with
   assert.match(rules, /ownerScoreMeasured/);
   assert.match(rules, /memberScoreMeasured/);
   assert.match(rules, /match \/locationShareRequests\/\{connectionId\}/);
+  assert.match(rules, /Participant-scoped listeners must be able to receive and dismiss an/);
+  assert.match(rules, /allow list: if isAuthenticated\(\)[\s\S]*resource\.data\.organizerUid == request\.auth\.uid \|\| resource\.data\.minorUid == request\.auth\.uid\);/);
+  assert.match(rules, /allow get: if isAuthenticated\(\)[\s\S]*isActiveMinorFamily\(connectionId/);
   assert.match(rules, /match \/familyAppPolicies\/\{minorId\}/);
   assert.match(rules, /memberShareScore == true/);
   assert.match(rules, /resource\.data\.status == 'pending' && request\.resource\.data\.status in \['approved', 'denied'\]/);

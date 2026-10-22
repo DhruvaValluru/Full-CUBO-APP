@@ -389,7 +389,12 @@ service cloud.firestore {
     // A request never grants location access. The linked minor must explicitly
     // approve it in the app, which separately requests foreground OS consent.
     match /locationShareRequests/{connectionId} {
-      allow get, list: if isAuthenticated()
+      // Participant-scoped listeners must be able to receive and dismiss an
+      // older request after its Family link changes. Writes remain bound to the
+      // active adult-organizer/minor relationship below.
+      allow list: if isAuthenticated()
+        && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid);
+      allow get: if isAuthenticated()
         && (resource.data.organizerUid == request.auth.uid || resource.data.minorUid == request.auth.uid)
         && isActiveMinorFamily(connectionId, resource.data.organizerUid, resource.data.minorUid);
       allow create: if isAuthenticated() && validLocationShareRequest(connectionId, request.resource.data)
