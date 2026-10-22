@@ -35,7 +35,12 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
   const pending = useRef<((map: LibreMap) => void) | null>(null);
   const run = (action: (map: LibreMap) => void) => { if (instance.current) action(instance.current); else pending.current = action; };
   useImperativeHandle(ref, () => ({
-    animateCamera: (camera, options) => run(m => m.easeTo({ center: coords(camera.center), bearing: nearestBearing(m.getBearing(), camera.heading ?? 0), pitch: camera.pitch ?? 0, zoom: camera.zoom ?? 16, duration: options?.duration ?? 0 })),
+    animateCamera: (camera, options) => run(m => {
+      // A fresh GPS fix must replace the previous camera transition instead of
+      // queueing behind it; otherwise the map visibly trails a moving driver.
+      m.stop();
+      m.easeTo({ center: coords(camera.center), bearing: nearestBearing(m.getBearing(), camera.heading ?? 0), pitch: camera.pitch ?? 0, zoom: camera.zoom ?? 16, duration: options?.duration ?? 0, easing: value => 1 - Math.pow(1 - value, 4) });
+    }),
     animateToRegion: (region, duration) => run(m => m.easeTo({ center: coords(region), bearing: 0, pitch: 0, zoom: 15, duration: duration ?? 0 })),
     fitToCoordinates: (points, options) => run(m => {
       const safe = points.filter(valid); if (!safe.length) return;
@@ -75,14 +80,15 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
   </View>;
 });
 
-export function Marker({ coordinate, children, title, description, pinColor = '#167655', flat = false, rotation = 0 }: { coordinate: Coordinate; children?: ReactNode; title?: string; description?: string; pinColor?: string; anchor?: { x: number; y: number }; flat?: boolean; rotation?: number }) {
+export function Marker({ coordinate, children, title, description, pinColor = '#167655', flat = false, rotation = 0, anchor = { x: .5, y: .5 } }: { coordinate: Coordinate; children?: ReactNode; title?: string; description?: string; pinColor?: string; anchor?: { x: number; y: number }; flat?: boolean; rotation?: number }) {
   const map = useContext(MapContext);
   const element = useRef<HTMLDivElement | null>(null);
   if (!element.current && typeof document !== 'undefined') element.current = document.createElement('div');
   const marker = useRef<LibreMarker | null>(null);
   useEffect(() => {
     if (!map || !element.current || !valid(coordinate)) return;
-    marker.current = new LibreMarker({ element: element.current, anchor: 'center' }).setLngLat(coords(coordinate)).addTo(map);
+    const verticalAnchor = anchor.y >= .9 ? 'bottom' : 'center';
+    marker.current = new LibreMarker({ element: element.current, anchor: verticalAnchor }).setLngLat(coords(coordinate)).addTo(map);
     return () => { marker.current?.remove(); marker.current = null; };
   }, [map]);
   useEffect(() => { if (valid(coordinate)) marker.current?.setLngLat(coords(coordinate)); }, [coordinate.latitude, coordinate.longitude, map]);

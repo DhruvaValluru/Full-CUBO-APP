@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, type AccessibilityRole, type AccessibilityState, type GestureResponderEvent, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, Easing, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, Easing, withSpring, withTiming } from 'react-native-reanimated';
 
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
@@ -30,7 +30,7 @@ export function MotionPressable({ children, style, onPress, onLongPress, onPress
     <AnimatedPressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
-      accessibilityState={accessibilityState}
+      accessibilityState={{ ...accessibilityState, disabled: !!disabled }}
       aria-selected={accessibilityState?.selected}
       disabled={disabled}
       onPress={onPress}
@@ -41,7 +41,7 @@ export function MotionPressable({ children, style, onPress, onLongPress, onPress
         onPressIn?.(event);
       }}
       onPressOut={(event) => {
-        scale.value = withTiming(1, { duration: 180, easing: Easing.out(Easing.cubic) });
+        scale.value = reduced ? withTiming(1, { duration: 120 }) : withSpring(1, { damping: 20, stiffness: 320, mass: .55, overshootClamping: true });
         opacity.value = withTiming(1, { duration: 180, easing: Easing.inOut(Easing.cubic) });
         onPressOut?.(event);
       }}
