@@ -33,6 +33,8 @@ test('idle map has one destination sheet, saved places and no unhelpful back-hom
   assert.match(map, /setIdleSheetExpanded\(true\)/);
   assert.match(map, /accessibilityLabel=\{idleSheetExpanded \? 'Collapse destination panel' : 'Expand destination panel'\}/);
   assert.match(map, /\.\.\.idleSheetPan\.panHandlers/);
+  assert.match(map, /bottomCard: \{[^}]*overflow: 'hidden'/);
+  assert.match(map, /duration: reducedMotion \? 0 : 300/);
   assert.match(map, /activeSession \? children : <ScrollView/);
   assert.match(map, /!activeSession && !compactMap && <MotionPressable/);
 });
