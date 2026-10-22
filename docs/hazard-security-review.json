@@ -1,12 +1,12 @@
 {
   "score": 2,
-  "summary": "Release rules are schema-bounded, authenticated, atomic, and paired with the required index. Console compilation and production verification remain required before broad testing.",
+  "summary": "Release rules are schema-bounded, authenticated, atomic, published successfully, and paired with an enabled production index. A two-phone physical-drive test remains recommended.",
   "findings": [
     {
       "check": "Business Logic vs. Rules",
       "severity": "moderate",
-      "issue": "The checked-in release includes road-report rules and the composite index, but production must publish both and wait for the index to finish building.",
-      "recommendation": "Verify Firebase accepts the rules, publish the rules and index, then test report visibility between two authenticated phones."
+      "issue": "Firebase accepted the published rules and the required index is enabled; cross-device visibility has not yet been exercised during a real two-phone drive.",
+      "recommendation": "Test one short-lived report between two authenticated phones before broader field use."
     },
     {
       "check": "Authority Source",
