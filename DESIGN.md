@@ -1,44 +1,79 @@
 ---
 name: CUBO
-description: A calm, map-aware safety interface composed like a modern vehicle cabin.
+description: A calm driving cockpit with a forest safety field, a live map, and clear actions.
 colors:
   signal-green: "#087D52"
   signal-green-dark: "#63CF93"
   forest-cabin: "#07130E"
   forest-surface: "#0F2119"
-  mineral-road: "#F1F4F0"
-  mineral-surface: "#FBFCFA"
+  cockpit-top: "#0B3023"
+  cockpit-middle: "#0E4A2D"
+  cockpit-bottom: "#072B1C"
+  score-light: "#AEFF8B"
+  score-middle: "#53DD63"
+  score-deep: "#168441"
+  mineral-road: "#F7F8F6"
+  mineral-surface: "#FFFFFF"
+  mineral-muted: "#F0F3F0"
   graphite-ink: "#102019"
   quiet-ink: "#53635A"
+  forest-ink: "#F4F8F7"
+  forest-quiet-ink: "#B8CDC3"
+  signal-wash: "rgba(8, 125, 82, 0.10)"
+  mineral-border: "rgba(13, 61, 41, 0.10)"
+  mineral-border-strong: "rgba(13, 76, 49, 0.19)"
+  welcome-sage-start: "#4C6949"
+  welcome-sage-end: "#82A87C"
   danger: "#FF453A"
-  caution: "#FFB020"
+  caution-light: "#A66D12"
+  caution-dark: "#FFB020"
 typography:
   display:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "42px"
+    fontSize: "68px"
     fontWeight: 800
-    lineHeight: 1.05
-    letterSpacing: "-1.4px"
+    lineHeight: "78px"
+    letterSpacing: "-3px"
+  wordmark:
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "43px"
+    fontWeight: 500
+    letterSpacing: "5px"
   headline:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "25px"
+    fontSize: "29px"
     fontWeight: 800
-    lineHeight: 1.12
-  body:
+    lineHeight: "36px"
+    letterSpacing: "-0.7px"
+  readiness:
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 700
+    letterSpacing: "-0.6px"
+  destination:
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 600
+  title:
     fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "14px"
-    fontWeight: 500
-    lineHeight: 1.5
+    fontWeight: 800
+  body:
+    fontFamily: "system-ui, sans-serif"
+    fontSize: "11px"
+    lineHeight: "16px"
   label:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "11px"
-    fontWeight: 700
-    lineHeight: 1.2
+    fontSize: "10px"
+    fontWeight: 600
 rounded:
   sm: "10px"
+  welcome: "13px"
   md: "14px"
+  action: "16px"
   lg: "18px"
   xl: "22px"
+  navigation: "26px"
   xxl: "28px"
   pill: "999px"
 spacing:
@@ -51,23 +86,54 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.signal-green}"
-    textColor: "#FFFFFF"
-    typography: "{typography.body}"
+    textColor: "{colors.mineral-surface}"
     rounded: "{rounded.md}"
-    padding: "16px 20px"
-    height: "54px"
-  card-surface:
+    height: "48px"
+  button-welcome:
+    textColor: "{colors.mineral-surface}"
+    rounded: "{rounded.welcome}"
+    height: "52px"
+  button-welcome-outline:
+    backgroundColor: "rgba(8,13,16,.35)"
+    textColor: "{colors.mineral-surface}"
+    rounded: "{rounded.welcome}"
+    height: "52px"
+  input-destination:
+    backgroundColor: "{colors.mineral-muted}"
+    textColor: "{colors.graphite-ink}"
+    typography: "{typography.destination}"
+    rounded: "{rounded.action}"
+    padding: "0px 12px"
+    height: "58px"
+  card-calibration:
     backgroundColor: "{colors.mineral-surface}"
     textColor: "{colors.graphite-ink}"
     rounded: "{rounded.xl}"
-    padding: "20px"
-  input-standard:
+    padding: "14px"
+    height: "76px"
+  chip-ready:
+    backgroundColor: "{colors.signal-green}"
+    textColor: "{colors.mineral-surface}"
+    rounded: "{rounded.sm}"
+    padding: "0px 9px"
+    height: "28px"
+  navigation-floating:
     backgroundColor: "{colors.mineral-surface}"
+    textColor: "{colors.quiet-ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.navigation}"
+    padding: "6px 7px"
+    height: "72px"
+  safety-field:
+    textColor: "{colors.mineral-surface}"
+    padding: "22px 24px 54px"
+    height: "422px"
+  assistant-action:
+    backgroundColor: "{colors.signal-wash}"
     textColor: "{colors.graphite-ink}"
-    typography: "{typography.body}"
-    rounded: "{rounded.md}"
-    padding: "12px 14px"
-    height: "52px"
+    rounded: "{rounded.action}"
+    padding: "16px"
+    height: "76px"
 ---
 
 # Design System: CUBO
@@ -76,129 +142,127 @@ components:
 
 **Creative North Star: "The Calm Cockpit"**
 
-CUBO treats each screen like a composed vehicle cabin: the one state a driver needs now is dominant, while secondary controls remain calm, predictable, and close to the hand. The interface uses confident hierarchy instead of repeated equal-weight cards. Maps, safety readiness, and explicit actions do the visual work.
+CUBO treats each screen like a composed vehicle cabin: the state a driver needs now is dominant, while supporting controls remain calm, predictable, and close to the hand. A broad forest field gives safety readiness its own space; the live map gives destination selection its own canvas. Strong hierarchy, real account data, and explicit actions define the experience.
 
-The system is premium through restraint rather than ornament. Green is a signal, not wallpaper; depth is ambient; motion explains state changes; imagery appears only when it supplies real context. Light mode is cool mineral rather than cream, and dark mode is green-black rather than blue-black.
+The visual system pairs mineral light surfaces with green-black dark surfaces, a luminous score ring, and quiet typography. Photography is concentrated in the dusk welcome scene. Home and Account use forest headers in both appearances; the controls beneath them follow the selected theme. The approved compositions in `.impeccable/mocks/approved/` and `docs/mockup-fidelity-2026-10-22.md` govern these surfaces. The mockups' names, addresses, scores, and map contents are examples, not product data.
 
 **Key Characteristics:**
 
-- One dominant state or action per viewport.
-- Cool mineral light surfaces and deep forest dark surfaces.
-- Restrained signal green, semantic red/orange, and quiet graphite text.
-- Compact floating navigation and bottom-sheet map controls.
-- Purposeful, reduced-motion-aware feedback.
+- A full-width forest safety field with a luminous, data-driven score ring.
+- Mineral light surfaces, forest dark surfaces, and clear semantic accents.
+- A destination action across Home's boundary and one unified idle Map sheet.
+- Five floating destinations: Home, Map, Activity, Garage, Account.
+- Real photographic atmosphere with semantic text and actions.
+- One-shot entrance motion and reduced-motion-aware press feedback.
+
+This is a source-derived refresh of the existing guide, not a visual acceptance or release certificate. The Impeccable launcher failed with `cache_directory_failed`; no automated Impeccable phase gates are claimed.
 
 ## Colors
 
-The palette pairs road-like mineral neutrals with a forest cabin and one restrained CUBO signal green.
+The palette separates deep forest atmosphere, bright score-ring emphasis, quiet mineral controls, and semantic state.
 
 ### Primary
 
-- **Signal Green** (`signal-green` / `signal-green-dark`): primary actions, selected navigation, active monitoring, and confirmed safety state.
+- **Signal Green** (`signal-green` / `signal-green-dark`): theme-aware actions, selected tabs, and meaningful state.
+- **Cockpit Forest** (`cockpit-top`, `cockpit-middle`, `cockpit-bottom`): Home's full-width gradient; the top tone also connects its safe area and Account header.
+- **Score Light** (`score-light`, `score-middle`, `score-deep`): the Home ring's vertical gradient. This concentrated luminous treatment is part of the approved composition.
 
 ### Secondary
 
-- **Forest Cabin** (`forest-cabin` / `forest-surface`): dark-mode ground and raised surfaces.
-- **Semantic Signals** (`danger` / `caution`): destructive states, destination or alert urgency, and community hazards.
+- **Welcome Sage** (`welcome-sage-start` / `welcome-sage-end`): the Sign in gradient over dusk photography.
+- **Semantic Signals** (`danger`, `caution-light`, `caution-dark`): destructive actions and alert or hazard states, with the appearance-specific caution value.
 
 ### Neutral
 
-- **Mineral Road** (`mineral-road`): light-mode page field.
-- **Mineral Surface** (`mineral-surface`): elevated light-mode controls and sheets.
-- **Graphite Ink** (`graphite-ink`): primary light-mode text.
-- **Quiet Ink** (`quiet-ink`): supporting copy and inactive navigation.
+- **Mineral Road / Surface / Muted**: light page field, white containers, and quiet search-field fill.
+- **Graphite / Quiet Ink**: primary and supporting light-mode content.
+- **Forest Cabin / Surface**: dark page field and cards; **Forest Ink / Quiet Ink** carry their text.
+- **Mineral Border / Strong Border**: low-contrast boundaries; **Signal Wash** supports assistant and state surfaces.
 
-### Named Rules
-
-**The Signal, Not Paint Rule.** Green identifies action, selection, readiness, or monitoring; it does not fill every container.
-
-**The Semantic Marker Rule.** Police/community warnings are orange, route/destination urgency is red, the driver is blue or green, and routes remain CUBO green.
+**The Forest and Signal Rule.** Forest may fill the dominant header; the bright ring is reserved for the score, and ordinary controls use the theme accent.
 
 ## Typography
 
-**Display Font:** Manrope (with system sans-serif fallback)  
-**Body Font:** Manrope (with system sans-serif fallback)
+Manrope weights 400, 500, 600, 700, and 800 are loaded in `App.tsx`. Explicit Manrope roles coexist with system text in supporting rows; `theme.ts` does not globally apply Manrope. The frontmatter records actual roles, not a fabricated universal type scale.
 
-**Character:** Wide-open, geometric, and legible at a glance. Weight and size carry hierarchy; decorative letter treatments do not.
+The score uses the display role with tabular numerals. Home's first name uses headline; its readiness statement uses readiness. The welcome wordmark uses the lighter, tracked wordmark role, while its tagline is regular Manrope (20px). Account's title is extra-bold Manrope (32px). Destination input is semibold; Home's matching destination action is bold at the same size. Calibration titles and their supporting copy supply the title and body roles. Navigation labels use the label role, rising to weight 800 when selected.
 
-### Hierarchy
-
-- **Display** (800, 42px, 1.05): authentication and welcome statements.
-- **Headline** (800, 25px, 1.12): screen identity and important scores.
-- **Title** (700, 18px): major sections and sheet headers.
-- **Body** (500, 14px, 1.5): explanations, statuses, and forms.
-- **Label** (700, 9–11px): compact state labels; uppercase is reserved for short operational labels.
-
-### Named Rules
-
-**The Glance Rule.** The important number or action must read before supporting copy; labels never compete with the primary state.
+**The Glance Rule.** The important number or action reads before supporting copy; labels remain subordinate to the primary state.
 
 ## Layout
 
-Portrait mobile is primary. Screen content uses a compact 4/8/12/20/24/32 spacing rhythm with at least 44px interactive targets. Desktop web centers the same mobile product inside a device preview rather than inventing a second dashboard. Home begins with a dominant safety field; Map is full-bleed and concentrates entry and drive controls near the bottom. The floating tab bar uses four equal destinations and clears the screen during an active drive.
+Portrait mobile is primary. Shared spacing comes from `src/theme/theme.ts`; the shell normally uses 20px horizontal padding and 125px bottom scroll clearance. Home and Account opt into edge-to-edge headers and 22px body gutters.
 
-Responsive containers must include padding inside their declared width (`border-box` on web) so narrow iPhone-class viewports never clip controls. Reduced motion preserves state changes without spring travel.
+Home's forest field has a 422px minimum height and no enclosing small-card silhouette. Its ring occupies a 252px square, with the scored stroke on a 105px radius. A 68px-high destination action overlaps the field's lower boundary by 32px. Assistant and three readiness controls follow. The leading Home region fills at least the available viewport; saved places, vehicles, and connections remain further down the page.
+
+Map is full-bleed. Its idle destination sheet uses 12px outer gutters, 28px corners, and 18px internal horizontal padding. Search, saved places, real recent destinations, permission messages, route preview, and Start drive share that sheet. On the Map tab the overlay reserves 100px below it for navigation. The idle sheet is scrollable and capped at `max(100, height - topInset - bottomInset - bottomReserve - 190)`, where bottomReserve is 100 on the Map tab and 12 on the separate DriveMap screen. Below 680px measured height, Notifications, Account, Assistant, and Locate form one four-button utility row. Taller layouts place Assistant and Locate above the measured sheet height. These adaptations concern idle Map; active-drive controls retain their existing behavior.
+
+Welcome fills the viewport with the dusk background plate using cover sizing. Identity starts at 21% from the top; actions sit 8% from the bottom with 8% side gutters. Account extends the forest-header/mineral-body relationship and uses grouped settings rows.
+
+Web uses full-screen layout below 600px viewport width, or on a coarse-pointer phone whose shorter physical screen dimension is below 600px. Wider desktop views use the existing 340 × 780 preview shell, capped at 90vh. These are distinct width and height conditions, not interchangeable breakpoints. Preserve child ancestry across resizing so account and drive state are not remounted.
 
 ## Elevation & Depth
 
-Depth is a hybrid of tonal layering, hairline borders, and soft ambient shadows. Flat content stays flat; only floating navigation, major hero surfaces, bottom sheets, and the desktop phone frame lift from the ground.
+Tonal fields and hairline borders provide most separation. Floating navigation, destination controls, sheets, and the desktop preview add ambient shadows. Home's atmosphere comes from its forest gradient and translucent radial field, while its score uses layered SVG strokes; it does not rely on a rounded hero card.
 
-### Shadow Vocabulary
+The sidecar retains exact React Native shadow definitions for the shared card and phone frame plus the current map sheet and floating navigation. CSS preview shadows are translations for the documentation panel, not a claim of identical native rasterization.
 
-- **Ambient Card** (`0 10px 22px rgba(0,0,0,0.16)`): dominant cards and bottom sheets.
-- **Phone Frame** (`0 18px 32px rgba(0,0,0,0.45)`): desktop preview shell only.
-
-### Named Rules
-
-**The Float With Purpose Rule.** A shadow signals a surface that moves, overlays, or controls the page; ordinary rows use tone and spacing instead.
+**The Float With Purpose Rule.** A shadow signals a surface that overlays or controls the page; ordinary rows use tone and spacing.
 
 ## Shapes
 
-The system uses a controlled family from 10px to 28px. Inputs and compact actions sit at 10–14px; cards at 18–22px; immersive hero and modal surfaces at 28px. Circles are reserved for avatars, map markers, and icon-only controls. Avoid nesting several rounded rectangles when spacing or a divider communicates the relationship.
+The shared corner scale remains intact. Current welcome actions add 13px corners; Home destination and Assistant actions use 16px; navigation uses 26px; the idle Map sheet uses 28px. Avatars, score orbits, and map utilities are circular. The broad Home and Account headers meet the screen edge directly. Do not substitute a small rounded card for that full-width field.
 
 ## Components
 
 ### Buttons
 
-- **Shape:** confident rounded rectangle (14px) with a minimum 54px primary height.
-- **Primary:** Signal Green with white/on-accent text and a clear verb.
-- **Hover / Focus:** small opacity or scale feedback plus a visible green focus outline on web.
-- **Secondary / Ghost:** mineral or forest surface with a hairline border; no decorative gradient.
+Map's enabled Start drive is a 48px minimum-height accent action with 14px corners. Welcome's two actions are 52px minimum-height controls: sage-gradient Sign in and translucent outlined Create account. Their text is live Manrope (600, 17px); their handlers select login and signup. Other existing flows retain their own established sizing.
+
+`MotionPressable` defaults to scale 0.97 over 100ms and opacity 0.92. Release restores opacity over 180ms and scale via the existing clamped spring (damping 20, stiffness 320, mass 0.55). Individual controls override scale. Reduced motion keeps scale at 1. Native/web focus behavior is control-specific; preserve visible keyboard focus rather than assuming every control already has a custom ring.
+
+### Chips
+
+The existing READY badge is a compact calibration status, with accent fill, 28px minimum height, 10px corners, and extra-bold 8px uppercase text tracked by 1px. It describes saved calibration, not proof that the camera is actively monitoring.
 
 ### Cards / Containers
 
-- **Corner Style:** 18–22px for ordinary surfaces; 28px for one dominant hero.
-- **Background:** tonal surface that contrasts with the page field.
-- **Shadow Strategy:** ambient shadow only for elevated, interactive, or overlay surfaces.
-- **Border:** low-contrast one-pixel/hairline boundary.
-- **Internal Padding:** 12–24px according to density.
+Supporting calibration rows use a 76px minimum height, 22px corners, a subtle strong boundary, and 14px padding. Assistant uses a 76px minimum-height accent-wash action with 16px corners and 16px padding. Account groups use compact dividers. Preserve the hierarchy between broad headers, primary actions, and supporting rows.
 
 ### Inputs / Fields
 
-- **Style:** 52px minimum height, 14px radius, quiet surface, one-pixel boundary.
-- **Focus:** CUBO green boundary without changing the field's size.
-- **Error / Disabled:** semantic copy or reduced opacity; never color alone.
+The Map destination field lives inside a 58px minimum-height muted row with 16px corners. Input text can shrink within the row; trailing search, clear, and keyboard controls retain 44px hit areas. Search disables at opacity 0.35 while unavailable. Account editor fields remain 52px minimum-height white/forest controls with 14px corners and theme borders. Permission and search errors remain readable text.
 
 ### Navigation
 
-The floating tab bar is a compact elevated surface. The active destination gets a quiet green wash and a separate icon shell; inactive items use secondary ink. Drive mode removes the bar so navigation cannot compete with safety controls.
+Five equal destinations appear in this order: Home, Map, Activity, Garage, Account. The bar has 14px side offsets, 72px minimum height, 26px corners, and 54px minimum-height items. Its bottom offset is the greater of the safe inset and 12px. Selection changes icon fill, accent color, and label weight; both item and icon-shell backgrounds remain transparent in the current implementation. An active drive hides the bar.
 
 ### Safety Field
 
-Home's signature surface combines the real score, a single readiness statement, and three compact operational facts. It uses a deep forest gradient and a restrained green glow whose role is atmosphere, not decoration.
+The ring displays the average score from attention-measured drives, or 100 with the Starter safety score label when no measured drives exist. Its stroke reflects the clamped 0–100 score. Greeting, avatar, unread notification count, and active-drive status use live state. Camera readiness reflects stored calibration; Location says On demand; Blocked Apps says Configured or Optional. Preserve those distinctions.
+
+### Welcome and Account
+
+The welcome image is `assets/welcome/cubo-dusk.webp` (832 × 1890, 47,770 bytes), a background-only derivative of the approved image. Text, wordmark, and buttons remain semantic UI. Asset provenance lives in the fidelity contract. Account uses the same forest top tone with its own gradient endpoint, real profile data, and themed settings below.
+
+### Motion
+
+`Reveal` runs once with opacity and 12px upward settling over 420ms, using cubic-out easing; reduced motion sets duration and travel to zero. Home's ring and welcome identity/actions use it. Do not infer a performance benchmark or a repository-wide animation audit from this helper.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** make the map, safety score, or immediate action dominate each screen.
-- **Do** use Signal Green sparingly for meaningful state and interaction.
-- **Do** preserve at least 44px touch targets and readable contrast in both modes.
-- **Do** keep motion interruptible and honor reduced-motion settings.
+- **Do** preserve the approved full-width forest Home field, score ring, boundary-crossing destination action, and five-tab hierarchy.
+- **Do** keep Map's idle search, places, route preview, and Start drive together in one scrollable sheet.
+- **Do** use real account, permission, route, and drive state for all operational copy.
+- **Do** maintain light and dark appearance, visible focus, and the product requirement of at least 44px touch targets.
+- **Do** honor reduced motion and keep primary actions semantic and reachable.
 
 ### Don't:
 
-- **Don't** turn every section into an equal soft card.
-- **Don't** use neon green, blue-black default dark mode, gradient text, or decorative glass effects.
-- **Don't** copy Tesla, Mobbin, Klarna, Bump, or another product's branding or signature assets.
-- **Don't** let visual polish imply safety guarantees, traffic data, or backend abilities CUBO does not have.
+- **Don't** flatten the approved compositions into palette-only changes or equal-weight cards.
+- **Don't** turn the score ring's luminous treatment into a universal neon accent.
+- **Don't** bake text or controls into the welcome photograph or seed mockup identities and addresses.
+- **Don't** equate saved calibration with active camera access or configured app blocking with enforced blocking.
+- **Don't** imply safety guarantees, traffic knowledge, or backend abilities the live product does not supply.

@@ -35,14 +35,15 @@ test('shared welcome flow replaces instant screen swap and supports reduced moti
   assert.match(flow, /const startInAuth = !!initialMode/);
 });
 
-test('welcome screen uses a restrained brand-led hierarchy', () => {
+test('approved cinematic welcome has real direct sign-in and signup controls', () => {
   const screen = read('src/screens/WelcomeScreen.tsx');
-  const carousel = read('src/components/WelcomeCarousel.tsx');
-  assert.match(screen, /Stay with the road/);
+  const flow = read('src/screens/WelcomeFlow.tsx');
   assert.match(screen, /Your drive, understood/);
-  assert.match(screen, /backgroundColor: c\.accent/);
-  assert.match(carousel, /styles\.media/);
-  assert.match(carousel, /LinearGradient/);
-  assert.match(carousel, /\{page \+ 1\}\/\{photos\.length\}/);
-  assert.doesNotMatch(screen, /Stay Alert\. Stay Alive\./);
+  assert.match(screen, /onChooseMode\('login'\)/);
+  assert.match(screen, /onChooseMode\('signup'\)/);
+  assert.match(flow, /setAuthMode\(mode\); navigate\(true\)/);
+  assert.match(flow, /AuthScreen initialMode=\{authMode\}/);
+  assert.match(screen, /assets\/welcome\/cubo-dusk.webp/);
+  assert.ok(fs.statSync(path.join(root, 'assets/welcome/cubo-dusk.webp')).size < 100000);
+  assert.doesNotMatch(screen, /WelcomeCarousel|Get started|Stay with the road/);
 });

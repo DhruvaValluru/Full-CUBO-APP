@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { HomeCockpit } from '../components/HomeCockpit';
 import { CompositeNavigationProp, NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useCallback, useState } from 'react';
@@ -39,6 +39,7 @@ export function HomeScreen() {
   const insurance = useInsurance();
   const insurer = insurance.providerId === 'other' && insurance.customProviderName?.trim() ? { name: insurance.customProviderName.trim() } : insuranceProviders.find(p => p.id === insurance.providerId);
   const unreadCount = family.notifications.filter(item => !item.read).length + appBlocking.notices.filter(item => !item.read).length;
+  const [viewportHeight, setViewportHeight] = useState(780);
   const [calibration, setCalibration] = useState<CalibrationRecord | null>(null);
   useFocusEffect(useCallback(() => { let active = true; void readCalibration().then(value => { if (active) setCalibration(value); }); return () => { active = false; }; }, []));
   const selected = vehicles.find(v => v.primary) ?? vehicles[0];
@@ -46,19 +47,21 @@ export function HomeScreen() {
   const safetyScore = measuredDrives.length ? Math.round(measuredDrives.reduce((sum, item) => sum + item.focusScore, 0) / measuredDrives.length) : 100;
   const blockingPolicy = appBlocking.policyFor(user?.uid, profile.name || 'You');
   const go = (destination?: PlaceResult) => navigation.navigate('DriveMap', destination ? { destination } : undefined);
-  return <ScreenShell>
-<View style={s.header}><View><Text style={s.brand}>CUBO</Text><Text style={s.greeting}>Welcome back, {profile.name.split(' ')[0]}</Text></View><View style={s.headerActions}><MotionPressable accessibilityLabel={`Notifications, ${unreadCount} unread`} style={s.notificationButton} onPress={() => navigation.navigate('Notifications')}><Ionicons name="notifications-outline" size={21} color={c.text} />{unreadCount > 0 && <View style={{ position: 'absolute', top: -5, right: -5, minWidth: 21, height: 21, paddingHorizontal: 4, borderRadius: 11, backgroundColor: '#C93636', borderWidth: 2, borderColor: c.background, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFFFFF', fontSize: 10, fontFamily: 'Manrope_800ExtraBold' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>}</MotionPressable><MotionPressable accessibilityLabel="Open Cubo Assistant" style={s.notificationButton} onPress={() => navigation.navigate('CuboAI')}><Ionicons name="chatbubble-ellipses-outline" size={21} color={c.text} /></MotionPressable><MotionPressable accessibilityLabel="Your account" onPress={() => navigation.navigate('Account')} style={s.profileButton}><ProfileAvatar avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} size={44} /></MotionPressable></View></View>
-    <Reanimated.View entering={ZoomIn.duration(360).easing(Easing.out(Easing.cubic))}>
-      <MotionPressable accessibilityLabel={`Safety score ${safetyScore}. Open Drive Activity`} onPress={() => navigation.navigate('Activity')} scaleTo={.99}>
-        <LinearGradient colors={[c.featureSurface, '#0B5B38']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.safetyHero}>
-          <View style={s.safetyGlow} />
-          <View style={s.safetyTop}><Text style={s.safetyTitle}>{activeSession ? 'Drive monitoring active' : 'Ready for your next drive'}</Text><Ionicons name="arrow-forward" size={20} color="#D8F6E5" /></View>
-          <View style={s.scoreRow}><Text style={s.scoreValue}>{safetyScore}</Text><View style={s.scoreCopy}><Text style={s.scoreLabel}>{measuredDrives.length ? 'AVERAGE SAFETY SCORE' : 'STARTER SAFETY SCORE'}</Text><Text style={s.scoreDetail}>{measuredDrives.length ? `${measuredDrives.length} measured drive${measuredDrives.length === 1 ? '' : 's'}` : 'Complete a measured drive to personalize it'}</Text></View></View>
-          <View style={s.readinessRow}><View style={s.readinessItem}><Ionicons name={calibration ? 'camera' : 'camera-outline'} size={17} color="#B9EBCF" /><Text style={s.readinessText}>{calibration ? 'Camera ready' : 'Camera setup'}</Text></View><View style={s.readinessItem}><Ionicons name="location" size={17} color="#B9EBCF" /><Text style={s.readinessText}>Location on demand</Text></View><View style={s.readinessItem}><Ionicons name="ban-outline" size={17} color="#B9EBCF" /><Text style={s.readinessText}>{blockingPolicy.enabled ? `${blockingPolicy.selectedIds.length} apps blocked` : 'Blocking optional'}</Text></View></View>
-        </LinearGradient>
-      </MotionPressable>
-    </Reanimated.View>
-    <MotionPressable accessibilityLabel="Ask Cubo Assistant" style={s.search} onPress={() => navigation.navigate('CuboAI')}><View pointerEvents="none" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="chatbubble-ellipses-outline" size={23} color={c.accent} /><Text style={s.searchText}>Ask Cubo Assistant</Text><View style={s.searchArrow}><Ionicons name="pulse-outline" size={20} color={c.onAccent} /></View></View></MotionPressable>
+  return <ScreenShell edgeToEdge safeAreaColor="#0B3023" onViewportHeight={setViewportHeight}>
+    <View style={{ minHeight: viewportHeight }}>
+    <HomeCockpit name={profile.name} avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} score={safetyScore} measured={measuredDrives.length} active={!!activeSession} unread={unreadCount} onAccount={() => navigation.navigate('Account')} onNotifications={() => navigation.navigate('Notifications')} onActivity={() => navigation.navigate('Activity')} />
+    <View style={{ paddingHorizontal: 22, gap: 12 }}>
+    <MotionPressable accessibilityLabel="Choose a destination" style={[s.search, { marginTop: -32, minHeight: 68, borderRadius: 16 }]} onPress={() => go()}><Ionicons name="search-outline" size={23} color={c.text} /><Text style={s.searchText}>Where are you going?</Text><View style={[s.searchArrow, { backgroundColor: '#104C32' }]}><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></View></MotionPressable>
+    <MotionPressable accessibilityLabel="Ask Cubo Assistant" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, minHeight: 76, borderRadius: 16, backgroundColor: c.accentSoft }} onPress={() => navigation.navigate('CuboAI')}><View pointerEvents="none" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="sparkles-outline" size={25} color={c.accent} /><View style={s.fill}><Text style={[s.label, { fontSize: 16 }]}>Ask Cubo Assistant</Text><Text style={s.meta}>Your drive, your questions. Just ask.</Text></View><Ionicons name="pulse-outline" size={24} color={c.accent} /></View></MotionPressable>
+    <View style={{ flexDirection: 'row', paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
+      {([
+        { icon: 'camera-outline', title: 'Camera', status: calibration ? 'Ready' : 'Set up', onPress: () => navigation.navigate('CameraCalibration') },
+        { icon: 'location-outline', title: 'Location', status: 'On demand', onPress: () => navigation.navigate('Account') },
+        { icon: 'shield-checkmark-outline', title: 'Blocked Apps', status: blockingPolicy.enabled ? 'Configured' : 'Optional', onPress: () => navigation.navigate('AppBlocking') },
+      ] as const).map(item => <MotionPressable key={item.title} accessibilityLabel={item.title + ': ' + item.status} onPress={item.onPress} style={{ flex: 1, alignItems: 'center', gap: 5 }}><View style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: c.secondarySurface }}><Ionicons name={item.icon} size={21} color={c.accent} /></View><Text style={[s.label, { fontSize: 12 }]}>{item.title}</Text><Text style={[s.meta, { marginTop: 0 }]}>{item.status}</Text></MotionPressable>)}
+    </View>
+    </View></View>
+    <View style={{ paddingHorizontal: 22, gap: 12 }}>
     <View style={s.saved}>{(['home', 'work'] as const).map(kind => <MotionPressable key={kind} style={s.savedItem} onPress={() => places[kind] ? go(places[kind]) : navigation.navigate('SavedPlace', { kind })} onLongPress={() => navigation.navigate('SavedPlace', { kind })}><View style={s.smallIcon}><Ionicons name={kind === 'home' ? 'home-outline' : 'briefcase-outline'} size={19} color={c.secondaryInk} /></View><View style={s.fill}><Text style={s.label}>{kind === 'home' ? 'Home' : 'Work'}</Text><Text numberOfLines={1} style={s.meta}>{places[kind]?.title ?? 'Set address'}</Text></View></MotionPressable>)}</View>
     <View style={s.sectionHeader}><Text style={s.section}>Your Vehicles</Text><MotionPressable onPress={() => navigation.navigate('Garage')}><Text style={s.link}>Manage</Text></MotionPressable></View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.vehicleList}>{vehicles.map(vehicle => { const chosen = vehicle.id === selected?.id; return <HoldVehicleTile key={vehicle.id} label={vehicle.make + ' ' + vehicle.model} selected={chosen} onSelect={() => setPrimary(vehicle.id)} onOpen={() => navigation.navigate('VehicleDetail', { vehicleId: vehicle.id })}><View style={[s.carCircle, chosen && s.carSelected]}><VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} />{chosen ? <Reanimated.View entering={ZoomIn.duration(180).easing(Easing.out(Easing.cubic))} style={s.check}><Ionicons name="checkmark" size={13} color={c.onAccent} /></Reanimated.View> : null}</View><Text numberOfLines={1} style={s.vehicleName}>{vehicle.make} {vehicle.model}</Text><Text style={s.vehicleSubtitle}>{chosen ? 'Selected' : vehicle.nickname || vehicle.year}</Text></HoldVehicleTile>; })}<MotionPressable style={s.vehicleItem} onPress={() => navigation.navigate('AddVehicle')}><View style={s.addCircle}><Ionicons name="add" size={28} color={c.accent} /></View><Text style={s.vehicleName}>Add vehicle</Text></MotionPressable></ScrollView>
@@ -70,6 +73,7 @@ export function HomeScreen() {
     <MotionPressable style={s.calibration} onPress={() => navigation.navigate('CameraCalibration')}><View style={s.calibrationIcon}><Ionicons name={calibration ? 'checkmark' : 'scan-outline'} size={21} color={c.accent} /></View><View style={s.fill}><Text style={s.calibrationTitle}>Camera Calibration</Text><Text style={s.calibrationMeta}>{calibration ? 'Ready · Tap to recalibrate your camera position' : 'Set your driver and cabin frame'}</Text></View>{calibration ? <View style={s.readyPill}><Text style={s.readyText}>READY</Text></View> : <Ionicons name="chevron-forward" size={18} color={c.accent} />}</MotionPressable>
     <Text style={[s.calibrationMeta, { marginTop: -8, marginBottom: 8, paddingHorizontal: 8 }]}>Last updated: {calibration ? new Date(calibration.completedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not calibrated yet'}</Text>
     <MotionPressable accessibilityLabel="Insurance" style={s.calibration} onPress={() => navigation.navigate('InsuranceConnection')}><InsurerLogo id={insurance.providerId} /><View style={s.fill}><Text style={s.calibrationTitle}>Insurance</Text><Text style={s.calibrationMeta}>{insurer ? `${insurer.name} · savings & reports` : 'Explore savings & choose your insurer'}</Text></View><Ionicons name="chevron-forward" size={18} color={c.accent} /></MotionPressable>
+    </View>
   </ScreenShell>;
 }
 const makeThemeStyles = (c: AppColors) => StyleSheet.create({

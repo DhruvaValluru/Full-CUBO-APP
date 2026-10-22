@@ -17,7 +17,7 @@ export function GarageScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>(); const { vehicles, setPrimary, deleteVehicle, updateVehicle } = useVehicles(); const [confirmDelete, setConfirmDelete] = useState<string | null>(null); const { colors } = useAppearance(); const styles = useMemo(() => makeStyles(colors), [colors]);
   const [colorVehicleId, setColorVehicleId] = useState<string | null>(null);
   const colorVehicle = vehicles.find(vehicle => vehicle.id === colorVehicleId);
-  return <ScreenShell><AppHeader title="Your garage" eyebrow="Vehicles" onBack={() => navigation.goBack()} /><Text style={styles.subtitle}>Manage your saved vehicles.</Text>
+  return <ScreenShell><AppHeader title="Your garage" eyebrow="Vehicles" onBack={navigation.getState().type === 'tab' ? undefined : () => navigation.goBack()} /><Text style={styles.subtitle}>Manage your saved vehicles.</Text>
     <View style={styles.sectionRow}><Text style={styles.section}>Saved vehicles</Text><Text style={styles.count}>{vehicles.length}</Text></View>
     {!vehicles.length ? <SurfaceCard style={styles.empty}><Ionicons name="car-outline" size={28} color={colors.textTertiary} /><Text style={styles.vehicleTitle}>Your garage is empty</Text><Text style={styles.detail}>Add a vehicle to begin a drive.</Text></SurfaceCard> : vehicles.map((vehicle) => <SurfaceCard key={vehicle.id} style={styles.vehicleCard}>
       <View style={styles.vehicleTop}>

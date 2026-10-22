@@ -22,6 +22,8 @@ Visitors do not need Expo Go, a development server, or a connection to the devel
 
 See [`docs/branch-map.md`](docs/branch-map.md) before merging or asking an AI agent to change branches. Expo and web share concepts and substantial code, but platform-specific files, dependencies, and permissions must be tested separately. Do not replace one platform's setup with the other's.
 
+For interface work, read [`DESIGN.md`](DESIGN.md) and the [approved mockup contract and verification](docs/mockup-fidelity-2026-10-22.md). The current interface uses the full-width forest score cockpit, cinematic dusk welcome, unified map sheet, and five primary tabs. The earlier small-card Home and aerial-road welcome are not the current design targets.
+
 ## Use CUBO on your phone
 
 1. Open [cubo-app-cac.pages.dev](https://cubo-app-cac.pages.dev/).
@@ -38,7 +40,7 @@ To invite another person, open **Account → Support → Invite someone**. Previ
 
 ### Home, garage, and account
 
-- Home shortcuts for Cubo Assistant, saved Home/Work addresses, vehicles, family demos, camera calibration, and starting a drive.
+- Five primary tabs: Home, Map, Activity, Garage, and Account. Home includes Cubo Assistant, saved Home/Work addresses, vehicles, Family/Friends connections, camera calibration, and starting a drive.
 - Vehicle selection, vehicle-detail views, and a separate vehicle-color control.
 - Light, dark, and system appearance, plus profile and account settings.
 - Camera/microphone access controls, map-source preference, and a voice preference with a **Hear Voice** sample.
@@ -76,7 +78,7 @@ This is heuristic monitoring, not a medical diagnosis or validated eye-gaze meas
 
 ### Cubo Assistant and Cubo Voice Assist
 
-- Typed app questions use preset, account-aware answers first: vehicles, saved scores, profile, saved places, family demos, insurance settings, calibration, and app help.
+- Typed app questions use preset, account-aware answers first: vehicles, saved scores, profile, saved places, Family/Friends connections, insurance settings, calibration, and app help.
 - The microphone beside the composer dictates text for review before sending.
 - **Voice Assist** is a separate spoken-conversation mode with consent and the selected reply voice.
 - Destination requests can ask for confirmation before switching to Map with a selected destination.
@@ -91,7 +93,7 @@ Voice recognition is browser-dependent and may process speech through the browse
 
 ## What is still a demo or limited
 
-- **Family:** Parent, Child 1, and Child 2 are labeled demo profiles. Sample scores, trips, and locations are not real family tracking.
+- **Family/Friends:** connections use separate join codes and permission controls. Shared location is an updated snapshot, not guaranteed continuous background tracking; scores depend on recorded drives and sharing rules.
 - **Insurance:** insurer selection, savings, and reporting previews do not establish actual discounts or submit insurer reports.
 - **CUBO Cruise:** device screens and recognition groundwork are present; production hardware pairing is not enabled.
 - **App blocking:** the web app cannot block other apps on a phone.
