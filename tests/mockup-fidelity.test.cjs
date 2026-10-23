@@ -18,6 +18,12 @@ test('Home uses the approved full-width cockpit with live account score and acti
   assert.match(home, /onInsurance=\{\(\) => navigation\.navigate\('InsuranceConnection'\)\}/);
   assert.doesNotMatch(home, />Drive services<\/Text>/i);
   assert.match(cockpit, /horizontal pagingEnabled/);
+  assert.match(cockpit, /ref=\{carouselRef\}/);
+  assert.match(cockpit, /scrollEventThrottle=\{16\}/);
+  assert.match(cockpit, /accessibilityLabel="Show safety score" accessibilityState=\{\{ selected: page === 0 \}\}/);
+  assert.match(cockpit, /accessibilityLabel="Show potential savings" accessibilityState=\{\{ selected: page === 1 \}\}/);
+  assert.match(cockpit, /carouselRef\.current\?\.scrollTo/);
+  assert.doesNotMatch(cockpit, /pointerEvents="none" style=\{s\.pageDots\}/);
   assert.match(cockpit, /Potential premium savings/);
   assert.doesNotMatch(home, /apps blocked|Location On/);
 });
@@ -41,6 +47,9 @@ test('idle map has one destination sheet, saved places and no unhelpful back-hom
   assert.match(map, /\.\.\.idleSheetPan\.panHandlers/);
   assert.match(map, /onMoveShouldSetPanResponderCapture/);
   assert.match(map, /bottomCard: \{[^}]*overflow: 'hidden'/);
+  assert.match(map, /activeSession && styles\.bottomCardDrive/);
+  assert.match(map, /style=\{styles\.monitoringRow\}/);
+  assert.match(map, /style=\{styles\.statBlock\}/);
   assert.match(map, /duration: reducedMotion \? 0 : 300/);
   assert.match(map, /activeSession \? children : <ScrollView/);
   assert.match(map, /!activeSession && !compactMap && <MotionPressable/);
