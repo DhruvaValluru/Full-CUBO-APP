@@ -4,8 +4,6 @@ import { CompositeNavigationProp, NavigationProp, useFocusEffect, useNavigation 
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { VehicleArt } from '../components/VehicleArt';
-import { InsurerLogo } from '../components/InsurerLogo';
-import { insuranceProviders, useInsurance } from '../features/insurance/InsuranceContext';
 import { useFamily } from '../features/family/FamilyContext';
 import { ScreenShell } from '../components/ScreenShell';
 import { MotionPressable } from '../components/MotionPressable';
@@ -25,7 +23,7 @@ import { useAuth } from '../features/auth/AuthContext';
 
 export function HomeScreen() {
   // Stable connection action copy: >Enter Code< and >Create Code<.
-  const { colors: c } = useAppearance();
+  const { colors: c, mode } = useAppearance();
   const s = makeThemeStyles(c);
 
   const navigation = useNavigation<CompositeNavigationProp<NavigationProp<MainTabParamList>, NavigationProp<RootStackParamList>>>();
@@ -35,10 +33,7 @@ export function HomeScreen() {
   const connections = useConnections();
   const { user } = useAuth();
   const appBlocking = useAppBlocking();
-  const insurance = useInsurance();
-  const insurer = insurance.providerId === 'other' && insurance.customProviderName?.trim() ? { name: insurance.customProviderName.trim() } : insuranceProviders.find(p => p.id === insurance.providerId);
   const unreadCount = family.notifications.filter(item => !item.read).length + appBlocking.notices.filter(item => !item.read).length;
-  const [viewportHeight, setViewportHeight] = useState(780);
   const [calibration, setCalibration] = useState<CalibrationRecord | null>(null);
   useFocusEffect(useCallback(() => { let active = true; void readCalibration().then(value => { if (active) setCalibration(value); }); return () => { active = false; }; }, []));
   const selected = vehicles.find(v => v.primary) ?? vehicles[0];
@@ -46,11 +41,11 @@ export function HomeScreen() {
   const safetyScore = measuredDrives.length ? Math.round(measuredDrives.reduce((sum, item) => sum + item.focusScore, 0) / measuredDrives.length) : 100;
   const blockingPolicy = appBlocking.policyFor(user?.uid, profile.name || 'You');
   const go = (destination?: PlaceResult) => navigation.navigate('DriveMap', destination ? { destination } : undefined);
-  return <ScreenShell edgeToEdge safeAreaColor="#0B3023" onViewportHeight={setViewportHeight}>
-    <View style={{ minHeight: viewportHeight }}>
-    <HomeCockpit name={profile.name} avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} score={safetyScore} measured={measuredDrives.length} active={!!activeSession} unread={unreadCount} onAccount={() => navigation.navigate('Account')} onNotifications={() => navigation.navigate('Notifications')} onActivity={() => navigation.navigate('Activity')} />
+  return <ScreenShell edgeToEdge safeAreaColor={mode === 'dark' ? '#1B2022' : '#0B3023'}>
+    <HomeCockpit name={profile.name} avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} score={safetyScore} measured={measuredDrives.length} active={!!activeSession} unread={unreadCount} onAccount={() => navigation.navigate('Account')} onNotifications={() => navigation.navigate('Notifications')} onActivity={() => navigation.navigate('Activity')} onInsurance={() => navigation.navigate('InsuranceConnection')} />
     <View style={{ paddingHorizontal: 22, gap: 12 }}>
     <MotionPressable accessibilityLabel="Choose a destination" style={[s.search, { marginTop: -32, minHeight: 68, borderRadius: 16 }]} onPress={() => go()}><Ionicons name="search-outline" size={23} color={c.text} /><Text style={s.searchText}>Where are you going?</Text><View style={[s.searchArrow, { backgroundColor: '#104C32' }]}><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></View></MotionPressable>
+    <View style={s.saved}>{(['home', 'work'] as const).map(kind => <MotionPressable key={kind} style={s.savedItem} onPress={() => places[kind] ? go(places[kind]) : navigation.navigate('SavedPlace', { kind })} onLongPress={() => navigation.navigate('SavedPlace', { kind })}><View style={s.smallIcon}><Ionicons name={kind === 'home' ? 'home-outline' : 'briefcase-outline'} size={19} color={c.secondaryInk} /></View><View style={s.fill}><Text style={s.label}>{kind === 'home' ? 'Home' : 'Work'}</Text><Text numberOfLines={1} style={s.meta}>{places[kind]?.title ?? 'Set address'}</Text></View></MotionPressable>)}</View>
     <MotionPressable accessibilityLabel="Ask Cubo Assistant" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, minHeight: 76, borderRadius: 16, backgroundColor: c.accentSoft }} onPress={() => navigation.navigate('CuboAI')}><View pointerEvents="none" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="sparkles-outline" size={25} color={c.accent} /><View style={s.fill}><Text style={[s.label, { fontSize: 16 }]}>Ask Cubo Assistant</Text><Text style={s.meta}>Your drive, your questions. Just ask.</Text></View><Ionicons name="pulse-outline" size={24} color={c.accent} /></View></MotionPressable>
     <View style={{ flexDirection: 'row', paddingVertical: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
       {([
@@ -59,22 +54,14 @@ export function HomeScreen() {
         { icon: 'shield-checkmark-outline', title: 'Blocked Apps', status: blockingPolicy.enabled ? 'Configured' : 'Optional', onPress: () => navigation.navigate('AppBlocking') },
       ] as const).map(item => <MotionPressable key={item.title} accessibilityLabel={item.title + ': ' + item.status} onPress={item.onPress} style={{ flex: 1, alignItems: 'center', gap: 5 }}><View style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: c.secondarySurface }}><Ionicons name={item.icon} size={21} color={c.accent} /></View><Text style={[s.label, { fontSize: 12 }]}>{item.title}</Text><Text style={[s.meta, { marginTop: 0 }]}>{item.status}</Text></MotionPressable>)}
     </View>
-    </View></View>
-    <View style={{ paddingHorizontal: 22, gap: 12 }}>
-    <View style={s.saved}>{(['home', 'work'] as const).map(kind => <MotionPressable key={kind} style={s.savedItem} onPress={() => places[kind] ? go(places[kind]) : navigation.navigate('SavedPlace', { kind })} onLongPress={() => navigation.navigate('SavedPlace', { kind })}><View style={s.smallIcon}><Ionicons name={kind === 'home' ? 'home-outline' : 'briefcase-outline'} size={19} color={c.secondaryInk} /></View><View style={s.fill}><Text style={s.label}>{kind === 'home' ? 'Home' : 'Work'}</Text><Text numberOfLines={1} style={s.meta}>{places[kind]?.title ?? 'Set address'}</Text></View></MotionPressable>)}</View>
 
-    <View style={s.sectionHeader}><View><Text style={s.section}>Drive setup</Text><Text style={s.sectionHint}>Your active vehicle and essentials.</Text></View><MotionPressable onPress={() => navigation.navigate('Garage')}><Text style={s.link}>Garage</Text></MotionPressable></View>
+    <View style={s.sectionHeader}><View><Text style={s.section}>Your Garage</Text><Text style={s.sectionHint}>Your active vehicle and essentials.</Text></View><MotionPressable onPress={() => navigation.navigate('Garage')}><Text style={s.link}>Manage</Text></MotionPressable></View>
     {selected ? <View style={s.vehicleStage}><View style={s.vehicleGlow} /><View style={s.vehicleStageCopy}><View style={s.activePill}><View style={s.activeDot} /><Text style={s.activePillText}>ACTIVE VEHICLE</Text></View><Text style={s.vehicleStageTitle}>{selected.make} {selected.model}</Text><Text style={s.vehicleStageMeta}>{selected.year || 'Year not set'} · {selected.plate || selected.nickname}</Text><MotionPressable accessibilityLabel={`View ${selected.make} ${selected.model}`} style={s.vehicleStageAction} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: selected.id })}><Text style={s.vehicleStageActionText}>View vehicle</Text><Ionicons name="arrow-forward" size={16} color={c.featureActionText} /></MotionPressable></View><View style={s.vehicleStageArt}><VehicleArt make={selected.make} model={selected.model} paint={selected.paint} width={185} height={112} /></View></View> : <MotionPressable style={s.connectionEmpty} onPress={() => navigation.navigate('AddVehicle')}><View style={s.connectionEmptyIcon}><Ionicons name="car-sport-outline" size={22} color={c.accent} /></View><View style={s.fill}><Text style={s.calibrationTitle}>Add your first vehicle</Text><Text style={s.calibrationMeta}>Choose the car you use for drives.</Text></View><Ionicons name="arrow-forward" size={18} color={c.accent} /></MotionPressable>}
     {vehicles.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.vehicleChips}>{vehicles.map(vehicle => <MotionPressable key={vehicle.id} accessibilityLabel={`Select ${vehicle.make} ${vehicle.model}`} accessibilityState={{ selected: vehicle.id === selected?.id }} style={[s.vehicleChip, vehicle.id === selected?.id && s.vehicleChipSelected]} onPress={() => setPrimary(vehicle.id)}><VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} width={58} height={38} /><Text numberOfLines={1} style={[s.vehicleChipText, vehicle.id === selected?.id && { color: c.accent }]}>{vehicle.model}</Text></MotionPressable>)}</ScrollView> : null}
 
     <View style={s.sectionHeader}><View><Text style={s.section}>Family / Friends</Text><Text style={s.sectionHint}>Family oversight and optional friend sharing.</Text></View><MotionPressable onPress={() => navigation.navigate('Connections')}><Text style={s.link}>Manage</Text></MotionPressable></View>
     <View style={s.circlePanel}>{connections.connections.length ? <View style={s.peopleRow}>{connections.connections.slice(0, 5).map((item, index) => { const mine = item.ownerUid === user?.uid; const name = mine ? item.memberName : item.ownerName; const avatarId = mine ? item.memberAvatarId : item.ownerAvatarId; const otherUid = mine ? item.memberUid : item.ownerUid; return <MotionPressable key={item.id} accessibilityLabel={`View ${name}'s profile`} style={[s.person, index > 0 && { marginLeft: -10 }]} onPress={() => navigation.navigate('ConnectionProfile', { connectionId: item.id })}><ProfileAvatar avatarId={avatarId} uid={otherUid} size={50} rounded={item.kind === 'friend'} /></MotionPressable>; })}<View style={s.circleCopy}><Text style={s.calibrationTitle}>{connections.connections.length} connected</Text><Text style={s.calibrationMeta}>Tap Manage to review sharing and controls.</Text></View></View> : <View style={s.peopleRow}><View style={s.connectionEmptyIcon}><Ionicons name="people-outline" size={22} color={c.accent} /></View><View style={s.circleCopy}><Text style={s.calibrationTitle}>No one connected yet</Text><Text style={s.calibrationMeta}>Codes link real CUBO accounts with approval.</Text></View></View>}<View style={s.joinActions}><MotionPressable style={s.joinPrimary} onPress={() => navigation.navigate('Connections', { action: 'enter' })}><Ionicons name="keypad-outline" size={18} color={c.onAccent} /><Text style={s.joinPrimaryText}>Enter code</Text></MotionPressable><MotionPressable style={s.joinSecondary} onPress={() => navigation.navigate('Connections', { action: 'create' })}><Ionicons name="add-circle-outline" size={18} color={c.accent} /><Text style={s.joinSecondaryText}>Create code</Text></MotionPressable></View></View>
 
-    <View style={s.sectionHeader}><View><Text style={s.section}>Drive services</Text><Text style={s.sectionHint}>One place for setup and connected benefits.</Text></View></View>
-    <View style={s.serviceGroup}>
-      <MotionPressable style={s.serviceRow} onPress={() => navigation.navigate('CameraCalibration')}><View style={s.calibrationIcon}><Ionicons name={calibration ? 'checkmark' : 'scan-outline'} size={20} color={c.accent} /></View><View style={s.fill}><Text style={s.calibrationTitle}>Camera Calibration</Text><Text style={s.calibrationMeta}>{calibration ? `Ready · updated ${new Date(calibration.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'Set your driver and cabin frame'}</Text></View>{calibration ? <View style={s.readyPill}><Text style={s.readyText}>READY</Text></View> : <Ionicons name="chevron-forward" size={18} color={c.textTertiary} />}</MotionPressable>
-      <MotionPressable accessibilityLabel="Insurance" style={[s.serviceRow, s.serviceBorder]} onPress={() => navigation.navigate('InsuranceConnection')}><InsurerLogo id={insurance.providerId} /><View style={s.fill}><Text style={s.calibrationTitle}>Insurance</Text><Text style={s.calibrationMeta}>{insurer ? `${insurer.name} · savings & reports` : 'Explore savings & choose your insurer'}</Text></View><Ionicons name="chevron-forward" size={18} color={c.textTertiary} /></MotionPressable>
-    </View>
     </View>
   </ScreenShell>;
 }

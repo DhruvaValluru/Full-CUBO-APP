@@ -1,11 +1,11 @@
 ---
 name: CUBO
-description: A calm driving cockpit with a forest safety field, a live map, and clear actions.
+description: A calm driving cockpit with a charcoal cabin, restrained green signals, a live map, and clear actions.
 colors:
   signal-green: "#087D52"
   signal-green-dark: "#63CF93"
-  forest-cabin: "#07130E"
-  forest-surface: "#0F2119"
+  charcoal-cabin: "#101315"
+  charcoal-surface: "#191D1F"
   cockpit-top: "#0B3023"
   cockpit-middle: "#0E4A2D"
   cockpit-bottom: "#072B1C"
@@ -36,9 +36,9 @@ typography:
     letterSpacing: "-3px"
   wordmark:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "43px"
-    fontWeight: 500
-    letterSpacing: "5px"
+    fontSize: "42px"
+    fontWeight: 700
+    letterSpacing: "4.2px"
   headline:
     fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "29px"
@@ -127,7 +127,7 @@ components:
   safety-field:
     textColor: "{colors.mineral-surface}"
     padding: "22px 24px 54px"
-    height: "422px"
+    height: "438px"
   assistant-action:
     backgroundColor: "{colors.signal-wash}"
     textColor: "{colors.graphite-ink}"
@@ -144,12 +144,12 @@ components:
 
 CUBO treats each screen like a composed vehicle cabin: the state a driver needs now is dominant, while supporting controls remain calm, predictable, and close to the hand. A broad forest field gives safety readiness its own space; the live map gives destination selection its own canvas. Strong hierarchy, real account data, and explicit actions define the experience.
 
-The visual system pairs mineral light surfaces with green-black dark surfaces, a luminous score ring, and quiet typography. Photography is concentrated in the dusk welcome scene. Home and Account use forest headers in both appearances; the controls beneath them follow the selected theme. The approved compositions in `.impeccable/mocks/approved/` and `docs/mockup-fidelity-2026-10-22.md` govern these surfaces. The mockups' names, addresses, scores, and map contents are examples, not product data.
+The visual system pairs mineral light surfaces with neutral charcoal dark surfaces, a luminous score ring, and quiet typography. Photography is concentrated in the dusk welcome scene. Home uses a charcoal cockpit in dark appearance and the established forest field in light appearance; controls beneath it follow the selected theme. The approved compositions in `.impeccable/mocks/approved/` and `docs/mockup-fidelity-2026-10-22.md` govern these surfaces. The mockups' names, addresses, scores, and map contents are examples, not product data.
 
 **Key Characteristics:**
 
-- A full-width forest safety field with a luminous, data-driven score ring.
-- Mineral light surfaces, forest dark surfaces, and clear semantic accents.
+- A full-width cockpit field with horizontally paged safety-score and potential-savings rings.
+- Mineral light surfaces, charcoal dark surfaces, and clear semantic green accents.
 - A destination action across Home's boundary and one unified idle Map sheet.
 - Five floating destinations: Home, Map, Activity, Garage, Account.
 - Real photographic atmosphere with semantic text and actions.
@@ -176,7 +176,7 @@ The palette separates deep forest atmosphere, bright score-ring emphasis, quiet 
 
 - **Mineral Road / Surface / Muted**: light page field, white containers, and quiet search-field fill.
 - **Graphite / Quiet Ink**: primary and supporting light-mode content.
-- **Forest Cabin / Surface**: dark page field and cards; **Forest Ink / Quiet Ink** carry their text.
+- **Charcoal Cabin / Surface**: dark page field and cards; light neutral ink carries their text.
 - **Mineral Border / Strong Border**: low-contrast boundaries; **Signal Wash** supports assistant and state surfaces.
 
 **The Forest and Signal Rule.** Forest may fill the dominant header; the bright ring is reserved for the score, and ordinary controls use the theme accent.
@@ -185,7 +185,7 @@ The palette separates deep forest atmosphere, bright score-ring emphasis, quiet 
 
 Manrope weights 400, 500, 600, 700, and 800 are loaded in `App.tsx`. Explicit Manrope roles coexist with system text in supporting rows; `theme.ts` does not globally apply Manrope. The frontmatter records actual roles, not a fabricated universal type scale.
 
-The score uses the display role with tabular numerals. Home's first name uses headline; its readiness statement uses readiness. The welcome wordmark uses the lighter, tracked wordmark role, while its tagline is regular Manrope (20px). Account's title is extra-bold Manrope (32px). Destination input is semibold; Home's matching destination action is bold at the same size. Calibration titles and their supporting copy supply the title and body roles. Navigation labels use the label role, rising to weight 800 when selected.
+The score uses the display role with tabular numerals. Home's first name uses headline; its readiness statement uses readiness. The welcome wordmark is all-white bold Manrope with deliberate tracking, while its tagline reads “Personal Drive Assistant.” Account's title is extra-bold Manrope (32px). Destination input is semibold; Home's matching destination action is bold at the same size. Calibration titles and their supporting copy supply the title and body roles. Navigation labels use the label role, rising to weight 800 when selected.
 
 **The Glance Rule.** The important number or action reads before supporting copy; labels remain subordinate to the primary state.
 
@@ -193,7 +193,7 @@ The score uses the display role with tabular numerals. Home's first name uses he
 
 Portrait mobile is primary. Shared spacing comes from `src/theme/theme.ts`; the shell normally uses 20px horizontal padding and 125px bottom scroll clearance. Home and Account opt into edge-to-edge headers and 22px body gutters.
 
-Home's forest field has a 422px minimum height and no enclosing small-card silhouette. Its ring occupies a 252px square, with the scored stroke on a 105px radius. A 68px-high destination action overlaps the field's lower boundary by 32px. Assistant and three readiness controls follow. The leading Home region fills at least the available viewport; saved places, vehicles, and connections remain further down the page.
+Home's cockpit field has a 438px minimum height and no enclosing small-card silhouette. Its horizontally paged rings occupy 252px squares: the first opens Activity, and the clearly labeled illustrative savings preview opens Insurance. A 68px-high destination action overlaps the field's lower boundary by 32px. Saved Home and Work destinations sit immediately below it, before Assistant and three readiness controls. Home does not force the leading region to fill a viewport, so no artificial blank area separates readiness from Your Garage.
 
 Map is full-bleed. Its idle destination sheet uses 12px outer gutters, 28px corners, and 18px internal horizontal padding. Search, saved places, real recent destinations, permission messages, route preview, and Start drive share that sheet. On the Map tab the overlay reserves 100px below it for navigation. The idle sheet is scrollable and capped at `max(100, height - topInset - bottomInset - bottomReserve - 190)`, where bottomReserve is 100 on the Map tab and 12 on the separate DriveMap screen. Below 680px measured height, Notifications, Account, Assistant, and Locate form one four-button utility row. Taller layouts place Assistant and Locate above the measured sheet height. These adaptations concern idle Map; active-drive controls retain their existing behavior.
 
@@ -201,7 +201,7 @@ The idle Map sheet has two deliberate detents. Its compact detent leaves the des
 
 Welcome fills the viewport with the dusk background plate using cover sizing. Identity starts at 21% from the top; actions sit 8% from the bottom with 8% side gutters. Account extends the forest-header/mineral-body relationship and uses grouped settings rows.
 
-The rest of the product follows the same system rather than reverting to the previous card grid. Activity uses one dominant score field followed by compact metrics and a timeline-like trip list. Garage makes the selected vehicle the focal object, then uses a restrained inventory list. Family/Friends leads with relationship and permission status before code or management controls. Address search and settings-detail screens use the shared forest header, a single focused work surface, and flat grouped rows. Home keeps one drive-setup stage, one connection stage, and one service group below the cockpit instead of stacking equal-weight promotional cards.
+The rest of the product follows the same system rather than reverting to the previous card grid. Activity uses one dominant score field followed by compact metrics and a timeline-like trip list. Garage makes the selected vehicle the focal object in a charcoal stage, then uses a restrained inventory list. Family/Friends leads with relationship and permission status before code or management controls. Address search and settings-detail screens use a single focused work surface and flat grouped rows. Home keeps one Your Garage stage and one connection stage below the cockpit; Drive Services remains on its dedicated screens rather than repeating on Home.
 
 Web uses full-screen layout below 600px viewport width, or on a coarse-pointer phone whose shorter physical screen dimension is below 600px. Wider desktop views use the existing 340 × 780 preview shell, capped at 90vh. These are distinct width and height conditions, not interchangeable breakpoints. Preserve child ancestry across resizing so account and drive state are not remounted.
 
@@ -243,9 +243,9 @@ The Map destination field lives inside a 58px minimum-height muted row with 16px
 
 Five equal destinations appear in this order: Home, Map, Activity, Garage, Account. The bar has 14px side offsets, 72px minimum height, 26px corners, and 54px minimum-height items. Its bottom offset is the greater of the safe inset and 12px. Selection changes icon fill, accent color, and label weight; both item and icon-shell backgrounds remain transparent in the current implementation. An active drive hides the bar.
 
-### Safety Field
+### Safety and Savings Carousel
 
-The ring displays the average score from attention-measured drives, or 100 with the Starter safety score label when no measured drives exist. Its stroke reflects the clamped 0–100 score. Greeting, avatar, unread notification count, and active-drive status use live state. Camera readiness reflects stored calibration; Location says On demand; Blocked Apps says Configured or Optional. Preserve those distinctions.
+The first ring displays the average score from attention-measured drives, or 100 with the Starter safety score label when no measured drives exist. Its stroke reflects the clamped 0–100 score. The second ring is explicitly labeled as an illustrative potential premium saving and links to Insurance; it is not presented as money already earned. Greeting, avatar, unread notification count, and active-drive status use live state. Camera readiness reflects stored calibration; Location says On demand; Blocked Apps says Configured or Optional. Preserve those distinctions.
 
 ### Welcome and Account
 

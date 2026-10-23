@@ -38,7 +38,8 @@ test('shared welcome flow replaces instant screen swap and supports reduced moti
 test('approved cinematic welcome has real direct sign-in and signup controls', () => {
   const screen = read('src/screens/WelcomeScreen.tsx');
   const flow = read('src/screens/WelcomeFlow.tsx');
-  assert.match(screen, /Your drive, understood/);
+  assert.match(screen, /Personal Drive Assistant/);
+  assert.match(screen, /style=\{s.wordmark\}>CUBO<\/Text>/);
   assert.match(screen, /onChooseMode\('login'\)/);
   assert.match(screen, /onChooseMode\('signup'\)/);
   assert.match(flow, /setAuthMode\(mode\); navigate\(true\)/);

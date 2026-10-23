@@ -13,6 +13,12 @@ test('Home uses the approved full-width cockpit with live account score and acti
   assert.match(home, /Where are you going\?/);
   assert.match(home, /Location', status: 'On demand'/);
   assert.match(home, /blockingPolicy.enabled \? 'Configured' : 'Optional'/);
+  assert.ok(home.indexOf('style={s.saved}') < home.indexOf('Ask Cubo Assistant'));
+  assert.match(home, />Your Garage<\/Text>/);
+  assert.match(home, /onInsurance=\{\(\) => navigation\.navigate\('InsuranceConnection'\)\}/);
+  assert.doesNotMatch(home, />Drive services<\/Text>/i);
+  assert.match(cockpit, /horizontal pagingEnabled/);
+  assert.match(cockpit, /Potential premium savings/);
   assert.doesNotMatch(home, /apps blocked|Location On/);
 });
 
@@ -31,8 +37,9 @@ test('idle map has one destination sheet, saved places and no unhelpful back-hom
   assert.match(map, /maxHeight: idleSheetMaxHeight/);
   assert.match(map, /const idleSheetCollapsedHeight = 96/);
   assert.match(map, /setIdleSheetExpanded\(true\)/);
-  assert.match(map, /accessibilityLabel=\{idleSheetExpanded \? 'Collapse destination panel' : 'Expand destination panel'\}/);
+  assert.match(map, /accessibilityLabel=\{idleSheetExpanded \? 'Swipe down or tap to collapse destination panel' : 'Swipe up or tap to expand destination panel'\}/);
   assert.match(map, /\.\.\.idleSheetPan\.panHandlers/);
+  assert.match(map, /onMoveShouldSetPanResponderCapture/);
   assert.match(map, /bottomCard: \{[^}]*overflow: 'hidden'/);
   assert.match(map, /duration: reducedMotion \? 0 : 300/);
   assert.match(map, /activeSession \? children : <ScrollView/);
