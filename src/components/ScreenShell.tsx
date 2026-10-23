@@ -9,16 +9,13 @@ type ScreenShellProps = {
   children: ReactNode;
   scrollable?: boolean;
   tone?: 'app' | 'dark';
-  edgeToEdge?: boolean;
-  safeAreaColor?: string;
-  onViewportHeight?: (height: number) => void;
 };
 
-export const ScreenShell = ({ children, scrollable = true, tone = 'app', edgeToEdge = false, safeAreaColor, onViewportHeight }: ScreenShellProps) => {
+export const ScreenShell = ({ children, scrollable = true, tone = 'app' }: ScreenShellProps) => {
   const { colors } = useAppearance();
   const backgroundColor = colors.background;
   const content = scrollable ? (
-    <ScrollView onLayout={event => onViewportHeight?.(event.nativeEvent.layout.height)} style={{ backgroundColor }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.scrollContent, edgeToEdge && { paddingHorizontal: 0, paddingTop: 0, gap: 0 }]} showsVerticalScrollIndicator={false}>
+    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       {children}
     </ScrollView>
   ) : (
@@ -27,7 +24,7 @@ export const ScreenShell = ({ children, scrollable = true, tone = 'app', edgeToE
 
   return (
     <View style={[styles.root, { backgroundColor }]}>
-      <SafeAreaView edges={['top']} style={[styles.safeArea, safeAreaColor ? { backgroundColor: safeAreaColor } : undefined]}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
         {content}
       </SafeAreaView>
     </View>
@@ -45,7 +42,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: 125,
-    gap: 12,
+    gap: spacing.sm,
   },
   fixedContent: {
     flex: 1,

@@ -109,8 +109,7 @@ test('cartoon avatars replace initials and identity changes sync only to connect
   assert.match(picker, /AVATAR_IDS\.map/);
   assert.match(profile, /ownerName: name, ownerAvatarId: avatarId/);
   assert.match(profile, /memberName: name, memberAvatarId: avatarId/);
-  assert.match(home, /<HomeCockpit name=\{profile\.name\} avatarId=\{profile\.avatarId\}/);
-  assert.match(fs.readFileSync('src/components/HomeCockpit.tsx', 'utf8'), /<ProfileAvatar avatarId=\{p\.avatarId\} photoUri=\{p\.photoUri\} uid=\{p\.uid\}/);
+  assert.match(home, /<ProfileAvatar avatarId=\{profile\.avatarId\}/);
   assert.match(family, /<ProfileAvatar avatarId=\{avatarId\}/);
   assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['ownerName', 'ownerAvatarId', 'updatedAt'\]\)/);
   assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['memberName', 'memberAvatarId', 'updatedAt'\]\)/);

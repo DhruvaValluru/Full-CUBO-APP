@@ -313,7 +313,7 @@ const makeStyles = (c: ReturnType<typeof authTheme>) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.background },
   safe: { flex: 1 },
   flex: { flex: 1 },
-  content: { flexGrow: 1, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 8, paddingBottom: 32, boxSizing: 'border-box' as any },
+  content: { flexGrow: 1, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 8, paddingBottom: 32 },
   back: {
     width: 44,
     height: 44,

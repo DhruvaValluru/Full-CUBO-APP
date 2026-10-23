@@ -60,7 +60,6 @@ id_ecdsa
 id_ed25519
 
 # Local test exports, screenshots, and service debug logs
-/.impeccable/review/fidelity/
 /dist-*-check/
 /cubo-*-preview.png
 firebase-debug.log*

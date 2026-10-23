@@ -62,8 +62,7 @@ test('switching accounts during Google setup returns directly to regular signup'
   assert.match(auth, /setSignedOutDestination\('signup'\)/);
   assert.match(auth, /useDifferentAccount/);
   assert.match(app, /signedOutDestination === 'signup' \? 'signup'/);
-  assert.match(flow, /useState<'login' \| 'signup'>\(initialMode \?\? 'login'\)/);
-  assert.match(flow, /<AuthScreen initialMode=\{authMode\}/);
+  assert.match(flow, /<AuthScreen initialMode=\{initialMode\}/);
 });
 
 test('optional phone numbers remain valid through client, cloud rules, and profile editing', () => {

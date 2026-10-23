@@ -18,7 +18,7 @@ function tabHarness({ index = 0, activeSession = null, prevented = false } = {})
   const m = { exports: {} };
   const code = ts.transpileModule(read('src/components/TabBar.tsx'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText;
   new Function('require', 'module', 'exports', code)(id => { assert.ok(deps[id], id); return deps[id]; }, m, m.exports);
-  const routes = ['Home', 'Map', 'Activity', 'Garage', 'Account'].map(name => ({ name, key: name + '-key' }));
+  const routes = ['Home', 'Map', 'Activity', 'Account'].map(name => ({ name, key: name + '-key' }));
   const view = m.exports.TabBar({
     state: { index, routes },
     navigation: {
@@ -29,8 +29,8 @@ function tabHarness({ index = 0, activeSession = null, prevented = false } = {})
   return { calls, view, buttons: view?.props.children };
 }
 test('every bottom tab remains reachable and selects only its intended route', () => {
-  for (let current = 0; current < 5; current++) {
-    for (let target = 0; target < 5; target++) {
+  for (let current = 0; current < 4; current++) {
+    for (let target = 0; target < 4; target++) {
       const { buttons, calls, view } = tabHarness({ index: current });
       assert.equal(view.props.pointerEvents, undefined);
       assert.equal(view.props.style[1].bottom, 34);

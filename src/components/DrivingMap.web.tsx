@@ -61,10 +61,7 @@ export default forwardRef<MapView, Props>(function DrivingMap(props, ref) {
     setMap(null); setError('');
     const timer = setTimeout(() => { if (live) setError('Map is taking longer than expected. Check your connection.'); }, 20000);
     try {
-      // Normalize fractional browser zoom ratios and cap the map's drawing buffer.
-      // This avoids subpixel resize churn and saves GPU memory on 3x phone screens.
-      const pixelRatio = Math.max(1, Math.min(2, Math.round(window.devicePixelRatio || 1)));
-      current = new LibreMap({ container: host.current, pixelRatio, style: `https://tiles.openfreemap.org/styles/${props.userInterfaceStyle === 'dark' ? 'dark' : 'liberty'}`, center: coords(props.initialRegion), zoom: 13, attributionControl: false, interactive: props.interactive ?? true });
+      current = new LibreMap({ container: host.current, style: `https://tiles.openfreemap.org/styles/${props.userInterfaceStyle === 'dark' ? 'dark' : 'liberty'}`, center: coords(props.initialRegion), zoom: 13, attributionControl: false, interactive: props.interactive ?? true });
       instance.current = current;
       current.addControl(new AttributionControl({ compact: true }), 'top-left');
       current.on('styleimagemissing', event => {

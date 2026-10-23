@@ -7,4 +7,4 @@ export function SurfaceCard({ children, style, tone = 'app' }: { children: React
   return <View style={[styles.root, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }, style]}>{children}</View>;
 }
 
-const styles = StyleSheet.create({ root: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 18, shadowOpacity: 0.055, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 1 } });
+const styles = StyleSheet.create({ root: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 16, shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 2 } });

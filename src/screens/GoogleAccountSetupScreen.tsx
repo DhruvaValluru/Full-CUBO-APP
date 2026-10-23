@@ -85,7 +85,7 @@ export function GoogleAccountSetupScreen() {
 
 const makeStyles = (c: ReturnType<typeof authTheme>) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.background }, safe: { flex: 1 },
-  content: { flexGrow: 1, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 28, paddingBottom: 32, boxSizing: 'border-box' as any },
+  content: { flexGrow: 1, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 28, paddingBottom: 32 },
   title: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 36, lineHeight: 40, letterSpacing: -1.1, maxWidth: 390 },
   subtitle: { color: c.textSecondary, fontFamily: 'Manrope_400Regular', fontSize: 14, lineHeight: 21, marginTop: 12 },
   googleAccount: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, marginTop: 24, borderRadius: 16, borderWidth: 1, borderColor: c.borderStrong, backgroundColor: c.card },

@@ -1,87 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
-import { ConfirmSheet } from '../components/ConfirmSheet';
-import { MotionPressable } from '../components/MotionPressable';
-import { Reveal } from '../components/Reveal';
 import { ScreenShell } from '../components/ScreenShell';
+import { SurfaceCard } from '../components/SurfaceCard';
 import { VehicleArt } from '../components/VehicleArt';
 import { VehicleColorSheet } from '../components/VehicleColorSheet';
 import { useVehicles } from '../features/vehicles/VehicleContext';
 import type { RootStackParamList } from '../navigation/types';
 import { useAppearance } from '../theme/AppearanceContext';
 import type { AppColors } from '../theme/colors';
+import { spacing } from '../theme/theme';
 
 export function GarageScreen() {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { vehicles, setPrimary, deleteVehicle, updateVehicle } = useVehicles();
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>(); const { vehicles, setPrimary, deleteVehicle, updateVehicle } = useVehicles(); const [confirmDelete, setConfirmDelete] = useState<string | null>(null); const { colors } = useAppearance(); const styles = useMemo(() => makeStyles(colors), [colors]);
   const [colorVehicleId, setColorVehicleId] = useState<string | null>(null);
-  const { colors } = useAppearance();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const selected = vehicles.find(vehicle => vehicle.primary) ?? vehicles[0];
   const colorVehicle = vehicles.find(vehicle => vehicle.id === colorVehicleId);
-
-  return <ScreenShell>
-    <AppHeader title="Garage" eyebrow="Select, personalize, and manage your vehicles." onBack={navigation.getState().type === 'tab' ? undefined : () => navigation.goBack()} />
-    {selected ? <Reveal><View style={styles.stage}>
-      <View style={styles.stageGlow} />
-      <View style={styles.stageTop}><View style={styles.selectedPill}><View style={styles.liveDot} /><Text style={styles.selectedText}>SELECTED VEHICLE</Text></View><MotionPressable accessibilityLabel={`Change color for ${selected.make} ${selected.model}`} style={styles.paintButton} onPress={() => setColorVehicleId(selected.id)}><Ionicons name="color-palette-outline" size={19} color="#FFFFFF" /></MotionPressable></View>
-      <View style={styles.heroVehicle}><VehicleArt make={selected.make} model={selected.model} paint={selected.paint} width={260} height={142} /></View>
-      <View style={styles.stageFooter}><View style={styles.fill}><Text style={styles.heroTitle}>{selected.make} {selected.model}</Text><Text style={styles.heroMeta}>{selected.year || 'Year not set'} · {selected.plate || selected.nickname}</Text></View><MotionPressable accessibilityLabel={`View ${selected.make} ${selected.model}`} style={styles.openButton} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: selected.id })}><Ionicons name="arrow-forward" size={20} color={colors.featureActionText} /></MotionPressable></View>
-    </View></Reveal> : <View style={styles.emptyStage}><Ionicons name="car-sport-outline" size={38} color={colors.accent} /><Text style={styles.emptyTitle}>Make this garage yours</Text><Text style={styles.emptyBody}>Add a vehicle to unlock driving, calibration, and activity.</Text></View>}
-
-    <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Your vehicles</Text><Text style={styles.sectionHint}>{vehicles.length} saved</Text></View><MotionPressable accessibilityLabel="Add vehicle" style={styles.addSmall} onPress={() => navigation.navigate('AddVehicle')}><Ionicons name="add" size={21} color={colors.onAccent} /></MotionPressable></View>
-    <View style={styles.vehicleList}>{vehicles.map(vehicle => <View key={vehicle.id} style={[styles.vehicleRow, vehicle.primary && styles.vehicleRowSelected]}>
-      <MotionPressable accessibilityLabel={`Change color for ${vehicle.make} ${vehicle.model}`} style={styles.thumbnail} onPress={() => setColorVehicleId(vehicle.id)}><VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} width={82} height={56} /></MotionPressable>
-      <View style={styles.fill}><Text style={styles.vehicleTitle}>{vehicle.make} {vehicle.model}</Text><Text style={styles.detail}>{vehicle.year || 'Year not set'} · {vehicle.plate || vehicle.nickname}</Text>{vehicle.primary ? <Text style={styles.activeLabel}>ACTIVE FOR DRIVES</Text> : null}</View>
-      {!vehicle.primary ? <MotionPressable accessibilityLabel={`Select ${vehicle.make} ${vehicle.model}`} style={styles.selectButton} onPress={() => setPrimary(vehicle.id)}><Text style={styles.selectText}>Select</Text></MotionPressable> : null}
-      <MotionPressable accessibilityLabel={`View vehicle details for ${vehicle.make} ${vehicle.model}`} style={styles.rowAction} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: vehicle.id })}><Ionicons name="chevron-forward" size={18} color={colors.textSecondary} /></MotionPressable>
-      <MotionPressable accessibilityLabel={`Remove ${vehicle.make} ${vehicle.model}`} style={styles.deleteAction} onPress={() => setConfirmDelete(vehicle.id)}><Ionicons name="trash-outline" size={17} color={colors.danger} /></MotionPressable>
-    </View>)}</View>
-    <MotionPressable accessibilityLabel="Add another vehicle" style={styles.addVehicle} onPress={() => navigation.navigate('AddVehicle')}><View style={styles.addIcon}><Ionicons name="add" size={22} color={colors.accent} /></View><View style={styles.fill}><Text style={styles.addTitle}>Add another vehicle</Text><Text style={styles.detail}>Save its identity, color, and plate.</Text></View><Ionicons name="arrow-forward" size={18} color={colors.accent} /></MotionPressable>
-
-    <ConfirmSheet visible={confirmDelete !== null} title="Remove this vehicle?" body="The vehicle will leave your garage. Existing trip history remains available." confirmLabel="Remove vehicle" onCancel={() => setConfirmDelete(null)} onConfirm={() => { if (confirmDelete) deleteVehicle(confirmDelete); setConfirmDelete(null); }} />
-    {colorVehicle ? <VehicleColorSheet key={colorVehicle.id} vehicle={colorVehicle} onClose={() => setColorVehicleId(null)} onSave={paint => { const { id, primary, ...details } = colorVehicle; updateVehicle(id, { ...details, paint }); setColorVehicleId(null); }} /> : null}
+  return <ScreenShell><AppHeader title="Your garage" eyebrow="Vehicles" onBack={() => navigation.goBack()} /><Text style={styles.subtitle}>Manage your saved vehicles.</Text>
+    <View style={styles.sectionRow}><Text style={styles.section}>Saved vehicles</Text><Text style={styles.count}>{vehicles.length}</Text></View>
+    {!vehicles.length ? <SurfaceCard style={styles.empty}><Ionicons name="car-outline" size={28} color={colors.textTertiary} /><Text style={styles.vehicleTitle}>Your garage is empty</Text><Text style={styles.detail}>Add a vehicle to begin a drive.</Text></SurfaceCard> : vehicles.map((vehicle) => <SurfaceCard key={vehicle.id} style={styles.vehicleCard}>
+      <View style={styles.vehicleTop}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Change color for ${vehicle.make} ${vehicle.model}`} onPress={() => setColorVehicleId(vehicle.id)} style={{ width: 76, height: 68, borderRadius: 16, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <VehicleArt make={vehicle.make} model={vehicle.model} paint={vehicle.paint} width={76} height={56} />
+          <View pointerEvents="none" style={{ position: 'absolute', right: 0, bottom: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.card, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="pencil" size={13} color={colors.onAccent} /></View>
+        </Pressable>
+        <View style={styles.fill}><Text style={styles.vehicleTitle}>{vehicle.make} {vehicle.model}</Text><Text style={styles.detail}>{vehicle.year || 'Year not set'} · {vehicle.plate || vehicle.nickname}</Text></View>
+        {vehicle.primary ? <View style={styles.primaryPill}><Text style={styles.primaryText}>SELECTED</Text></View> : null}
+      </View>
+      <View style={styles.vehicleActions}>
+        {!vehicle.primary ? <Pressable style={[styles.secondaryButton, { minHeight: 44 }]} onPress={() => setPrimary(vehicle.id)}><Text style={styles.secondaryText}>Select</Text></Pressable> : <View style={styles.primarySpacer} />}
+        <Pressable accessibilityRole="button" accessibilityLabel={`View vehicle details for ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => navigation.navigate('VehicleDetail', { vehicleId: vehicle.id })}><Ionicons name="eye-outline" size={18} color={colors.text} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${vehicle.make} ${vehicle.model}`} style={[styles.iconButton, { width: 44, height: 44 }]} onPress={() => setConfirmDelete(vehicle.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
+      </View>
+      {confirmDelete === vehicle.id ? <View style={styles.confirm}><Text style={styles.confirmText}>Remove {vehicle.make} {vehicle.model}?</Text><Pressable onPress={() => setConfirmDelete(null)}><Text style={styles.cancel}>Cancel</Text></Pressable><Pressable onPress={() => { deleteVehicle(vehicle.id); setConfirmDelete(null); }}><Text style={styles.delete}>Delete</Text></Pressable></View> : null}
+    </SurfaceCard>)}
+    {colorVehicle && <VehicleColorSheet key={colorVehicle.id} vehicle={colorVehicle} onClose={() => setColorVehicleId(null)} onSave={paint => { const { id, primary, ...details } = colorVehicle; updateVehicle(id, { ...details, paint }); setColorVehicleId(null); }} />}
+    <Pressable accessibilityRole="button" accessibilityLabel="Add vehicle" style={{ minHeight: 64, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.accent, backgroundColor: colors.accentSoft, justifyContent: 'center', alignItems: 'center', marginTop: 12 }} onPress={() => navigation.navigate('AddVehicle')}><Ionicons name="add" size={28} color={colors.accent} /></Pressable>
   </ScreenShell>;
 }
 
-const makeStyles = (c: AppColors) => StyleSheet.create({
-  fill: { flex: 1 },
-  stage: { minHeight: 316, borderRadius: 30, padding: 20, overflow: 'hidden', backgroundColor: c.cardElevated, borderWidth: StyleSheet.hairlineWidth, borderColor: c.borderStrong, shadowColor: c.shadow, shadowOpacity: .16, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 6 },
-  stageGlow: { position: 'absolute', width: 290, height: 290, borderRadius: 145, right: -96, top: -110, backgroundColor: 'rgba(148,158,154,.11)' },
-  stageTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  selectedPill: { minHeight: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,.1)', paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.accent },
-  selectedText: { color: c.textSecondary, fontFamily: 'Manrope_800ExtraBold', fontSize: 8, letterSpacing: 1 },
-  paintButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,.11)', alignItems: 'center', justifyContent: 'center' },
-  heroVehicle: { minHeight: 176, alignItems: 'center', justifyContent: 'center' },
-  stageFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heroTitle: { color: '#FFFFFF', fontFamily: 'Manrope_800ExtraBold', fontSize: 25, letterSpacing: -.7 },
-  heroMeta: { color: c.textSecondary, fontSize: 11, marginTop: 4 },
-  openButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.featureAction, alignItems: 'center', justifyContent: 'center' },
-  emptyStage: { minHeight: 240, borderRadius: 28, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 },
-  emptyTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 18, marginTop: 12 },
-  emptyBody: { color: c.textSecondary, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
-  sectionHeader: { marginTop: 18, marginBottom: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 20, letterSpacing: -.4 },
-  sectionHint: { color: c.textSecondary, fontSize: 10, marginTop: 2 },
-  addSmall: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
-  vehicleList: { borderRadius: 24, overflow: 'hidden', backgroundColor: c.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border },
-  vehicleRow: { minHeight: 92, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border },
-  vehicleRowSelected: { backgroundColor: c.accentSoft },
-  thumbnail: { width: 76, height: 62, borderRadius: 16, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
-  vehicleTitle: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 14 },
-  detail: { color: c.textSecondary, fontSize: 10, lineHeight: 15, marginTop: 3 },
-  activeLabel: { color: c.accent, fontFamily: 'Manrope_800ExtraBold', fontSize: 7, letterSpacing: .8, marginTop: 5 },
-  selectButton: { minHeight: 40, paddingHorizontal: 11, borderRadius: 13, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  selectText: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 10 },
-  rowAction: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  deleteAction: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  addVehicle: { minHeight: 78, borderRadius: 22, paddingHorizontal: 15, backgroundColor: c.card, borderWidth: 1, borderStyle: 'dashed', borderColor: c.borderStrong, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  addIcon: { width: 44, height: 44, borderRadius: 16, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  addTitle: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 14 },
-});
+const makeStyles = (c: AppColors) => StyleSheet.create({ add: { width: 38, height: 38, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }, subtitle: { color: c.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: spacing.sm }, deviceHero: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card }, deviceIcon: { width: 50, height: 50, borderRadius: 17, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }, fill: { flex: 1 }, eyebrow: { color: c.accent, fontFamily: 'Manrope_700Bold', fontSize: 8, letterSpacing: 1 }, deviceTitle: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 17, marginTop: 2 }, detail: { color: c.textSecondary, fontSize: 10, marginTop: 4 }, sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }, section: { color: c.text, fontFamily: 'Manrope_800ExtraBold', fontSize: 17 }, count: { color: c.textSecondary, fontSize: 11 }, vehicleCard: { gap: 13, marginTop: 2 }, vehicleTop: { flexDirection: 'row', alignItems: 'center', gap: 11 }, carIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }, vehicleTitle: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 14 }, primaryPill: { backgroundColor: c.successSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 }, primaryText: { color: c.success, fontFamily: 'Manrope_700Bold', fontSize: 8, letterSpacing: .7 }, vehicleActions: { flexDirection: 'row', gap: 8 }, secondaryButton: { flex: 1, minHeight: 38, borderRadius: 12, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }, primarySpacer: { flex: 1 }, secondaryText: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 11 }, iconButton: { width: 40, height: 38, borderRadius: 12, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }, confirm: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border, paddingTop: 12 }, confirmText: { color: c.textSecondary, fontSize: 10, flex: 1 }, cancel: { color: c.text, fontFamily: 'Manrope_700Bold', fontSize: 11 }, delete: { color: c.danger, fontFamily: 'Manrope_700Bold', fontSize: 11 }, ecosystem: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: spacing.sm }, ecosystemIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' }, empty: { alignItems: 'center', gap: 7, paddingVertical: 26 } });

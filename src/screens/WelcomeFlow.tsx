@@ -17,7 +17,6 @@ export function WelcomeFlow({ initialMode, onReturnToWelcome }: Props) {
   const [login, setLogin] = useState(startInAuth);
   const [mounted, setMounted] = useState(startInAuth);
   const [moving, setMoving] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>(initialMode ?? 'login');
 
   const navigate = (next: boolean) => {
     if (locked.current || next === login) return;
@@ -53,11 +52,11 @@ export function WelcomeFlow({ initialMode, onReturnToWelcome }: Props) {
   return <View style={[styles.root, { backgroundColor: colors.background }]}>
     <Animated.View pointerEvents={login || moving ? 'none' : 'auto'} accessibilityElementsHidden={login} importantForAccessibility={login ? 'no-hide-descendants' : 'auto'}
       style={[styles.layer, login && !moving && { display: 'none' }, { opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, reduced ? 0 : -28] }) }] }]}>
-      <WelcomeScreen onChooseMode={mode => { setAuthMode(mode); navigate(true); }} />
+      <WelcomeScreen onGetStarted={() => navigate(true)} />
     </Animated.View>
     {mounted ? <Animated.View pointerEvents={!login || moving ? 'none' : 'auto'} accessibilityElementsHidden={!login} importantForAccessibility={!login ? 'no-hide-descendants' : 'auto'}
       style={[styles.layer, { opacity: progress, transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [reduced ? 0 : 48, 0] }) }] }]}>
-      <AuthScreen initialMode={authMode} onBack={() => { onReturnToWelcome?.(); navigate(false); }} />
+      <AuthScreen initialMode={initialMode} onBack={() => { onReturnToWelcome?.(); navigate(false); }} />
     </Animated.View> : null}
   </View>;
 }

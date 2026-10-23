@@ -99,7 +99,6 @@ const MainTabs = () => {
       <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Map" component={MapScreen} options={{ tabBarLabel: 'Map' }} />
       <Tab.Screen name="Activity" component={DrivesScreen} />
-      <Tab.Screen name="Garage" component={GarageScreen} />
       <Tab.Screen name="Account" component={ProfileScreen} />
     </Tab.Navigator>
   );

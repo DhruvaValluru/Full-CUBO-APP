@@ -3,8 +3,6 @@ import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { LinearGradient } from 'expo-linear-gradient';
-import { MotionPressable } from '../components/MotionPressable';
 import { ScreenShell } from '../components/ScreenShell';
 import { AppInviteSheet } from '../components/AppInviteSheet';
 import { MapSourcePreference } from '../components/MapSourcePreference';
@@ -30,15 +28,15 @@ export function ProfileScreen() {
   const [tripReports, setTripReports] = useState(true);
   const { user, signOut, accountDetails } = useAuth();
 
-  return <ScreenShell edgeToEdge safeAreaColor="#0B3023">
-    <LinearGradient colors={['#0B3023', '#124D32']} style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 30 }}>
-      <View style={[styles.header, { paddingTop: 0 }]}><View><Text style={[styles.title, { color: '#FFFFFF', fontSize: 32 }]}>Account</Text><Text style={[styles.subtitle, { color: '#C5DECD' }]}>Make CUBO yours.</Text></View><MotionPressable accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })} style={[styles.homeButton, { backgroundColor: 'rgba(255,255,255,.1)', borderWidth: 0, borderRadius: 22 }]}><Ionicons name="home-outline" size={20} color="#FFFFFF" /></MotionPressable></View>
-      <MotionPressable accessibilityLabel="Edit profile" onPress={() => navigation.navigate('SettingsDetail', { kind: 'edit' })} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 }}>
-        <ProfileAvatar avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} size={64} rounded />
-        <View style={styles.fill}><Text style={[styles.name, { color: '#FFFFFF', fontSize: 19 }]}>{profile.name}</Text><Text style={{ color: '#C5DECD', marginTop: 5, fontSize: 12 }}>View and edit your profile</Text></View><Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
-      </MotionPressable>
-    </LinearGradient>
-    <View style={{ paddingHorizontal: 22, gap: 8 }}>
+  return <ScreenShell>
+    <View style={styles.header}><View><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Profile and preferences</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Go to Home" onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })} style={styles.homeButton}><Ionicons name="home-outline" size={20} color={colors.accent} /></Pressable></View>
+
+    <View style={styles.identity}>
+      <ProfileAvatar avatarId={profile.avatarId} photoUri={profile.photoUri} uid={user?.uid} size={52} />
+      <View style={styles.fill}><Text style={styles.name}>{profile.name}</Text></View>
+      <Pressable onPress={() => navigation.navigate('SettingsDetail', { kind: 'edit' })}><Text style={styles.action}>Edit</Text></Pressable>
+    </View>
+
     {!accountDetails?.birthDate || !user?.email || !profile.name.trim() ? <View style={styles.group}><Text style={[styles.rowTitle, { paddingTop: 16 }]}>Account details not set</Text><Text style={[styles.rowDetail, { paddingBottom: 16 }]}>Add your missing birth date or name in Edit profile.</Text></View> : null}
     <Text style={styles.section}>Saved Places</Text><View style={styles.group}><SettingsRow icon="home-outline" title="Home Address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'home' })} colors={colors} styles={styles} /><SettingsRow icon="briefcase-outline" title="Work Address" detail="Set or change your saved address" onPress={() => navigation.navigate('SavedPlace', { kind: 'work' })} colors={colors} styles={styles} last /></View>
     <Text style={styles.section}>Connections</Text>
@@ -77,7 +75,6 @@ export function ProfileScreen() {
     </View>
     <Pressable onPress={() => void signOut()} style={styles.signOut}><Ionicons name="log-out-outline" size={18} color={colors.danger} /><View style={styles.fill}><Text style={styles.signOutText}>Log Out</Text><Text style={styles.rowDetail}>{user?.email}</Text></View></Pressable>
     {inviteOpen ? <AppInviteSheet name={profile.name} onClose={() => setInviteOpen(false)} /> : null}
-    </View>
   </ScreenShell>;
 }
 
@@ -93,6 +90,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   header: { paddingTop: spacing.lg, paddingBottom: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, homeButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }, title: { color: colors.text, fontSize: 28, fontWeight: '800', fontFamily: 'Manrope_800ExtraBold', letterSpacing: -0.8 }, subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 4 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: spacing.lg, borderRadius: 20, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   avatar: { width: 52, height: 52, borderRadius: 18, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' }, avatarText: { color: colors.accent, fontWeight: '800' }, fill: { flex: 1 }, name: { color: colors.text, fontSize: 16, fontFamily: 'Manrope_700Bold', fontWeight: '700' }, meta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 }, action: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  section: { color: colors.text, fontSize: 15, fontFamily: 'Manrope_700Bold', marginTop: spacing.lg, marginBottom: 4 },
-  group: { borderRadius: 14, paddingHorizontal: 14, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' }, row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 10 }, lastRow: { borderBottomWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, rowDetail: { color: colors.textSecondary, fontSize: 10, marginTop: 3 }, signOut: { minHeight: 58, marginTop: spacing.lg, marginBottom: spacing.md, paddingHorizontal: 14, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.dangerSoft, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 12 }, signOutText: { color: colors.danger, fontFamily: 'Manrope_700Bold', fontSize: 13 },
+  section: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: spacing.lg, marginBottom: 4 },
+  group: { borderRadius: 18, paddingHorizontal: 14, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' }, row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 10 }, lastRow: { borderBottomWidth: 0 }, rowTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, rowDetail: { color: colors.textSecondary, fontSize: 10, marginTop: 3 }, signOut: { minHeight: 58, marginTop: spacing.lg, marginBottom: spacing.md, paddingHorizontal: 14, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.dangerSoft, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 12 }, signOutText: { color: colors.danger, fontFamily: 'Manrope_700Bold', fontSize: 13 },
 });
