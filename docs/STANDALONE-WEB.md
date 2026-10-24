@@ -1,7 +1,7 @@
 # CUBO standalone web deployment
 
-`main` is the web deployment branch. `expo-version` preserves the Expo Go version.
-`standaloneapp` is retained as the pre-migration web branch, not the production target.
+`main` is the web deployment branch. `standalone-new-ui` is its premium web-development counterpart.
+`standalone-old-ui` preserves the pre-redesign web interface, while `shashank-expo` preserves the Expo Go version.
 Expo still builds the source; visitors do not need Expo Go or a running laptop.
 
 ## Cloudflare Pages (free plan)
@@ -12,7 +12,7 @@ Expo still builds the source; visitors do not need Expo Go or a running laptop.
 3. Select production branch `main`, framework None, build command
    `npm run build:web`, output directory `dist`, root directory blank.
 4. Set build environment variable `NODE_VERSION` to `22.16.0`.
-5. Under preview branch controls, exclude `expo-version` and other native-only
+5. Under preview branch controls, exclude `shashank-expo` and other native-only
    branches so Expo commits do not trigger unsupported web builds.
 6. Deploy. Use the assigned HTTPS `*.pages.dev` URL; no paid domain is required.
 7. In Firebase Authentication settings, add that exact hostname to Authorized
@@ -51,8 +51,8 @@ the laptop is off. Set up and interact only while parked.
   availability, usage policies and limits. Free frontend hosting does not remove
   those limits.
 
-Rollback: use an earlier successful Pages deployment. Keep web-only code on
-`main` and native-only setup on `expo-version`.
+Rollback: use an earlier successful Pages deployment or inspect `standalone-old-ui`.
+Keep current web code on `standalone-new-ui`/`main` and native-only setup on `shashank-expo`.
 
 ## Safari font/icon deployment regression
 

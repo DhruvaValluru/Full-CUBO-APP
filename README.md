@@ -14,12 +14,15 @@ Visitors do not need Expo Go, a development server, or a connection to the devel
 
 | Branch | Purpose |
 | --- | --- |
-| `main` | Current web release. GitHub pushes trigger the Cloudflare Pages production deployment. |
-| `standaloneapp` | Web development/staging branch. Merge reviewed changes into `main` to publish; sync it back from `main` when needed. |
-| `expo-version` | Separate native Expo / Expo Go app, including native map and device integrations. |
-| `old-app` | Historical app implementation, not the current production app. |
+| `main` | Current premium-interface web release. GitHub pushes trigger the Cloudflare Pages production deployment. |
+| `standalone-new-ui` | Exact recoverable counterpart of `main` at the redesign release point. Continue premium web-interface work here, then promote reviewed commits to `main`. |
+| `standalone-old-ui` | Preserved pre-redesign Cloudflare web app. Use only for comparison or rollback; do not deploy it as the current product. |
+| `shashank-expo` | Separate native Expo / Expo Go app. It is intentionally not part of this web redesign and must not be replaced with a web branch. |
+| `old-rsa-app` | Historical original/RSA-era implementation. Archive/reference only. |
 
-The two web branches can diverge during development. Expo and web share concepts and substantial code, but platform-specific files, dependencies, and permissions must be tested separately. Do not replace one platform's setup with the other's.
+See [`docs/branch-map.md`](docs/branch-map.md) before merging or asking an AI agent to change branches. Expo and web share concepts and substantial code, but platform-specific files, dependencies, and permissions must be tested separately. Do not replace one platform's setup with the other's.
+
+For interface work, read [`DESIGN.md`](DESIGN.md) and the [approved mockup contract and verification](docs/mockup-fidelity-2026-10-22.md). The current interface uses the full-width forest score cockpit, cinematic dusk welcome, unified map sheet, and five primary tabs. The earlier small-card Home and aerial-road welcome are not the current design targets.
 
 ## Use CUBO on your phone
 
@@ -37,7 +40,7 @@ To invite another person, open **Account → Support → Invite someone**. Previ
 
 ### Home, garage, and account
 
-- Home shortcuts for Cubo Assistant, saved Home/Work addresses, vehicles, family demos, camera calibration, and starting a drive.
+- Five primary tabs: Home, Map, Activity, Garage, and Account. Home includes Cubo Assistant, saved Home/Work addresses, vehicles, Family/Friends connections, camera calibration, and starting a drive.
 - Vehicle selection, vehicle-detail views, and a separate vehicle-color control.
 - Light, dark, and system appearance, plus profile and account settings.
 - Camera/microphone access controls, map-source preference, and a voice preference with a **Hear Voice** sample.
@@ -75,7 +78,7 @@ This is heuristic monitoring, not a medical diagnosis or validated eye-gaze meas
 
 ### Cubo Assistant and Cubo Voice Assist
 
-- Typed app questions use preset, account-aware answers first: vehicles, saved scores, profile, saved places, family demos, insurance settings, calibration, and app help.
+- Typed app questions use preset, account-aware answers first: vehicles, saved scores, profile, saved places, Family/Friends connections, insurance settings, calibration, and app help.
 - The microphone beside the composer dictates text for review before sending.
 - **Voice Assist** is a separate spoken-conversation mode with consent and the selected reply voice.
 - Destination requests can ask for confirmation before switching to Map with a selected destination.
@@ -90,7 +93,7 @@ Voice recognition is browser-dependent and may process speech through the browse
 
 ## What is still a demo or limited
 
-- **Family:** Parent, Child 1, and Child 2 are labeled demo profiles. Sample scores, trips, and locations are not real family tracking.
+- **Family/Friends:** connections use separate join codes and permission controls. Shared location is an updated snapshot, not guaranteed continuous background tracking; scores depend on recorded drives and sharing rules.
 - **Insurance:** insurer selection, savings, and reporting previews do not establish actual discounts or submit insurer reports.
 - **CUBO Cruise:** device screens and recognition groundwork are present; production hardware pairing is not enabled.
 - **App blocking:** the web app cannot block other apps on a phone.
@@ -160,7 +163,7 @@ Do not put private credentials in `EXPO_PUBLIC_*`; those values ship to browsers
 | Root directory | Repository root |
 | Public app | [cubo-app-cac.pages.dev](https://cubo-app-cac.pages.dev/) |
 
-Review web changes on `standaloneapp`, then merge into `main` and push. Confirm the production deployment succeeds for that exact commit. Native-only branches such as `expo-version` should be excluded from Pages preview builds.
+Review web changes on `standalone-new-ui`, then promote the exact reviewed commit to `main` and push. Confirm the production deployment succeeds for that commit. Native-only branches such as `shashank-expo` should be excluded from Pages preview builds.
 
 The build exports the Expo web app, bundles the optional AI worker, and prepares assets, headers, and install metadata. **Do not skip `scripts/prepare-web.cjs`**: it relocates dependency assets so fonts and icons survive Cloudflare's upload exclusions.
 

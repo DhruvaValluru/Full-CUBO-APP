@@ -5,6 +5,7 @@ export type MainTabParamList = {
   Home: undefined;
   Map: undefined;
   Activity: undefined;
+  Garage: undefined;
   Account: undefined;
 };
 
